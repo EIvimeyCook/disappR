@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use disappR, please cite the paper below."
+title: "disappR: Diagnose and Model Selective Disappearance and Appearance in Longitudinal Ageing Data"
+type: software
+version: 0.9.3
+license: MIT
+repository-code: "https://github.com/EIvimeyCook/disappR"
+authors:
+  - family-names: Sanghvi
+    given-names: Krish
+  - family-names: Ivimey-Cook
+    given-names: Edward R.
+    email: e.ivimeycook@gmail.com
+    orcid: "https://orcid.org/0000-0003-4910-0443"
+keywords:
+  - ageing
+  - senescence
+  - selective disappearance
+  - selective appearance
+  - mixed models
+  - shiny
+  - R
+preferred-citation:
+  type: article
+  title: "Biases in common methods used to quantify ageing and selective disappearance: a guide"
+  year: 2026
+  doi: "10.17605/OSF.IO/KEVNM"
+  url: "https://osf.io/kevnm/"
+  authors:
+    - family-names: Sanghvi
+      given-names: Krish
+    - family-names: Ivimey-Cook
+      given-names: Edward R.
+      orcid: "https://orcid.org/0000-0003-4910-0443"

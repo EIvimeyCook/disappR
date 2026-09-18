@@ -1,0 +1,10 @@
+bibentry(
+  bibtype = "Misc",
+  title = "Biases in common methods used to quantify ageing and selective disappearance: a guide",
+  author = c(person("Krish", "Sanghvi"), person("Edward R.", "Ivimey-Cook")),
+  year = "2026",
+  doi = "10.17605/OSF.IO/KEVNM",
+  url = "https://osf.io/kevnm/",
+  textVersion = paste("Sanghvi, K., & Ivimey-Cook, E. R. (2026). Biases in common methods used to quantify",
+                      "ageing and selective disappearance: a guide. https://doi.org/10.17605/OSF.IO/KEVNM")
+)

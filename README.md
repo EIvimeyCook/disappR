@@ -183,6 +183,10 @@ If disappR helps with your work, please cite:
 > quantify ageing and selective disappearance: a guide.
 > <https://doi.org/10.17605/OSF.IO/KEVNM>
 
+In R, `citation("disappR")` gives the same reference. A machine-readable
+[`CITATION.cff`](CITATION.cff) is included, so GitHub's "Cite this repository"
+button gives formatted APA and BibTeX.
+
 ## Contact
 
 Edward R. Ivimey-Cook — <e.ivimeycook@gmail.com> —

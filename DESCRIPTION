@@ -1,0 +1,38 @@
+Package: disappR
+Title: Diagnose and Model Selective Disappearance and Appearance in Longitudinal Ageing Data
+Version: 0.9.3
+Authors@R:
+    c(person("Krish", "Sanghvi", role = "aut"),
+      person("Edward R.", "Ivimey-Cook", role = c("aut", "cre"),
+             email = "e.ivimeycook@gmail.com",
+             comment = c(ORCID = "0000-0003-4910-0443")))
+Description: A Shiny workflow for longitudinal ageing data that follows a
+    visual-first diagnosis of selective disappearance and selective appearance:
+    trait trajectories within ALR, lifespan and AFR bins, proxy-trait
+    associations at each age, individual parametric fits, sampling and
+    missingness diagnostics, ageing-function comparison and comparative mixed
+    models (Models 1-8) with Gaussian, Poisson, negative binomial and
+    zero-inflated families, fixed covariates and nested or crossed random
+    effects. Includes teaching simulations with known answers, an empirical
+    seven published empirical examples, residual checks and exportable R code.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    ggplot2 (>= 3.4.0),
+    htmltools,
+    jsonlite,
+    lme4 (>= 1.1-27),
+    shiny (>= 1.7.0),
+    shinydashboard
+Suggests:
+    DHARMa,
+    glmmTMB,
+    lmerTest,
+    nlme,
+    performance,
+    see,
+    testthat

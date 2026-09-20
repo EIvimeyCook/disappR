@@ -1,5 +1,5 @@
 # ============================================================================
-# disappR 0.7.0 - global definitions
+# disappR 0.9.4 - global definitions
 # Workflow follows Figure 8 of the associated paper:
 #   A1 binned age-trait trajectories, A2 proxy-trait association at each age,
 #   A3 individual parametric fits; B1 random effects, B2 ageing function,
@@ -105,10 +105,29 @@ format_p <- function(x) {
 
 format_num <- function(x, digits = 3) format(signif(x, digits), trim = TRUE, scientific = FALSE)
 
+# Least-squares line of y on x with its 95% confidence band on a grid (trend lines drawn in figures).
+# A line through only two distinct x values has no residual degrees of freedom and therefore no band (NA).
+lm_band <- function(x, y, n = 50) {
+  ok <- is.finite(x) & is.finite(y)
+  x <- x[ok]
+  y <- y[ok]
+  if (length(unique(x)) < 2) return(data.frame())
+  fit <- stats::lm(y ~ x)
+  grid <- seq(min(x), max(x), length.out = n)
+  pr <- suppressWarnings(stats::predict(fit, newdata = data.frame(x = grid), interval = "confidence", level = 0.95))
+  out <- data.frame(x = grid, fit = as.numeric(pr[, "fit"]), lo = as.numeric(pr[, "lwr"]), hi = as.numeric(pr[, "upr"]))
+  out$lo[!is.finite(out$lo)] <- NA_real_
+  out$hi[!is.finite(out$hi)] <- NA_real_
+  out
+}
+
 # Sampling step: the smallest interval that is common (>= 5% of intervals) among within-individual
 # intervals between consecutive records. Staggered cohorts, floating-point noise in ages and occasional
 # extra records therefore do not shrink it. Without repeated records it falls back to gaps between
-# distinct ages; when no interval is common (irregular sampling) it is the median interval.
+# distinct ages; when no interval is common (irregular sampling) it is the median interval. A smallest
+# common interval that is close to (>= 0.75 times) but not a divisor of a clearly dominant interval (>= 60%)
+# is an unequal first or last interval, e.g. a day-1 record followed by weekly sampling on days 7, 14, 21,
+# not a finer schedule: the dominant interval is then the step.
 infer_age_step <- function(age, id = NULL) {
   ok <- is.finite(age)
   if (!is.null(id)) ok <- ok & !is.na(id)
@@ -134,8 +153,13 @@ infer_age_step <- function(age, id = NULL) {
   d <- signif(d, 6)
   tab <- table(d)
   vals <- as.numeric(names(tab))
-  common <- vals[as.numeric(tab) / length(d) >= 0.05]
-  if (length(common)) min(common) else stats::median(d)
+  share <- as.numeric(tab) / length(d)
+  common <- vals[share >= 0.05]
+  if (!length(common)) return(stats::median(d))
+  step <- min(common)
+  dom <- vals[which.max(share)]
+  if (max(share) >= 0.6 && step / dom >= 0.75 && abs(dom / step - round(dom / step)) > 0.01) step <- dom
+  step
 }
 
 # ---------------------------------------------------------------------------
@@ -164,7 +188,7 @@ TOY_TRAITS <- c(
 SELECTION_TYPES <- c("None" = "none", "Age-independent" = "independent", "Age-dependent" = "dependent",
                      "Age-independent and age-dependent" = "both")
 
-TOY_DEFAULTS <- list(trait = "mass", form = "Quadratic", strength = "dramatic", sd_type = "both", sd_dir = 1,
+TOY_DEFAULTS <- list(trait = "mass", form = "Quadratic", shape = "default", strength = "dramatic", sd_type = "both", sd_dir = 1,
                      rate_var = "low", mean_ls = 20, missingness = "complete",
                      afr_mode = "same", sa_type = "none", sa_dir = 1, diet = FALSE, groups = FALSE,
                      n_id = 300, seed = 1)
@@ -206,6 +230,57 @@ toy_form_basis <- function(form, u, ref = c(0, 1)) {
     cbind(u, u^2))
 }
 
+# Biologically motivated shapes within each simulated ageing form: the population mean coefficients (intercept
+# first) on the scaled time u (u = 20 at the mean lifespan), for continuous traits (mu) and on the log scale for
+# counts (mu_count). "default" is the form's original shape (toy_form_spec()), so default simulations are
+# unchanged. Shapes change the mean coefficients only: the lifespan- and AFR-linked components (selection) and the
+# individual variation stay the same, so selective disappearance and appearance keep their strength. Continuous
+# shapes stay positive to about 1.75 times the mean lifespan.
+TOY_SHAPES <- list(
+  Linear = list(
+    default = list(label = "Moderate senescence (steady decline)"),
+    slow = list(label = "Slow senescence", mu = c(50, -0.4), mu_count = c(log(40), -0.03)),
+    fast = list(label = "Fast senescence", mu = c(50, -1.25), mu_count = c(log(40), -0.1)),
+    none = list(label = "No senescence (flat)", mu = c(50, 0), mu_count = c(log(40), 0)),
+    improve = list(label = "Improvement with age (e.g. growth or experience)", mu = c(50, 0.5), mu_count = c(log(40), 0.03))),
+  Quadratic = list(
+    default = list(label = "Improvement, then senescence"),
+    early = list(label = "Early peak, then fast senescence", mu = c(40, 1.3, -0.065), mu_count = c(log(30), 0.1, -0.008)),
+    late = list(label = "Late peak, then slow senescence", mu = c(40, 1.6, -0.04), mu_count = c(log(30), 0.112, -0.004)),
+    ushape = list(label = "Decline, then improvement (U-shape)", mu = c(50, -1.4, 0.04), mu_count = c(log(40), -0.1, 0.0028))),
+  Cubic = list(
+    default = list(label = "Improvement, plateau, then accelerating late-life decline"),
+    twophase = list(label = "Early decline, mid-life plateau, then late-life decline",
+                    mu = c(45, -0.864, 0.072, -0.002), mu_count = c(log(40), -0.0864, 0.0072, -0.0002)),
+    terminal = list(label = "Stable, then late-life increase (e.g. terminal investment)",
+                    mu = c(40, 0.45, -0.045, 0.0015), mu_count = c(log(20), 0.03, -0.003, 0.0001))),
+  Logarithmic = list(
+    default = list(label = "Rapid early improvement, then levelling off"),
+    gradual_up = list(label = "Gradual improvement, then levelling off", mu = c(40, 4), mu_count = c(log(20), 0.25)),
+    rapid_down = list(label = "Rapid early decline, then slower decline", mu = c(55, -8), mu_count = c(log(40), -0.5)),
+    gradual_down = list(label = "Gradual decline, then levelling off", mu = c(50, -4), mu_count = c(log(30), -0.25))),
+  "Asymptotic exponential" = list(
+    default = list(label = "Rapid early decline, then plateau"),
+    gradual_down = list(label = "Gradual decline, then plateau", mu = c(34, 3), mu_count = c(log(14), 0.18)),
+    rapid_up = list(label = "Rapid early improvement, then plateau (growth to an asymptote)", mu = c(55, -6), mu_count = c(log(30), -0.35)),
+    gradual_up = list(label = "Gradual improvement, then plateau", mu = c(47, -3), mu_count = c(log(24), -0.18)))
+)
+toy_shape_choices <- function(form) {
+  sh <- TOY_SHAPES[[form %||% "Quadratic"]] %||% TOY_SHAPES[["Quadratic"]]
+  stats::setNames(names(sh), vapply(names(sh), function(k) paste0(sh[[k]]$label, if (identical(k, "default")) " (default)" else ""), character(1)))
+}
+# Mean coefficients of a non-default shape; NULL for the default (or an unknown) shape.
+toy_shape_mu <- function(form, shape, count = FALSE) {
+  shape <- shape %||% "default"
+  sh <- TOY_SHAPES[[form %||% ""]][[shape]]
+  if (is.null(sh) || identical(shape, "default")) return(NULL)
+  if (isTRUE(count)) sh$mu_count else sh$mu
+}
+toy_shape_label <- function(form, shape) {
+  sh <- TOY_SHAPES[[form %||% ""]]
+  sh[[shape %||% "default"]]$label %||% sh[["default"]]$label %||% ""
+}
+
 simulate_toy_data <- function(cfg = list()) {
   cfg <- utils::modifyList(TOY_DEFAULTS, cfg)
   for (nm in c("sd_dir", "sa_dir", "mean_ls", "n_id", "seed")) cfg[[nm]] <- as.numeric(cfg[[nm]])
@@ -242,6 +317,9 @@ simulate_toy_data <- function(cfg = list()) {
     u_sd <- 40
   } else {
     sp <- toy_form_spec(form, is_count)
+    # biologically motivated shape within the form (population mean coefficients only; default = toy_form_spec)
+    shape_mu <- toy_shape_mu(form, cfg$shape, is_count)
+    if (length(shape_mu) == length(sp$mu)) sp$mu <- shape_mu
     k_str <- if (dramatic) 1 else 0.35
     s_level <- if (is_count) 0.2125 else 5.1
     np <- length(sp$mu)
@@ -316,7 +394,8 @@ simulate_toy_data <- function(cfg = list()) {
   attr(out, "truth") <- list(type = type, form = form, paper = paper, mu_b = mu_b, cc = cc, ref = ref,
                              shift_T = shift_diet, mean_T = mean(diet[alive]),
                              mean_expT = mean(exp(shift_diet * diet[alive])),
-                             zi = if (identical(type, "count_zinb")) 0.25 else 0, cfg = cfg)
+                             zi = if (identical(type, "count_zinb")) 0.25 else 0,
+                             shape = if (paper) "default" else (cfg$shape %||% "default"), cfg = cfg)
   out
 }
 
@@ -360,7 +439,9 @@ toy_truth_text <- function(cfg) {
   dir_txt <- function(d) if (isTRUE(as.numeric(d) < 0)) "negative" else "positive"
   sel_lab <- function(x) tolower(names(SELECTION_TYPES)[SELECTION_TYPES == x])
   individual_afr <- identical(cfg$afr_mode, "individual")
-  sim <- paste0("Simulated: ", trait, "; ", tolower(form), " ageing; selective disappearance: ", sel_lab(cfg$sd_type),
+  sim <- paste0("Simulated: ", trait, "; ", tolower(form), " ageing",
+                if (!paper) paste0(" (", tolower(toy_shape_label(form, cfg$shape)), ")") else "",
+                "; selective disappearance: ", sel_lab(cfg$sd_type),
                 if (cfg$sd_type != "none") paste0(" (", dir_txt(cfg$sd_dir), ")") else "",
                 "; AFR ", if (individual_afr) paste0("individual-specific, selective appearance: ", sel_lab(cfg$sa_type),
                                                      if (cfg$sa_type != "none") paste0(" (", dir_txt(cfg$sa_dir), ")") else "")
@@ -384,9 +465,15 @@ toy_truth_text <- function(cfg) {
       "Trajectory plot: bins overlap and their differences scatter around zero; lifespan plot: coefficients near zero in every age bin.",
       "Model 1 should usually be best or within about 2 AIC of the best; occasional runs favour interactions by chance.")
   }
-  expect <- c(expect, paste0("The population-level ageing-function comparison should usually favour the ",
+  flat <- !paper && identical(form, "Linear") && identical(cfg$shape, "none")
+  expect <- c(expect, if (flat) {
+    "No senescence: the simulated typical trajectory is flat, so any change of the observed means with age comes from selective disappearance (or appearance). A flat trajectory is a special case of every ageing function, so the ageing-function comparison need not single out one of them."
+  } else paste0("The population-level ageing-function comparison should usually favour the ",
     form, " function", if (identical(form, "Asymptotic exponential")) " (approximately: the exponential basis is scaled by the SD of the sampled ages, which changes under age-dependent missingness)" else "",
     "; under selective disappearance Model 1 can prefer a more flexible function because the sampled records are distorted."))
+  if (!paper && !identical(cfg$shape %||% "default", "default")) {
+    expect <- c(expect, "These expectations were verified by simulation for the default shape of each ageing form. Other shapes change only the population mean coefficients, not the strength of selection or the individual variation, so the patterns should be similar, but AIC margins can differ.")
+  }
   if (identical(cfg$rate_var, "high") || paper) {
     expect <- c(expect, "Individuals differ strongly in ageing rates: with random intercepts only, Models 4\u20135 can be favoured even without selective disappearance, because the interaction terms absorb among-individual differences in ageing (as in the manuscript). Choose a random slope under 'Random effects for individuals' on the Modelling tab and compare.")
   }
@@ -568,6 +655,76 @@ EXAMPLES <- list(
                  "that trait, and users can change any of them. The defaults generally reproduce the published pattern, but",
                  "results may differ for several reasons: how the data were subset, model terms or covariates that were not",
                  "fully specified in the paper, different random-effect structures, and differences in software or estimation.",
+                 "These examples are exploratory rather than exact re-runs of the published analyses.")),
+  mckennaell_breeding = list(
+    label = "McKenna-Ell et al. 2023, Biology Letters \u2014 Soay sheep (breeding probability, offspring survival)",
+    file = "mckennaell_2023_soay_breeding_survival.csv",
+    mapping = example_map(id = "FemaleID", age = "Age", trait = "Fecundity", alr = "AgeLastObs",
+                          covars = c("BredYearling", "EarlyLifeRec"), cov_factor = "BredYearling",
+                          cov_age = c("BredYearling", "EarlyLifeRec"), random = c("ObsYear", "FemaleCohort")),
+    family = "binomial", age_function = "Linear", models = c("M1", "M2", "M3", "M4", "M5"),
+    note = paste("Annual reproduction of known-age female Soay sheep on St Kilda from age 5 onwards (later life), with two binary",
+                 "traits: whether a female gave birth to a live lamb (Fecundity) and, for females that did, whether at least one",
+                 "lamb survived its first winter (OffspringRecruitment). The paper fitted binomial generalised linear mixed models",
+                 "with a linear effect of age, age at last observation for selective disappearance, whether the female bred as a",
+                 "yearling (a factor) and her early-life recruitment (lambs raised in her first years), each early-life measure",
+                 "also interacting with age, and random intercepts for female, year and birth cohort. It found senescent declines",
+                 "and selective disappearance in both traits, a faster decline in breeding probability in females that bred as",
+                 "yearlings, and no effect of early-life reproduction on the rate of ageing in offspring survival. Model 2 with",
+                 "these covariates and interactions is the published model. Switch the trait to OffspringRecruitment for offspring",
+                 "survival: records without a lamb are then blank and are not modelled. With 'Standardise' ticked, the early-life",
+                 "main effects refer to the mean age rather than to age 0; untick it to compare every coefficient with the",
+                 "published table. ",
+                 "The settings in the app are defaulted to be closely aligned to the original fit reported in the study for",
+                 "that trait, and users can change any of them. The defaults generally reproduce the published pattern, but",
+                 "results may differ for several reasons: how the data were subset, model terms or covariates that were not",
+                 "fully specified in the paper, different random-effect structures, and differences in software or estimation.",
+                 "These examples are exploratory rather than exact re-runs of the published analyses.")),
+  mckennaell_weight = list(
+    label = "McKenna-Ell et al. 2023, Biology Letters \u2014 Soay sheep (offspring birth weight)",
+    file = "mckennaell_2023_soay_offspring_weight.csv",
+    mapping = example_map(id = "FemaleID", age = "Age", trait = "OffspringBirthWt", alr = "AgeLastObs",
+                          covars = c("OffspringCaptureAge", "OffspringSex", "OffspringTwinStatus", "BredYearling", "EarlyLifeRec"),
+                          cov_factor = c("OffspringSex", "OffspringTwinStatus", "BredYearling"),
+                          cov_age = c("BredYearling", "EarlyLifeRec"), random = c("ObsYear", "FemaleCohort")),
+    family = "gaussian", age_function = "Linear", models = c("M1", "M2", "M3", "M4", "M5"),
+    note = paste("Birth weight of lambs born to known-age female Soay sheep aged 5 and older, one row per lamb. The paper fitted a",
+                 "Gaussian linear mixed model with the lamb's age at capture, its sex and twin status, the mother's age (linear),",
+                 "her age at last observation for selective disappearance, whether she bred as a yearling and her early-life",
+                 "recruitment, both also interacting with age, and random intercepts for mother, year and the mother's birth",
+                 "cohort. It found that birth weight declined with maternal age, that mothers observed to older ages had heavier",
+                 "lambs (selective disappearance), and that early-life reproduction did not change the rate of this decline.",
+                 "Model 2 with these covariates and interactions is the published model. Twins give their mother two records in",
+                 "the same year: keep 'Keep all' so that each lamb is an observation, as in the paper. Age at last observation is",
+                 "later than the last weighed lamb for mothers that stopped breeding, which the integrity table flags. With",
+                 "'Standardise' ticked, the early-life main effects refer to the mean age; untick it to compare every coefficient",
+                 "with the published table. ",
+                 "The settings in the app are defaulted to be closely aligned to the original fit reported in the study for",
+                 "that trait, and users can change any of them. The defaults generally reproduce the published pattern, but",
+                 "results may differ for several reasons: how the data were subset, model terms or covariates that were not",
+                 "fully specified in the paper, different random-effect structures, and differences in software or estimation.",
+                 "These examples are exploratory rather than exact re-runs of the published analyses.")),
+  szejnersigal_activity = list(
+    label = "Szejner-Sigal et al. 2025, Proc. R. Soc. B \u2014 alfalfa leafcutting bee (locomotor activity)",
+    file = "szejnersigal_2025_bee_activity.csv",
+    mapping = example_map(id = "id", age = "age", trait = "total.act", life = "age.death"),
+    family = "gaussian", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
+    extra = list(M1 = "LS"), subset = list(var = "sex", levels = "f"),
+    note = paste("Locomotor activity (beam breaks in four hours) of individually marked alfalfa leafcutting bees (Megachile",
+                 "rotundata) measured weekly in the laboratory from emergence until death (days 1, 7, 14, 21 and so on), with",
+                 "each bee's age at death. The paper fitted linear mixed models separately for females and males, with age as a",
+                 "quadratic (a negative parabola), lifespan as a covariate and a random intercept for each bee, and found that",
+                 "activity rose to a peak in mid-life and then declined, earlier and at lower levels in males, with little link",
+                 "between early-life activity and lifespan. The example opens on females (Subset the data: sex = f); choose m for",
+                 "males. Age at death is mapped as the known lifespan (LS) and LS is added to Model 1, so Model 1 is the published",
+                 "model (age, age\u00b2 and lifespan); Model 2 uses the age at the last weekly record instead, and Model 6 lets",
+                 "lifespan interact with age. The column age.group20 holds the paper's short-, average- and long-lived groups and",
+                 "can be used for panels. The first interval is six days (day 1 to day 7), so the integrity table reports ages off",
+                 "the weekly schedule; the sampling grid assigns each record to the nearest weekly occasion. ",
+                 "The settings in the app are defaulted to be closely aligned to the original fit reported in the study for",
+                 "that trait, and users can change any of them. The defaults generally reproduce the published pattern, but",
+                 "results may differ for several reasons: how the data were subset, model terms or covariates that were not",
+                 "fully specified in the paper, different random-effect structures, and differences in software or estimation.",
                  "These examples are exploratory rather than exact re-runs of the published analyses."))
 )
 EXAMPLE_CHOICES <- stats::setNames(names(EXAMPLES), vapply(EXAMPLES, function(e) e$label, character(1)))
@@ -655,10 +812,13 @@ slope_text <- function(x) {
 
 random_display <- function(meta, random_slope = FALSE, slope_label = "age") {
   map <- meta$map
-  id_lab <- if (isTRUE(meta$has_group) && isTRUE(meta$nested)) paste0(map$group, ":", map$id) else map$id
+  g2 <- isTRUE(meta$has_group2)
+  grp_lab <- if (g2 && isTRUE(meta$nested)) paste0(map$group2, ":", map$group) else map$group
+  id_lab <- if (isTRUE(meta$has_group) && isTRUE(meta$nested)) paste0(grp_lab, ":", map$id) else map$id
   rs <- normalise_slope(random_slope)
   terms <- c(
-    if (isTRUE(meta$has_group)) paste0("(1 | ", map$group, ")"),
+    if (g2) paste0("(1 | ", map$group2, ")"),
+    if (isTRUE(meta$has_group)) paste0("(1 | ", grp_lab, ")"),
     switch(rs,
       correlated = paste0("(1 + ", slope_label, " | ", id_lab, ")"),
       uncorrelated = paste0("(1 | ", id_lab, ") + (0 + ", slope_label, " | ", id_lab, ")"),
@@ -761,6 +921,97 @@ maybe_numeric <- function(x) {
 # ---------------------------------------------------------------------------
 # Standardise the user's data into the internal format
 # ---------------------------------------------------------------------------
+# The column of the second grouping level (the group containing the group, e.g. family above father), or "" when it
+# is not mapped, missing from the data, or duplicates the group, ID, age or trait column.
+group2_column <- function(map, cols) {
+  g2 <- map$group2 %||% ""
+  g1 <- map$group %||% ""
+  ok <- length(g2) == 1 && !is.na(g2) && nzchar(g2) && g2 %in% cols &&
+    length(g1) == 1 && !is.na(g1) && nzchar(g1) && g1 %in% cols && !g2 %in% c(g1, map$id, map$age, map$trait)
+  if (isTRUE(ok)) g2 else ""
+}
+
+# Individual identifiers as the models see them, built from the raw columns exactly as in standardise_data():
+# with nesting, group + ID, and top-level group + group + ID when a second grouping level is mapped.
+individual_ids <- function(df, map) {
+  ids <- trimws(as.character(df[[map$id]]))
+  clean <- function(nm) {
+    v <- trimws(as.character(df[[nm]]))
+    v[!is.na(v) & !nzchar(v)] <- NA_character_
+    v
+  }
+  g1 <- map$group %||% ""
+  if (!isTRUE(map$nested) || !(length(g1) == 1 && !is.na(g1) && nzchar(g1) && g1 %in% names(df))) return(ids)
+  g <- clean(g1)
+  g2 <- group2_column(map, names(df))
+  if (nzchar(g2)) {
+    h <- clean(g2)
+    g <- ifelse(is.na(g) | is.na(h), g, paste(h, g, sep = "/"))
+  }
+  ifelse(is.na(g), ids, paste(g, ids, sep = "/"))
+}
+
+# Checks shown under the covariate boxes of the Data tab when a column seems to be in the wrong box: text in a
+# CONTINUOUS covariate (values that are not numbers become missing), or a CATEGORICAL covariate that looks
+# continuous (numeric with decimals or many distinct values, so each value would become its own level).
+covariate_type_warnings <- function(df, num = character(0), fac = character(0)) {
+  num <- intersect(num %||% character(0), names(df))
+  fac <- intersect(fac %||% character(0), names(df))
+  msgs <- character(0)
+  for (nm in intersect(num, fac)) {
+    msgs <- c(msgs, sprintf("Warning: '%s' is in both boxes and is used as CATEGORICAL: remove it from one of them.", nm))
+  }
+  for (nm in setdiff(num, fac)) {
+    ch <- trimws(as.character(df[[nm]]))
+    present <- !is.na(ch) & nzchar(ch)
+    if (!any(present)) next
+    v <- suppressWarnings(as.numeric(ch[present]))
+    bad <- !is.finite(v)
+    ex <- paste0("'", utils::head(unique(ch[present][bad]), 3), "'", collapse = ", ")
+    if (mean(bad) > 0.2) {
+      msgs <- c(msgs, sprintf("Warning: '%s' is mapped as CONTINUOUS but %.0f%% of its values are not numbers (e.g. %s), so it looks CATEGORICAL. As a continuous covariate those values are treated as missing: move it to the CATEGORICAL box.",
+                              nm, 100 * mean(bad), ex))
+    } else if (any(bad)) {
+      msgs <- c(msgs, sprintf("Note: %d values of the CONTINUOUS covariate '%s' are not numbers (e.g. %s) and are treated as missing.", sum(bad), nm, ex))
+    } else {
+      u <- sort(unique(v))
+      # (whole numbers counting from zero, such as numbers of offspring, are left alone: they are counts, not codes)
+      if (length(u) >= 3 && length(u) <= 5 && all(abs(u - round(u)) < 1e-8) && !(u[[1]] == 0 && all(diff(u) == 1))) {
+        msgs <- c(msgs, sprintf("Note: the CONTINUOUS covariate '%s' has only %d distinct whole-number values (%s). If these are codes for groups (e.g. treatments or blocks), move it to the CATEGORICAL box.",
+                                nm, length(u), paste(format(u, trim = TRUE), collapse = ", ")))
+      }
+    }
+  }
+  for (nm in setdiff(fac, num)) {
+    ch <- trimws(as.character(df[[nm]]))
+    present <- !is.na(ch) & nzchar(ch)
+    if (!any(present)) next
+    v <- suppressWarnings(as.numeric(ch[present]))
+    if (mean(is.finite(v)) < 0.95) next
+    u <- unique(v[is.finite(v)])
+    decimals <- any(abs(u - round(u)) > 1e-8)
+    if ((decimals && length(u) > 5) || length(u) > 20) {
+      msgs <- c(msgs, sprintf("Warning: '%s' is mapped as CATEGORICAL but looks CONTINUOUS (%d distinct numeric values%s): each value would become its own level. Move it to the CONTINUOUS box unless the numbers are group codes.",
+                              nm, length(u), if (decimals) ", with decimals" else ""))
+    }
+  }
+  msgs
+}
+
+# Message for the column mapped as age: age must be numeric; values that are not numbers are dropped.
+age_type_message <- function(x, col = "age") {
+  ch <- trimws(as.character(x))
+  present <- !is.na(ch) & nzchar(ch)
+  if (!any(present)) return(sprintf("Warning: '%s' has no values.", col))
+  v <- suppressWarnings(as.numeric(ch[present]))
+  bad <- !is.finite(v)
+  if (!any(bad)) return("")
+  ex <- paste0("'", utils::head(unique(ch[present][bad]), 3), "'", collapse = ", ")
+  sprintf("Warning: %d of %d values in '%s' are not numbers (e.g. %s). Age must be numeric, so these rows are dropped.%s",
+          sum(bad), sum(present), col, ex,
+          if (mean(bad) > 0.5) " The column looks categorical: map a numeric age column instead (convert dates or age classes to numbers first)." else "")
+}
+
 standardise_data <- function(df, map, dup_action = "keep") {
   n_raw <- nrow(df)
   has_col <- function(nm) length(nm) == 1 && !is.na(nm) && nzchar(nm) && nm %in% names(df)
@@ -782,10 +1033,22 @@ standardise_data <- function(df, map, dup_action = "keep") {
   n_dropped <- n_raw - nrow(out)
 
   has_group <- has_col(map$group)
+  # Optional second grouping level above the group (e.g. individuals within fathers within families).
+  group2_col <- group2_column(map, names(df))
+  has_group2 <- has_group && nzchar(group2_col)
   out$group <- if (has_group) trimws(as.character(df[[map$group]][rows])) else rep(NA_character_, nrow(out))
   out$group[!is.na(out$group) & !nzchar(out$group)] <- NA_character_
+  out$group2 <- if (has_group2) trimws(as.character(df[[group2_col]][rows])) else rep(NA_character_, nrow(out))
+  out$group2[!is.na(out$group2) & !nzchar(out$group2)] <- NA_character_
   n_multi_group <- 0L
+  n_multi_group2 <- 0L
   if (has_group && nrow(out)) {
+    if (has_group2) {
+      ng2 <- tapply(out$group2, out$group, function(g) length(unique(g[!is.na(g)])))
+      n_multi_group2 <- sum(ng2 > 1)
+      # Three levels: a group is identified by top-level group + group (equivalent to (1 | group2/group)).
+      if (isTRUE(map$nested)) out$group <- ifelse(is.na(out$group) | is.na(out$group2), out$group, paste(out$group2, out$group, sep = "/"))
+    }
     ng <- tapply(out$group, out$id, function(g) length(unique(g[!is.na(g)])))
     n_multi_group <- sum(ng > 1)
     # Nested design: an individual is identified by group + ID (equivalent to (1 | group/ID)).
@@ -849,7 +1112,7 @@ standardise_data <- function(df, map, dup_action = "keep") {
   # a covariate is continuous when at least 95% of its values are numbers.
   declared <- !is.null(map$cov_factor)
   for (nm in unique(map$covars %||% character(0))) {
-    if (!has_col(nm) || nm %in% c(map$id, map$age, map$trait, map$group)) next
+    if (!has_col(nm) || nm %in% c(map$id, map$age, map$trait, map$group, if (has_group2) group2_col)) next
     raw_vals <- df[[nm]][rows]
     vals <- if (!declared) {
       maybe_numeric(raw_vals)
@@ -888,7 +1151,7 @@ standardise_data <- function(df, map, dup_action = "keep") {
   random_terms <- character(0)
   random_labels <- character(0)
   for (nm in map$random %||% character(0)) {
-    if (!has_col(nm) || nm %in% c(map$id, map$age, map$trait, map$group)) next
+    if (!has_col(nm) || nm %in% c(map$id, map$age, map$trait, map$group, if (has_group2) group2_col)) next
     vals <- trimws(as.character(df[[nm]][rows]))
     vals[!is.na(vals) & !nzchar(vals)] <- NA_character_
     if (all(is.na(vals))) {
@@ -918,7 +1181,7 @@ standardise_data <- function(df, map, dup_action = "keep") {
     n_raw = n_raw, n_dropped = n_dropped, n_dup = n_dup_raw, dup_action = dup_action,
     alr_mapped = alr_mapped, life_auto = life_auto, has_life = life_auto || has_col(map$life),
     entry_mapped = entry_mapped, has_group = has_group, nested = isTRUE(map$nested),
-    n_multi_group = n_multi_group, covars = covars, cov_labels = cov_labels,
+    n_multi_group = n_multi_group, has_group2 = has_group2, n_multi_group2 = n_multi_group2, covars = covars, cov_labels = cov_labels,
     random_terms = random_terms, random_labels = random_labels,
     has_trials = has_trials, n_bad_trials = n_bad_trials, trials_col = if (has_trials) map$trials else "",
     has_censor = has_censor, n_censored = n_censored, age_round = if (rounding) age_res else NA_real_,
@@ -990,7 +1253,7 @@ suggest_family <- function(trait, age = NULL) {
   # Proportions (values within 0-1 that are not all 0 or 1): binomial with a trials column.
   if (!is_count && all(v >= 0) && all(v <= 1)) {
     return(list(family = "binomial", kind = "Proportion (0-1)", zeros = mean(v == 0), dispersion = NA_real_,
-                text = "Proportion trait (values between 0 and 1): binomial mixed models. Map the number of trials (for example clutch size or the number of eggs laid) on the Data tab so that each proportion is weighted by its sample size; without it the proportions cannot be fitted as binomial and the Gaussian option is the fallback. If the proportions are more variable than binomial sampling allows, use the beta-binomial family."))
+                text = "Proportion trait (values between 0 and 1): binomial mixed models. Choose the number of trials (for example clutch size or the number of eggs laid) under 'Weights' below the error family on the Modelling tab, so that each proportion is weighted by its sample size; without it the proportions cannot be fitted as binomial and the Gaussian option is the fallback. If the proportions are more variable than binomial sampling allows, use the beta-binomial family."))
   }
   if (!is_count) return(list(family = "gaussian", kind = "Continuous", text = "Continuous trait: Gaussian mixed models (lme4)."))
   # A binary (0/1) trait is not a count: the count families would be wrong, and there is no binomial
@@ -1031,7 +1294,7 @@ suggest_family <- function(trait, age = NULL) {
 family_label <- function(f) {
   switch(f, gaussian = "Gaussian (lme4)", poisson = "Poisson", nbinom2 = "negative binomial (nbinom2)",
          nbinom1 = "negative binomial (nbinom1)", zip = "zero-inflated Poisson",
-         zinb = "zero-inflated negative binomial", f)
+         zinb = "zero-inflated negative binomial (nbinom2)", zinb1 = "zero-inflated negative binomial (nbinom1)", f)
 }
 
 data_integrity <- function(dat, meta) {
@@ -1088,6 +1351,11 @@ data_integrity <- function(dat, meta) {
     nbad <- meta$n_multi_group %||% 0L
     add("IDs linked to >1 higher-level group", sprintf("%d IDs", nbad), if (nbad > 0) "Warning" else "OK",
         if (nbad > 0) paste("Possible typo in the grouping column.", if (isTRUE(meta$nested)) "With nesting, each group/ID combination is treated as a separate individual." else "Without nesting these rows share one individual.") else "Nested: individuals are identified by group + ID.")
+  }
+  if (isTRUE(meta$has_group2)) {
+    nb2 <- meta$n_multi_group2 %||% 0L
+    add("Groups linked to >1 top-level group", sprintf("%d groups", nb2), if (nb2 > 0) (if (isTRUE(meta$nested)) "Note" else "Warning") else "OK",
+        if (nb2 > 0) paste("The same group label occurs in more than one top-level group.", if (isTRUE(meta$nested)) "With nesting, each top-level group/group combination is a separate group (e.g. father 1 of family A and father 1 of family B are different fathers)." else "Without nesting these rows share one group-level random intercept.") else "Three levels: individuals within groups within top-level groups.")
   }
   if (is.finite(step)) {
     fa <- stats::ave(dat$age, dat$id, FUN = min)
@@ -1966,12 +2234,17 @@ compare_individual_functions <- function(dat, min_resid_df = 1, max_individuals 
 # ---------------------------------------------------------------------------
 # Decomposition (Rebke et al. 2010)
 # ---------------------------------------------------------------------------
-# Pairs are records of the same individual exactly one sampling step apart (so staggered
-# schedules are handled). Start: the first two consecutive sampling ages at which at least one individual was
-# sampled at both. The starting value is the mean trait at the first of these ages of the
-# individuals sampled at both; each later value adds the mean within-individual change
-# between the next pair of consecutive ages (individuals sampled at both ages only). The
-# curve stops at the first later interval with no individual sampled at both ages.
+# Pairs are records of the same individual on two successive sampling occasions, and only individuals sampled at both
+# occasions contribute (survivor-restricted). On a common schedule two records are successive occasions when their
+# interval rounds to one sampling step (0.5 to 1.5 steps), so unequal intervals between occasions (e.g. day 1, then
+# weekly on days 7, 14, 21) are linked while a missed occasion (about two steps) is not, and staggered schedules follow
+# their own occasions. On an irregular schedule the records are first placed on a common grid of occasions
+# (decomposition_on_grid()) and the result carries a caution.
+# Start: the first two consecutive sampling ages at which at least one individual was sampled at both. The starting
+# value is the mean trait at the first of these ages of the individuals sampled at both; each later value adds the
+# mean within-individual change between the next pair of consecutive ages (individuals sampled at both ages only).
+# The curve stops at the first later interval with no individual sampled at both ages. On a regular schedule this
+# is exactly the chain of one-step differences.
 decomposition_trajectory <- function(dat) {
   ia <- id_age_means(dat)
   if (nrow(ia) < 2) return(data.frame())
@@ -1979,28 +2252,84 @@ decomposition_trajectory <- function(dat) {
   if (!is.finite(step) || step <= 0) return(data.frame())
   tol <- 0.01 * step
   ia <- ia[order(ia$id, ia$age), , drop = FALSE]
+  # an irregular schedule (more than a fifth of the records are not a whole number of steps after the individual's first
+  # record, the 'Sampling schedule' rule of the integrity table) is decomposed on a common grid of occasions instead
+  rel <- (ia$age - stats::ave(ia$age, ia$id, FUN = min)) / step
+  if (mean(abs(rel - round(rel)) > 0.01) > 0.2) return(decomposition_on_grid(ia))
   n <- nrow(ia)
-  j <- which(ia$id[-1] == ia$id[-n] & abs(diff(ia$age) - step) <= tol)
+  gap <- diff(ia$age)
+  j <- which(ia$id[-1] == ia$id[-n] & gap >= 0.5 * step & gap < 1.5 * step)
   if (!length(j)) return(data.frame())
-  # group floating-point variants of the same starting age, but report the actual ages
-  pairs <- data.frame(key = round(ia$age[j] / tol), a = ia$age[j], diff = ia$trait[j + 1] - ia$trait[j], start = ia$trait[j])
-  keys <- sort(unique(pairs$key))
-  kk <- as.character(keys)
-  ages <- as.numeric(tapply(pairs$a, pairs$key, mean)[kk])
-  I <- as.numeric(tapply(pairs$diff, pairs$key, mean)[kk])
-  npair <- as.numeric(tapply(pairs$diff, pairs$key, length)[kk])
-  # walk from the first paired age in steps of one sampling interval (with staggered schedules the
-  # next paired age in sorted order can belong to another schedule) and stop at the first gap
+  # group floating-point variants of the same ages, but report the actual ages
+  pairs <- data.frame(key = round(ia$age[j] / tol), end_key = round(ia$age[j + 1] / tol), a = ia$age[j], b = ia$age[j + 1],
+                      diff = ia$trait[j + 1] - ia$trait[j], start = ia$trait[j])
+  pairs$link <- paste(pairs$key, pairs$end_key)
+  # one link per starting occasion: its most common next occasion (the only one on a common schedule)
+  lk <- pairs[!duplicated(pairs$link), c("link", "key", "end_key"), drop = FALSE]
+  lk$n <- as.numeric(table(pairs$link)[lk$link])
+  lk <- lk[order(lk$key, -lk$n, lk$end_key), , drop = FALSE]
+  lk <- lk[!duplicated(lk$key), , drop = FALSE]
+  lk$a <- as.numeric(tapply(pairs$a, pairs$link, mean)[lk$link])
+  lk$b <- as.numeric(tapply(pairs$b, pairs$link, mean)[lk$link])
+  lk$inc <- as.numeric(tapply(pairs$diff, pairs$link, mean)[lk$link])
+  lk$start <- as.numeric(tapply(pairs$start, pairs$link, mean)[lk$link])
+  # walk from the first starting occasion through consecutive links and stop at the first gap
   i <- 1L
-  start_val <- mean(pairs$start[pairs$key == keys[[1]]])
-  out <- data.frame(age = ages[[1]], fitted = start_val, n_pairs = npair[[1]])
-  current <- start_val
+  current <- lk$start[[1]]
+  out <- data.frame(age = lk$a[[1]], fitted = current, n_pairs = lk$n[[1]])
   repeat {
-    current <- current + I[i]
-    out <- rbind(out, data.frame(age = ages[i] + step, fitted = current, n_pairs = npair[i]))
-    nxt <- which(abs(ages - (ages[i] + step)) <= tol)
+    current <- current + lk$inc[i]
+    out <- rbind(out, data.frame(age = lk$b[i], fitted = current, n_pairs = lk$n[i]))
+    nxt <- which(abs(lk$a - lk$b[i]) <= tol)
     if (!length(nxt)) break
     i <- nxt[[1]]
+  }
+  out
+}
+
+# Decomposition on an irregular schedule: every record is placed on the nearest occasion of a common grid, spaced by the
+# median interval between an individual's successive records and starting at the earliest age; repeated records of an
+# individual within one occasion are averaged; the mean within-individual change is then taken between successive
+# occasions over the individuals sampled at both, and chained exactly as on a regular schedule. Plotted ages are the
+# mean ages of the records on each occasion. When records of different ages share an occasion, the result carries
+# attr(, "caution").
+decomposition_on_grid <- function(ia) {
+  n0 <- nrow(ia)
+  if (n0 < 2) return(data.frame())
+  gaps <- diff(ia$age)[ia$id[-1] == ia$id[-n0]]
+  gaps <- gaps[is.finite(gaps) & gaps > 1e-6 * max(1, diff(range(ia$age)))]
+  if (!length(gaps)) return(data.frame())
+  grid <- stats::median(gaps)
+  occ <- round((ia$age - min(ia$age)) / grid)
+  occ_age <- tapply(ia$age, occ, mean)
+  merged <- any(tapply(ia$age, occ, function(a) diff(range(a)) > 0.01 * grid))
+  key <- paste(ia$id, occ, sep = "\r")
+  one <- !duplicated(key)
+  ob <- data.frame(id = ia$id[one], occ = occ[one], trait = as.numeric(tapply(ia$trait, key, mean)[key[one]]),
+                   stringsAsFactors = FALSE)
+  ob <- ob[order(ob$id, ob$occ), , drop = FALSE]
+  n <- nrow(ob)
+  if (n < 2) return(data.frame())
+  j <- which(ob$id[-1] == ob$id[-n] & diff(ob$occ) == 1)
+  if (!length(j)) return(data.frame())
+  k_of <- ob$occ[j]
+  change <- ob$trait[j + 1] - ob$trait[j]
+  inc <- tapply(change, k_of, mean)
+  npr <- tapply(change, k_of, length)
+  k <- min(k_of)
+  current <- mean(ob$trait[j][k_of == k])
+  out <- data.frame(age = as.numeric(occ_age[as.character(k)]), fitted = current, n_pairs = as.numeric(npr[as.character(k)]))
+  repeat {
+    current <- current + as.numeric(inc[as.character(k)])
+    out <- rbind(out, data.frame(age = as.numeric(occ_age[as.character(k + 1)]), fitted = current,
+                                 n_pairs = as.numeric(npr[as.character(k)])))
+    k <- k + 1
+    if (!as.character(k) %in% names(inc)) break
+  }
+  if (isTRUE(merged)) {
+    attr(out, "caution") <- paste0("The ages are not on a common sampling schedule, so each record was placed on the nearest occasion of a grid ",
+                                   format_num(grid), " age units apart (the median interval between an individual's successive records), ",
+                                   "and records of different ages were merged: the decomposition is approximate.")
   }
   out
 }
@@ -2060,8 +2389,53 @@ model_formula_strings <- function(b, covars = character(0), among = "linear", co
 # Extra terms added to chosen models: extra = list(models = c("M5"), terms = c("ALR", "AFR_x_age", "cv_diet")).
 # Keys: ALR, AFR, LS (additive), mean_age (additive), ALR_x_age, AFR_x_age, LS_x_age (proxy x ageing terms,
 # with main effects), a covariate's internal name (additive) or "<covariate>:age" (covariate x ageing terms).
+# Built terms (term builder): "term:" + up to three tokens (age, ALR, AFR, LS, mean_age or a covariate's internal
+# name) joined by "+" (additive) or "*" (interaction with main effects, as in R), e.g. "term:ALR*AFR*age".
 EXTRA_TERM_KEYS <- c("ALR (additive)" = "ALR", "AFR (additive)" = "AFR", "LS (additive)" = "LS", "Mean age (additive)" = "mean_age",
                      "ALR \u00d7 age" = "ALR_x_age", "AFR \u00d7 age" = "AFR_x_age", "LS \u00d7 age" = "LS_x_age")
+BUILT_TERM_TOKENS <- c("age", "ALR", "AFR", "LS", "mean_age")
+# Additive components of a built term, each a vector of interacting tokens: "term:ALR*AFR+cv_diet" gives
+# list(c("ALR", "AFR"), "cv_diet"). NULL when the key is not a built term.
+parse_built_term <- function(k) {
+  if (!is.character(k) || length(k) != 1 || is.na(k) || !startsWith(k, "term:")) return(NULL)
+  comps <- strsplit(strsplit(substring(k, 6), "+", fixed = TRUE)[[1]], "*", fixed = TRUE)
+  comps <- lapply(comps, function(x) unique(trimws(x[nzchar(trimws(x))])))
+  comps[vapply(comps, length, integer(1)) > 0]
+}
+built_term_ok <- function(k, covars = character(0)) {
+  comps <- parse_built_term(k)
+  toks <- unlist(comps)
+  length(comps) > 0 && length(toks) <= 3 && all(toks %in% c(BUILT_TERM_TOKENS, covars))
+}
+built_term_age_interaction <- function(k) {
+  comps <- parse_built_term(k)
+  length(comps) > 0 && any(vapply(comps, function(cp) length(cp) > 1 && "age" %in% cp, logical(1)))
+}
+# Fixed-effect terms of a built key: age stands for every ageing term of the function (for the centring Models 3 and
+# 5, the individual mean and within-individual deviation terms), ALR/AFR/LS for their linear or polynomial
+# among-individual terms; components are joined as written (A * B = A + B + A:B).
+built_term_formula <- function(k, b, among = "linear", centred = FALSE) {
+  comps <- parse_built_term(k)
+  if (!length(comps)) return("")
+  poly_among <- identical(among, "same") && length(b) > 1
+  prox <- function(v) if (poly_among) paste(c(v, paste0(v, seq_along(b)[-1])), collapse = " + ") else v
+  mean_terms <- if (poly_among) paste(paste0("mean_", b), collapse = " + ") else "mean_f1"
+  age_terms <- if (isTRUE(centred)) paste(c(strsplit(mean_terms, " + ", fixed = TRUE)[[1]], paste0("delta_", b)), collapse = " + ") else paste(b, collapse = " + ")
+  wrap <- function(x) if (grepl("+", x, fixed = TRUE)) paste0("(", x, ")") else x
+  piece <- function(tok) wrap(switch(tok, age = age_terms, ALR = prox("ALR"), AFR = prox("AFR"), LS = prox("LS"), mean_age = mean_terms, tok))
+  paste(vapply(comps, function(cp) paste(vapply(cp, piece, character(1)), collapse = " * "), character(1)), collapse = " + ")
+}
+# Plain-language label of an extra-term key (menus, summaries).
+extra_term_display <- function(k, meta = NULL) {
+  labs <- meta$cov_labels %||% character(0)
+  tok <- function(t) if (t %in% names(labs)) unname(labs[[t]]) else switch(t, age = "age", mean_age = "mean age", display_term(t))
+  comps <- parse_built_term(k)
+  if (length(comps)) return(paste(vapply(comps, function(cp) paste(vapply(cp, tok, character(1)), collapse = " \u00d7 "), character(1)), collapse = " + "))
+  if (k %in% EXTRA_TERM_KEYS) return(names(EXTRA_TERM_KEYS)[match(k, EXTRA_TERM_KEYS)])
+  if (grepl(":age$", k)) return(paste0(tok(sub(":age$", "", k)), " \u00d7 age"))
+  if (k %in% names(labs)) return(paste0(labs[[k]], " (additive)"))
+  k
+}
 apply_extra_terms <- function(fs, b, extra = NULL, among = "linear") {
   ex <- per_model_extra(extra)
   if (!length(ex)) return(fs)
@@ -2074,6 +2448,7 @@ apply_extra_terms <- function(fs, b, extra = NULL, among = "linear") {
       if (k %in% c("ALR", "AFR", "LS")) return(prox(k))
       if (identical(k, "mean_age")) return(mean_terms)
       if (k %in% c("ALR_x_age", "AFR_x_age", "LS_x_age")) return(paste0("(", age_terms, ") * (", prox(sub("_x_age$", "", k)), ")"))
+      if (startsWith(k, "term:")) return(built_term_formula(k, b, among, m %in% c("M3", "M5")))
       if (grepl(":age$", k)) return(paste0(sub(":age$", "", k), " * (", age_terms, ")"))
       k
     }, character(1))
@@ -2097,7 +2472,8 @@ clean_extra_terms <- function(extra, covars) {
   out <- list()
   for (m in names(ex)) {
     k <- unique(as.character(ex[[m]]))
-    keep <- k[k %in% EXTRA_TERM_KEYS | k %in% covars | (grepl(":age$", k) & sub(":age$", "", k) %in% covars)]
+    keep <- k[k %in% EXTRA_TERM_KEYS | k %in% covars | (grepl(":age$", k) & sub(":age$", "", k) %in% covars) |
+              vapply(k, built_term_ok, logical(1), covars = covars, USE.NAMES = FALSE)]
     if (length(keep)) out[[m]] <- keep
   }
   if (length(out)) out else NULL
@@ -2180,13 +2556,14 @@ random_slope_advice <- function(sup) {
 
 # Individual IDs are already made unique within groups when nesting is selected
 # (standardise_data), so (1 | group) + (1 | id) is the nested (1 | group/id) structure;
-# without nesting the same terms give crossed random effects.
-random_term_string <- function(b1 = "f1", random_slope = FALSE, has_group = FALSE, extra = character(0)) {
+# without nesting the same terms give crossed random effects. With a second grouping level the groups are also made
+# unique within top-level groups, so (1 | group2) + (1 | group) + (1 | id) is (1 | group2/group/id).
+random_term_string <- function(b1 = "f1", random_slope = FALSE, has_group = FALSE, extra = character(0), has_group2 = FALSE) {
   id_term <- switch(normalise_slope(random_slope),
     correlated = paste0("(1 + ", b1, " | id)"),
     uncorrelated = paste0("(1 | id) + (0 + ", b1, " | id)"),
     "(1 | id)")
-  terms <- c(if (isTRUE(has_group)) "(1 | group)", id_term, if (length(extra)) paste0("(1 | ", extra, ")"))
+  terms <- c(if (isTRUE(has_group2)) "(1 | group2)", if (isTRUE(has_group)) "(1 | group)", id_term, if (length(extra)) paste0("(1 | ", extra, ")"))
   paste(terms, collapse = " + ")
 }
 
@@ -2197,10 +2574,13 @@ MODEL_FAMILIES <- c(
   "Negative binomial, linear variance (nbinom1)" = "nbinom1",
   "Zero-inflated Poisson" = "zip",
   "Zero-inflated negative binomial (nbinom2)" = "zinb",
+  "Zero-inflated negative binomial (nbinom1)" = "zinb1",
   "Binomial \u2014 binary 0/1, or a proportion with a trials column" = "binomial",
   "Beta-binomial \u2014 overdispersed proportions (glmmTMB)" = "betabinomial"
 )
-COUNT_FAMILIES <- c("poisson", "nbinom2", "nbinom1", "zip", "zinb")
+COUNT_FAMILIES <- c("poisson", "nbinom2", "nbinom1", "zip", "zinb", "zinb1")
+# Families with a zero-inflation component (glmmTMB ziformula).
+ZI_FAMILIES <- c("zip", "zinb", "zinb1")
 # Binomial families: the response is a binary outcome (0/1) or a proportion of successes, in which
 # case the number of trials must be mapped on the Data tab and is passed as prior weights.
 BINOMIAL_FAMILIES <- c("binomial", "betabinomial")
@@ -2307,13 +2687,7 @@ model_info_content <- function(m, s, meta = NULL) {
     if (m %in% c("M3", "M5")) {
       spec <- "Not available with the non-linear exponential function (the centring models need a linear-in-parameters age function)."
     } else {
-      parts <- NONLINEAR_PARTS[[m]]
-      for (k in extra[[m]] %||% character(0)) {
-        v <- sub("_x_age$", "", k)
-        if (k %in% c("ALR", "AFR", "LS")) parts$a <- union(parts$a, k)
-        if (k %in% c("ALR_x_age", "AFR_x_age", "LS_x_age")) { parts$a <- union(parts$a, v); parts$b <- union(parts$b, v) }
-        if (grepl(":age$", k)) parts$b <- union(parts$b, sub(":age$", "", k))
-      }
+      parts <- nonlinear_extra_parts(NONLINEAR_PARTS[[m]], extra[[m]] %||% character(0), covars)
       a <- union(c(covars, cov_pairs), parts$a)
       b <- union(cov_age, parts$b)
       spec <- paste0("trait = a \u00b7 exp(b \u00b7 z_age); level a ~ ", readable_terms(rhs(a), "Linear", cov_labels),
@@ -2325,12 +2699,12 @@ model_info_content <- function(m, s, meta = NULL) {
     among <- s$among %||% "linear"
     fs <- apply_extra_terms(model_formula_strings(b, covars, among, cov_age, cov_pairs), b, extra, among)
     spec <- paste("trait ~", readable_terms(fs[[m]], fn2, cov_labels))
-    r_formula <- paste("trait ~", fs[[m]], "+", random_term_string(b[[1]], s$random_slope, isTRUE(meta$has_group), meta$random_terms %||% character(0)))
+    r_formula <- paste("trait ~", fs[[m]], "+", random_term_string(b[[1]], s$random_slope, isTRUE(meta$has_group), meta$random_terms %||% character(0), has_group2 = isTRUE(meta$has_group2)))
   }
   list(title = paste0(model_label(m), " \u00b7 ", mm$name), meaning = mm$text,
        attributes = c(`Lifespan proxy` = mm$proxy, `Selective disappearance` = mm$dis, `Selective appearance` = mm$app),
        spec = spec, random = if (is.null(meta)) "(1 | ID)" else random_display(meta, s$random_slope),
-       family = paste0(family_label(fam), if (fam %in% c("zip", "zinb")) paste0("; zero inflation ", s$zi %||% "~1") else ""),
+       family = paste0(family_label(fam), if (fam %in% ZI_FAMILIES) paste0("; zero inflation ", s$zi %||% "~1") else ""),
        ageing = fn, extra = extra[[m]] %||% character(0), r_formula = r_formula)
 }
 
@@ -2414,6 +2788,10 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
     re_terms <- c(re_terms, sb("g", "k"))
     re_dist <- c(re_dist, paste0(sb("g", "k"), " ~ N(0, \u03c3<sup>2</sup><sub>group</sub>)", if (isTRUE(meta$nested)) ": individuals i are nested in groups k" else ": groups k crossed with individuals"))
   }
+  if (isTRUE(meta$has_group2)) {
+    re_terms <- c(re_terms, sb("h", "l"))
+    re_dist <- c(re_dist, paste0(sb("h", "l"), " ~ N(0, \u03c3<sup>2</sup><sub>group2</sub>)", if (isTRUE(meta$nested)) ": groups k are nested in top-level groups l" else ": top-level groups l crossed with groups k and individuals"))
+  }
   for (rt in meta$random_terms %||% character(0)) {
     lab <- html_esc(display_term(rt))
     re_terms <- c(re_terms, paste0("v<sub>", lab, "</sub>"))
@@ -2429,10 +2807,11 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
     nbinom1 = paste0(sb("y", "ij"), " ~ NegBin(", sb("\u03bc", "ij"), ", \u03c6), Var(y) = \u03bc(1 + \u03c6)"),
     zip = paste0(sb("y", "ij"), " = 0 with probability ", sb("\u03c0", "ij"), ", otherwise ", sb("y", "ij"), " ~ Poisson(", sb("\u03bb", "ij"), ")"),
     zinb = paste0(sb("y", "ij"), " = 0 with probability ", sb("\u03c0", "ij"), ", otherwise ", sb("y", "ij"), " ~ NegBin(", sb("\u03bc", "ij"), ", \u03b8)"),
+    zinb1 = paste0(sb("y", "ij"), " = 0 with probability ", sb("\u03c0", "ij"), ", otherwise ", sb("y", "ij"), " ~ NegBin(", sb("\u03bc", "ij"), ", \u03c6), Var(y) = \u03bc(1 + \u03c6)"),
     binomial = paste0(sb("y", "ij"), " ~ Binomial(", sb("n", "ij"), ", ", sb("p", "ij"), "), with ", sb("n", "ij"), " = 1 for binary data and the trials column otherwise"),
     betabinomial = paste0(sb("y", "ij"), " ~ Beta-binomial(", sb("n", "ij"), ", ", sb("p", "ij"), ", \u03c6): binomial with extra variation between observations"))
   zi_line <- NULL; zi_coef <- NULL
-  if (fam %in% c("zip", "zinb")) {
+  if (fam %in% ZI_FAMILIES) {
     zv <- tryCatch(all.vars(stats::as.formula(s$zi %||% "~1")), error = function(e) character(0))
     zt <- expand_model_terms(paste(zv, collapse = " + "), factor_levels)
     zi_line <- paste0("logit(", sb("\u03c0", "ij"), ") = ", sb("\u03b3", 0),
@@ -2445,13 +2824,7 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
   }
   if (nonlinear) {
     if (m %in% c("M3", "M5")) return(list(available = FALSE, message = "Not available with the non-linear exponential function (the centring models need a linear-in-parameters age function)."))
-    parts <- NONLINEAR_PARTS[[m]]
-    for (k in extra[[m]] %||% character(0)) {
-      v <- sub("_x_age$", "", k)
-      if (k %in% c("ALR", "AFR", "LS")) parts$a <- union(parts$a, k)
-      if (k %in% c("ALR_x_age", "AFR_x_age", "LS_x_age")) { parts$a <- union(parts$a, v); parts$b <- union(parts$b, v) }
-      if (grepl(":age$", k)) parts$b <- union(parts$b, sub(":age$", "", k))
-    }
+    parts <- nonlinear_extra_parts(NONLINEAR_PARTS[[m]], extra[[m]] %||% character(0), covars)
     a_rhs <- paste(c("1", union(c(covars, cov_pairs), parts$a)), collapse = " + ")
     b_rhs <- paste(c("1", union(cov_age, parts$b)), collapse = " + ")
     ta <- expand_model_terms(a_rhs, factor_levels)
@@ -2482,8 +2855,10 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
       if (!nzchar(y)) "1" else y
     }
     r_call <- paste0("nlme::nlme(trait ~ a * exp(b * f1), data = dat,\n           fixed = list(a ~ ", rhs_or_1(a_rhs), ", b ~ ", rhs_or_1(b_rhs), "),\n           random = ",
-                     if (isTRUE(meta$has_group)) paste0("list(group = pdSymm(a ~ 1), id = ", rand, ")") else rand,
-                     ", groups = ", if (isTRUE(meta$has_group)) "~ group/id" else "~ id", ", method = \"ML\", start = <starting values>)")
+                     if (isTRUE(meta$has_group2)) paste0("list(group2 = pdSymm(a ~ 1), group = pdSymm(a ~ 1), id = ", rand, ")") else
+                       if (isTRUE(meta$has_group)) paste0("list(group = pdSymm(a ~ 1), id = ", rand, ")") else rand,
+                     ", groups = ", if (isTRUE(meta$has_group2)) "~ group2/group/id" else if (isTRUE(meta$has_group)) "~ group/id" else "~ id",
+                     ", method = \"ML\", start = <starting values>)")
     return(list(available = TRUE, equation = eq, distributions = c(dist, if (nzchar(rs_note)) rs_note), coefficients = coef,
                 basis = "age on its original scale; a (level) and b (rate) are estimated, so the curve is not linear in its coefficients",
                 r_compact = paste0("trait ~ a * exp(b * f1); a ~ ", rhs_or_1(a_rhs), "; b ~ ", rhs_or_1(b_rhs)), r_expanded = NULL, r_call = r_call))
@@ -2499,7 +2874,7 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
   among <- s$among %||% "linear"
   fixed <- apply_extra_terms(model_formula_strings(b, covars, among, cov_age, cov_pairs), b, extra, among)[[m]]
   tt <- expand_model_terms(fixed, factor_levels)
-  random_str <- random_term_string(b[[1]], rs, isTRUE(meta$has_group), meta$random_terms %||% character(0))
+  random_str <- random_term_string(b[[1]], rs, isTRUE(meta$has_group), meta$random_terms %||% character(0), has_group2 = isTRUE(meta$has_group2))
   id_re <- switch(rs, correlated = , uncorrelated = c(sb("u", "0i"), paste0(sb("u", "1i"), " \u00b7 ", slope_var)), sb("u", "0i"))
   terms_math <- vapply(tt, function(z) paste(vapply(seq_along(z$parts), function(q) math_part(z$parts[[q]], fn_math, meta, z$levels[[q]]), character(1)), collapse = " \u00d7 "), character(1))
   eq <- paste0(resp, " = ", bta(0), paste0(vapply(seq_along(tt), function(k) paste0(" + ", bta(k), " \u00b7 ", terms_math[[k]]), character(1)), collapse = ""),
@@ -2514,13 +2889,14 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
   if (!is.null(zi_coef)) coef <- rbind(coef, zi_coef)
   tl <- vapply(tt, function(z) z$term, character(1))
   r_expanded <- paste0("trait ~ 1", paste0(" + ", unique(tl), collapse = ""), " + ", random_str)
-  fam_call <- switch(fam, poisson = "poisson()", zip = "poisson()", nbinom1 = "glmmTMB::nbinom1()",
+  fam_call <- switch(fam, poisson = "poisson()", zip = "poisson()", nbinom1 = "glmmTMB::nbinom1()", zinb1 = "glmmTMB::nbinom1()",
                      binomial = "binomial()", betabinomial = "glmmTMB::betabinomial()", "glmmTMB::nbinom2()")
   r_call <- if (identical(fam, "gaussian")) {
     paste0("lme4::lmer(", r_expanded, ",\n           data = dat, REML = FALSE)")
   } else {
     paste0("glmmTMB::glmmTMB(", r_expanded, ",\n                 data = dat, family = ", fam_call, ", ziformula = ",
-           if (fam %in% c("zip", "zinb")) (s$zi %||% "~1") else "~0", ", REML = FALSE)")
+           if (fam %in% ZI_FAMILIES) (s$zi %||% "~1") else "~0",
+           if (fam %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) ", weights = .trials" else "", ", REML = FALSE)")
   }
   list(available = TRUE, equation = c(eq, zi_line), distributions = c(if (identical(fam, "gaussian")) fam_dist else paste(fam_dist, "with the linear predictor above"),
                                                                      id_dist, re_dist, if (nzchar(rs_note)) rs_note),
@@ -2564,7 +2940,7 @@ app_code_definitions <- function(nms, env = environment(standardise_data)) {
 }
 
 prepare_model_data <- function(dat, age_function = "Quadratic", covars = character(0), standardise = TRUE,
-                               has_group = FALSE, random_terms = character(0)) {
+                               has_group = FALSE, random_terms = character(0), has_group2 = FALSE) {
   d <- dat[is.finite(dat$trait) & is.finite(dat$age), , drop = FALSE]
   if (nrow(d) < 2) return(NULL)
   im <- individual_metrics(dat)
@@ -2601,6 +2977,7 @@ prepare_model_data <- function(dat, age_function = "Quadratic", covars = charact
   }
   d$id <- factor(d$id)
   if (isTRUE(has_group)) d$group <- factor(d$group)
+  if (isTRUE(has_group2)) d$group2 <- factor(d$group2)
   list(data = d, age_params = ap, proxy_params = pp, basis = names(b))
 }
 
@@ -2660,12 +3037,15 @@ fit_one_model <- function(formula_str, random_str, data, family = "gaussian", zi
         else lme4::lmer(ff, data = data, REML = FALSE, control = ctrl)
       } else {
         fam <- switch(family, poisson = stats::poisson(), zip = stats::poisson(), nbinom1 = glmmTMB::nbinom1(),
-                      binomial = stats::binomial(), betabinomial = glmmTMB::betabinomial(),
+                      zinb1 = glmmTMB::nbinom1(), binomial = stats::binomial(), betabinomial = glmmTMB::betabinomial(),
                       glmmTMB::nbinom2())
-        zi <- if (family %in% c("zip", "zinb")) stats::as.formula(zi_str) else ~0
+        zi <- if (family %in% ZI_FAMILIES) stats::as.formula(zi_str) else ~0
         ctrl <- tryCatch(glmmTMB::glmmTMBControl(rank_check = "adjust"), error = function(e) glmmTMB::glmmTMBControl())
         # Binomial families: proportions are weighted by the number of trials (binary data have one trial).
-        wts <- if (family %in% BINOMIAL_FAMILIES && ".trials" %in% names(data)) as.numeric(data$.trials) else NULL
+        # The trials column exists (all NA) even when no trials column is mapped, so weights are used only when every
+        # analysed row has a positive number of trials; otherwise binary 0/1 data would lose every row.
+        trials <- if (family %in% BINOMIAL_FAMILIES && ".trials" %in% names(data)) as.numeric(data$.trials) else NULL
+        wts <- if (length(trials) && all(is.finite(trials) & trials > 0)) trials else NULL
         if (is.null(wts)) {
           glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, REML = FALSE, control = ctrl)
         } else {
@@ -2891,6 +3271,30 @@ NONLINEAR_PARTS <- list(
   M9 = list(a = c("ALR", "AFR"), b = "ALR"),
   M10 = list(a = c("ALR", "AFR"), b = "AFR")
 )
+# Adds extra-term keys to the level (a) and rate (b) parts of a non-linear model. Terms without age act on the
+# level; terms that interact with age act on the level and the rate (as ALR x age does). Mean age is not used.
+nonlinear_extra_parts <- function(p, keys, covars = character(0)) {
+  for (k in keys %||% character(0)) {
+    if (k %in% c("ALR", "AFR", "LS")) {
+      p$a <- union(p$a, k)
+    } else if (k %in% c("ALR_x_age", "AFR_x_age", "LS_x_age")) {
+      v <- sub("_x_age$", "", k)
+      p$a <- union(p$a, v)
+      p$b <- union(p$b, v)
+    } else if (grepl(":age$", k) && sub(":age$", "", k) %in% covars) {
+      p$b <- union(p$b, sub(":age$", "", k))
+    } else {
+      for (cp in parse_built_term(k) %||% list()) {
+        rest <- setdiff(cp, c("age", "mean_age"))
+        if (!length(rest)) next
+        lab <- attr(stats::terms(stats::as.formula(paste("~", paste(rest, collapse = " * ")))), "term.labels")
+        p$a <- union(p$a, lab)
+        if ("age" %in% cp) p$b <- union(p$b, lab)
+      }
+    }
+  }
+  p
+}
 
 fit_nonlinear_suite <- function(dat, meta, models = MODEL_IDS, random_slope = FALSE, include_invalid = FALSE,
                                 extra = NULL, progress = NULL) {
@@ -2902,7 +3306,7 @@ fit_nonlinear_suite <- function(dat, meta, models = MODEL_IDS, random_slope = FA
   cov_pairs <- (meta$cov_pairs %||% character(0))[vapply(strsplit(meta$cov_pairs %||% character(0), ":", fixed = TRUE),
                                                           function(p) all(p %in% covars), logical(1))]
   extra <- clean_extra_terms(extra, covars)
-  prep <- prepare_model_data(dat, "Linear", covars, TRUE, meta$has_group, character(0))
+  prep <- prepare_model_data(dat, "Linear", covars, TRUE, meta$has_group, character(0), has_group2 = isTRUE(meta$has_group2))
   if (is.null(prep)) return(fail("No usable trait data."))
   d <- prep$data
   status <- list()
@@ -2918,26 +3322,14 @@ fit_nonlinear_suite <- function(dat, meta, models = MODEL_IDS, random_slope = FA
   if (!length(models)) return(fail("None of the selected models can be fitted with the non-linear exponential function.", status = status))
   parts <- NONLINEAR_PARTS[models]
   if (length(extra)) {
-    for (m in intersect(names(extra), models)) {
-      for (k in extra[[m]]) {
-        if (k %in% c("ALR", "AFR", "LS")) {
-          parts[[m]]$a <- union(parts[[m]]$a, k)
-        } else if (k %in% c("ALR_x_age", "AFR_x_age", "LS_x_age")) {
-          v <- sub("_x_age$", "", k)
-          parts[[m]]$a <- union(parts[[m]]$a, v)
-          parts[[m]]$b <- union(parts[[m]]$b, v)
-        } else if (grepl(":age$", k) && sub(":age$", "", k) %in% covars) {
-          parts[[m]]$b <- union(parts[[m]]$b, sub(":age$", "", k))
-        }
-      }
-    }
+    for (m in intersect(names(extra), models)) parts[[m]] <- nonlinear_extra_parts(parts[[m]], extra[[m]], covars)
   }
   for (m in models) {
     parts[[m]]$a <- union(c(covars, cov_pairs), parts[[m]]$a)
     parts[[m]]$b <- union(cov_age, parts[[m]]$b)
   }
   # interaction terms such as cv_a:cv_b are not columns: use their components
-  vars <- unique(c(unlist(strsplit(unlist(lapply(parts, unlist)), ":", fixed = TRUE)), "f1", "id", if (isTRUE(meta$has_group)) "group"))
+  vars <- unique(c(unlist(strsplit(unlist(lapply(parts, unlist)), ":", fixed = TRUE)), "f1", "id", if (isTRUE(meta$has_group)) "group", if (isTRUE(meta$has_group2)) "group2"))
   ok <- rep(TRUE, nrow(d))
   drop_by <- character(0)
   for (v in vars) {
@@ -2964,9 +3356,11 @@ fit_nonlinear_suite <- function(dat, meta, models = MODEL_IDS, random_slope = FA
   rs <- if (identical(rs_request, "auto")) advice$recommended else rs_request
   random_note <- if (identical(rs_request, "auto")) paste0("Automatic random effects: ", slope_text(rs), ". ", advice$text) else ""
   id_pd <- switch(rs, correlated = nlme::pdSymm(a + b ~ 1), uncorrelated = nlme::pdDiag(a + b ~ 1), nlme::pdSymm(a ~ 1))
-  rand <- if (isTRUE(meta$has_group)) list(group = nlme::pdSymm(a ~ 1), id = id_pd) else id_pd
-  grp <- if (isTRUE(meta$has_group)) ~ group / id else ~ id
-  rstr <- paste0(if (isTRUE(meta$has_group)) "random level a | group + " else "",
+  rand <- if (isTRUE(meta$has_group2)) {
+    list(group2 = nlme::pdSymm(a ~ 1), group = nlme::pdSymm(a ~ 1), id = id_pd)
+  } else if (isTRUE(meta$has_group)) list(group = nlme::pdSymm(a ~ 1), id = id_pd) else id_pd
+  grp <- if (isTRUE(meta$has_group2)) ~ group2 / group / id else if (isTRUE(meta$has_group)) ~ group / id else ~ id
+  rstr <- paste0(if (isTRUE(meta$has_group2)) "random level a | group2 + " else "", if (isTRUE(meta$has_group)) "random level a | group + " else "",
                  switch(rs, correlated = "correlated random level a and rate b | id", uncorrelated = "uncorrelated random level a and rate b | id", "random level a | id"))
   pos <- dd$trait > 0
   st0 <- if (mean(pos) > 0.8 && sum(pos) >= 10) {
@@ -3077,11 +3471,11 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   if (family %in% BINOMIAL_FAMILIES) {
     v <- dat$trait[is.finite(dat$trait)]
     if (any(v < 0) || any(v > 1)) {
-      return(fail("Binomial families need the trait to be 0/1 (binary) or a proportion between 0 and 1. For counts of successes, divide by the number of trials and map that number as the trials column on the Data tab."))
+      return(fail("Binomial families need the trait to be 0/1 (binary) or a proportion between 0 and 1. For counts of successes, divide by the number of trials and choose that number under 'Weights' below the error family."))
     }
     binary <- all(v %in% c(0, 1))
     if (!binary && !isTRUE(meta$has_trials)) {
-      return(fail("These are proportions, so the binomial families need the number of trials: map a trials column (for example clutch size) on the Data tab, or choose Gaussian."))
+      return(fail("These are proportions, so the binomial families need the number of trials: choose the column with the number of trials (for example clutch size) under 'Weights' below the error family, or choose Gaussian."))
     }
     if (identical(family, "betabinomial") && binary && !isTRUE(meta$has_trials)) {
       return(fail("The beta-binomial family needs proportions with a trials column: with binary 0/1 data there is no extra-binomial variation to estimate, so use the binomial family."))
@@ -3095,7 +3489,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
     av_afr <- ifelse(is.finite(im_afr$entry), im_afr$entry, im_afr$first_recorded)
     length(unique(av_afr[is.finite(av_afr)]))
   }
-  prep <- prepare_model_data(dat, age_function, covars, standardise, meta$has_group, rterms)
+  prep <- prepare_model_data(dat, age_function, covars, standardise, meta$has_group, rterms, has_group2 = isTRUE(meta$has_group2))
   if (is.null(prep)) return(fail("No usable trait data."))
   d <- prep$data
   b <- prep$basis
@@ -3113,7 +3507,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   if (!length(models)) return(fail("None of the selected models can be fitted with these data.", status = status))
 
   vars <- unique(unlist(lapply(fs[models], function(s) all.vars(stats::as.formula(paste("trait ~", s))))))
-  vars <- c(vars, "id", if (isTRUE(meta$has_group)) "group", rterms,
+  vars <- c(vars, "id", if (isTRUE(meta$has_group)) "group", if (isTRUE(meta$has_group2)) "group2", rterms,
             if (family %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) ".trials")
   ok <- rep(TRUE, nrow(d))
   drop_by <- character(0)
@@ -3151,7 +3545,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   }
   if (!is.null(nonlinear_note)) drop_by <- c(drop_by, nonlinear_note)
   # zero-inflation predictors must exist and vary in the analysed rows
-  zi_vars <- if (family %in% c("zip", "zinb")) tryCatch(all.vars(stats::as.formula(zi_str)), error = function(e) character(0)) else character(0)
+  zi_vars <- if (family %in% ZI_FAMILIES) tryCatch(all.vars(stats::as.formula(zi_str)), error = function(e) character(0)) else character(0)
   zi_keep <- zi_vars[vapply(zi_vars, function(v) {
     x <- dd[[v]]
     !is.null(x) && (if (is.numeric(x)) isTRUE(stats::sd(x) > 0) else length(unique(x)) >= 2)
@@ -3159,7 +3553,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   if (!identical(zi_keep, zi_vars)) {
     drop_by <- c(drop_by, sprintf("zero-inflation term %s omitted (missing or without variation)", paste(display_term(setdiff(zi_vars, zi_keep)), collapse = ", ")))
   }
-  if (family %in% c("zip", "zinb")) zi_str <- if (length(zi_keep)) paste("~", paste(zi_keep, collapse = " + ")) else "~1"
+  if (family %in% ZI_FAMILIES) zi_str <- if (length(zi_keep)) paste("~", paste(zi_keep, collapse = " + ")) else "~1"
   # random-effect structure for individuals (automatic choice from the data support)
   rs_request <- normalise_slope(random_slope)
   advice <- random_slope_advice(individual_data_support(dd))
@@ -3174,7 +3568,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   for (rt in setdiff(rterms, keep_re)) {
     drop_by <- c(drop_by, sprintf("random intercept for %s omitted (fewer than 2 levels)", meta$random_labels[[rt]]))
   }
-  rstr <- random_term_string(b[[1]], rs, meta$has_group, keep_re)
+  rstr <- random_term_string(b[[1]], rs, meta$has_group, keep_re, has_group2 = isTRUE(meta$has_group2))
   fits <- list(); aic_rows <- list(); coef_rows <- list(); vc_rows <- list(); validity <- list()
   for (i in seq_along(models)) {
     m <- models[[i]]
@@ -3324,6 +3718,7 @@ predict_population_curve <- function(fit, res, ages, hold = NULL, by = NULL) {
   }
   nd$id <- d$id[[1]]
   if ("group" %in% names(d)) nd$group <- d$group[[1]]
+  if ("group2" %in% names(d)) nd$group2 <- d$group2[[1]]
   for (rt in intersect(res$random_terms %||% character(0), names(d))) nd[[rt]] <- d[[rt]][[1]]
   pr <- tryCatch({
     if (inherits(fit, "nlme")) as.numeric(stats::predict(fit, newdata = nd, level = 0))
@@ -3872,17 +4267,20 @@ model_r_code <- function(res, meta, source_label = "your_data.csv") {
   pp <- res$proxy_params
   num <- function(x) format(x, digits = 10)
   lines <- c(
-    "# Code generated by disappR 0.7.0 - reproduces the app's model comparison",
+    "# Code generated by disappR 0.9.4 - reproduces the app's model comparison",
     if (identical(res$family, "gaussian")) "library(lme4)" else "library(glmmTMB)",
     paste0("dat <- read.csv(", q(source_label), ", stringsAsFactors = FALSE, check.names = FALSE, colClasses = c(", q(map$id), " = \"character\"))"),
     if (!is.null(meta$subset)) sprintf("dat <- dat[!is.na(dat[[%s]]) & as.character(dat[[%s]]) %%in%% c(%s), ]  # subset used in the app",
                                        q(meta$subset$var), q(meta$subset$var), paste(q(meta$subset$levels), collapse = ", ")) else NULL,
     paste0("dat$id <- trimws(as.character(dat[[", q(map$id), "]]))"),
     if (isTRUE(meta$has_group)) paste0("dat$group <- as.character(dat[[", q(map$group), "]])") else NULL,
+    if (isTRUE(meta$has_group2)) paste0("dat$group2 <- as.character(dat[[", q(map$group2), "]])") else NULL,
+    if (isTRUE(meta$has_group2) && isTRUE(meta$nested)) "dat$group <- ifelse(is.na(dat$group) | is.na(dat$group2), dat$group, paste(dat$group2, dat$group, sep = \"/\"))  # groups nested in top-level groups" else NULL,
     if (isTRUE(meta$has_group) && isTRUE(meta$nested)) "dat$id <- ifelse(is.na(dat$group), dat$id, paste(dat$group, dat$id, sep = \"/\"))  # nested: (1 | group) + (1 | group/ID)" else NULL,
     paste0("dat$age <- as.numeric(dat[[", q(map$age), "]])"),
     if (is.finite(meta$age_round %||% NA_real_)) sprintf("dat$age <- round(dat$age / %s) * %s  # ages rounded as in the app", num(meta$age_round), num(meta$age_round)) else NULL,
     paste0("dat$trait <- as.numeric(dat[[", q(map$trait), "]])"),
+    if (res$family %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) paste0("dat$.trials <- as.numeric(dat[[", q(meta$trials_col), "]])  # number of binomial trials (prior weights)") else NULL,
     "dat <- dat[!is.na(dat$id) & is.finite(dat$age), ]",
     if (isTRUE(meta$alr_mapped)) paste0("dat$ALR_raw <- as.numeric(dat[[", q(map$alr), "]])") else "dat$ALR_raw <- ave(dat$age, dat$id, FUN = max)  # age at last record",
     if (isTRUE(meta$entry_mapped)) paste0("dat$AFR_raw <- as.numeric(dat[[", q(map$entry), "]])") else "dat$AFR_raw <- ave(dat$age, dat$id, FUN = min)  # age at first record",
@@ -3891,6 +4289,7 @@ model_r_code <- function(res, meta, source_label = "your_data.csv") {
                                          q(map$censor), q(map$censor_value)) else NULL,
     if (identical(meta$dup_action, "mean")) "# NOTE: the app averaged duplicate ID x age records; do the same here before fitting" else NULL,
     "dat <- dat[is.finite(dat$trait), ]",
+    if (res$family %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) "dat <- dat[is.finite(dat$.trials) & dat$.trials > 0, ]  # rows without a positive number of trials are dropped, as in the app" else NULL,
     "# individual-level centring/scaling constants used by the app",
     sprintf("dat$ALR <- (dat$ALR_raw - %s) / %s", num(pp$ALR[["centre"]]), num(pp$ALR[["scale"]])),
     sprintf("dat$AFR <- (dat$AFR_raw - %s) / %s", num(pp$AFR[["centre"]]), num(pp$AFR[["scale"]])),
@@ -3920,21 +4319,24 @@ model_r_code <- function(res, meta, source_label = "your_data.csv") {
     })
   }
   if (isTRUE(meta$has_group)) lines <- c(lines, "dat$group <- factor(dat$group)")
+  if (isTRUE(meta$has_group2)) lines <- c(lines, "dat$group2 <- factor(dat$group2)")
   for (rt in res$random_terms %||% character(0)) {
     lines <- c(lines, sprintf("dat$%s <- factor(dat[[%s]])", rt, q(meta$random_labels[[rt]])))
   }
   lines <- c(lines, "dat$id <- factor(dat$id)")
   vars <- unique(unlist(lapply(res$formulas, function(s) all.vars(stats::as.formula(paste("trait ~", s))))))
-  vars <- c(vars, "id", if (isTRUE(meta$has_group)) "group", res$random_terms %||% character(0))
+  vars <- c(vars, "id", if (isTRUE(meta$has_group)) "group", if (isTRUE(meta$has_group2)) "group2", res$random_terms %||% character(0))
   lines <- c(lines, paste0("dat <- dat[complete.cases(dat[, c(", paste(q(vars), collapse = ", "), ")]), ]  # common rows for AIC"))
   call_for <- function(m) {
     f <- paste("trait ~", res$formulas[[m]], "+", res$random)
     if (identical(res$family, "gaussian")) {
       sprintf("%s <- lmer(%s, data = dat, REML = FALSE, control = lmerControl(optimizer = \"bobyqa\"))", tolower(m), f)
     } else {
-      fam <- switch(res$family, poisson = "poisson()", zip = "poisson()", nbinom1 = "nbinom1()", "nbinom2()")
-      zi <- if (res$family %in% c("zip", "zinb")) res$zi else "~0"
-      sprintf("%s <- glmmTMB(%s, family = %s, ziformula = %s, data = dat)", tolower(m), f, fam, zi)
+      fam <- switch(res$family, poisson = "poisson()", zip = "poisson()", nbinom1 = "nbinom1()", zinb1 = "nbinom1()",
+                    binomial = "binomial()", betabinomial = "betabinomial()", "nbinom2()")
+      zi <- if (res$family %in% ZI_FAMILIES) res$zi else "~0"
+      wt <- if (res$family %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) ", weights = .trials" else ""
+      sprintf("%s <- glmmTMB(%s, family = %s, ziformula = %s, data = dat%s)", tolower(m), f, fam, zi, wt)
     }
   }
   fitted <- names(res$fits)
@@ -4005,6 +4407,7 @@ plot_code_lines <- function(res, meta) {
     "  }",
     "  nd$id <- dat$id[[1]]",
     if (isTRUE(meta$has_group)) "  nd$group <- dat$group[[1]]" else NULL,
+    if (isTRUE(meta$has_group2)) "  nd$group2 <- dat$group2[[1]]" else NULL,
     if (length(rterms)) paste0("  for (rt in c(", paste(q(rterms), collapse = ", "), ")) nd[[rt]] <- dat[[rt]][[1]]") else NULL,
     "  pr <- if (inherits(fit, \"nlme\")) {",
     "    predict(fit, newdata = nd, level = 0)",
@@ -4026,41 +4429,9 @@ plot_code_lines <- function(res, meta) {
     "ia <- ia[order(ia$id, ia$age), ]",
     "observed <- aggregate(trait ~ age, data = ia, FUN = mean)",
     "observed$n <- as.numeric(table(ia$age)[as.character(observed$age)])",
-    "# decomposition: chain the mean within-individual change between occasions one sampling step apart,",
-    "# starting from the mean at the first age with paired records (as in the app)",
-    "infer_step <- function(age, id) {",
-    "  o <- order(id, age); a <- age[o]; g <- id[o]",
-    "  tol <- 1e-6 * max(1, diff(range(age)))",
-    "  d <- diff(a)[g[-1] == g[-length(g)]]",
-    "  d <- d[is.finite(d) & d > tol]",
-    "  if (!length(d)) { d <- diff(sort(unique(age))); d <- d[d > tol] }",
-    "  d <- signif(d, 6); tab <- table(d); vals <- as.numeric(names(tab))",
-    "  common <- vals[as.numeric(tab) / length(d) >= 0.05]",
-    "  if (length(common)) min(common) else median(d)",
-    "}",
-    "decomposition <- function(ia) {",
-    "  step <- infer_step(ia$age, ia$id)",
-    "  tol <- 0.01 * step",
-    "  n <- nrow(ia)",
-    "  j <- which(ia$id[-1] == ia$id[-n] & abs(diff(ia$age) - step) <= tol)",
-    "  if (!length(j)) return(data.frame(age = numeric(0), fitted = numeric(0)))",
-    "  pairs <- data.frame(key = round(ia$age[j] / tol), a = ia$age[j], diff = ia$trait[j + 1] - ia$trait[j], start = ia$trait[j])",
-    "  keys <- sort(unique(pairs$key)); kk <- as.character(keys)",
-    "  pa <- as.numeric(tapply(pairs$a, pairs$key, mean)[kk])",
-    "  inc <- as.numeric(tapply(pairs$diff, pairs$key, mean)[kk])",
-    "  i <- 1L",
-    "  current <- mean(pairs$start[pairs$key == keys[[1]]])",
-    "  out <- data.frame(age = pa[[1]], fitted = current)",
-    "  repeat {",
-    "    current <- current + inc[i]",
-    "    out <- rbind(out, data.frame(age = pa[i] + step, fitted = current))",
-    "    nxt <- which(abs(pa - (pa[i] + step)) <= tol)",
-    "    if (!length(nxt)) break",
-    "    i <- nxt[[1]]",
-    "  }",
-    "  out",
-    "}",
-    "decomp <- decomposition(ia)",
+    "# decomposition (Rebke et al. 2010): the app's own functions, copied here so that the figure matches the app",
+    app_code_definitions(app_code_closure("decomposition_trajectory")),
+    "decomp <- decomposition_trajectory(dat)",
     "ggplot() +",
     "  geom_point(data = observed, aes(age, trait, size = n), colour = \"grey40\", alpha = 0.5) +",
     "  geom_line(data = curves, aes(age, fitted, colour = Model), linewidth = 1.1) +",
@@ -4086,8 +4457,10 @@ model_r_code_nonlinear <- function(res, meta, source_label = "your_data.csv") {
   lines <- strsplit(base, "\n", fixed = TRUE)[[1]]
   lines <- lines[!grepl("^dat <- dat\\[complete.cases", lines)]
   rand <- switch(res$random_structure %||% "none", correlated = "pdSymm(a + b ~ 1)", uncorrelated = "pdDiag(a + b ~ 1)", "pdSymm(a ~ 1)")
-  grp <- if (isTRUE(meta$has_group)) "~ group / id" else "~ id"
-  rand_arg <- if (isTRUE(meta$has_group)) sprintf("list(group = pdSymm(a ~ 1), id = %s)", rand) else rand
+  grp <- if (isTRUE(meta$has_group2)) "~ group2 / group / id" else if (isTRUE(meta$has_group)) "~ group / id" else "~ id"
+  rand_arg <- if (isTRUE(meta$has_group2)) {
+    sprintf("list(group2 = pdSymm(a ~ 1), group = pdSymm(a ~ 1), id = %s)", rand)
+  } else if (isTRUE(meta$has_group)) sprintf("list(group = pdSymm(a ~ 1), id = %s)", rand) else rand
   calls <- vapply(names(res$fits), function(m) {
     pa <- res$parts[[m]]$a
     pb <- res$parts[[m]]$b
@@ -4216,15 +4589,15 @@ INFO <- list(
     "Simulated data show textbook patterns with a known truth; the fly data are a real reanalysis with count data, covariates, nesting and censoring. Saved results are collected on the 'Summary and report' tab.",
     "Teaching simulations use deliberately strong effects."),
   data_source = info_entry("Data source and simulation",
-    "Chooses simulated data (known truth), one of the bundled empirical examples, or your own CSV with one row per individual \u00d7 age. The empirical examples cover laboratory systems (fruit-fly and seed-beetle fecundity) and wild populations (common tern immunity and navigation, painted turtle reproduction, great tit recruitment, eastern chipmunk reproduction); each opens with the mapping, error family and models set close to the analysis reported in its paper. The simulator generates individual trajectories with a chosen ageing form: linear, quadratic, cubic, logarithmic, or exponential (a sharp early decline that flattens later). Selective disappearance can be absent, age-independent (lifespan linked to the individual's level), age-dependent (lifespan linked to its rate of ageing) or both, with a positive or negative direction. With individual-specific AFR (age at first observation), selective appearance is set in the same way. Diet lowers the trait only; families add a nested random effect.",
-    "Change one setting at a time, press 'Simulate & use this dataset', and compare the plots and model rankings with 'What you should see'. The mean lifespan sets how many occasions each individual is sampled. Use 'Subset the data' to analyse one group (for example one sex or treatment).",
+    "Chooses simulated data (known truth), one of the bundled empirical examples, or your own CSV with one row per individual \u00d7 age. The empirical examples cover laboratory systems (fruit-fly and seed-beetle fecundity, leafcutting-bee locomotor activity) and wild populations (common tern immunity and navigation, painted turtle reproduction, great tit recruitment, eastern chipmunk reproduction, Soay sheep reproduction); each opens with the mapping, error family and models set close to the analysis reported in its paper. The simulator generates individual trajectories with a chosen ageing form (linear, quadratic, cubic, logarithmic or exponential) and a biologically motivated shape within that form, for example slow, fast or no senescence, an early or late peak followed by senescence, a decline followed by improvement, or a rapid or gradual decline (or growth) that levels off. The default shape of each form is the one used by earlier versions. Selective disappearance can be absent, age-independent (lifespan linked to the individual's level), age-dependent (lifespan linked to its rate of ageing) or both, with a positive or negative direction. With individual-specific AFR (age at first observation), selective appearance is set in the same way. Diet lowers the trait only; families add a nested random effect.",
+    "Change one setting at a time, press 'Simulate & use this dataset', and compare the plots and model rankings with 'What you should see'. The mean lifespan sets how many occasions each individual is sampled. Use 'Subset the data' to analyse one group (for example one sex or treatment). For your own CSV, age must be numeric (not age classes or text), and missing values can be blank cells or NA.",
     "Large individual differences in ageing rates make interaction models look better even without selective disappearance unless random slopes are fitted. Very short lifespans make individual fits and interaction models unreliable. The exponential form is defined on age scaled by the SD of the expected ages, like the app's Exponential function, so it is recovered only approximately when missingness changes the sampled ages. The empirical examples are exploratory: the defaults broadly reproduce the published patterns, but they need not match a paper's numbers exactly, because published analyses differ in how the data were subset, in covariates and random effects that are not always fully reported, in software and estimation, and in decisions about which records to exclude. Treat any difference as a reason to inspect the settings rather than as a failure of either analysis."),
   afr_expression = info_entry("Counting missed occasions: from AFR or from AFE",
     "Sets where each individual's expected-occasion window opens. 'Age at first record (AFR)' is when the individual enters the data, which is how it is mapped on the Data tab. 'Age at first trait expression (AFE)' is the age from which the trait exists and could in principle have been measured, entered as one age that applies to every individual: body size is expressed from birth even if recording begins at first breeding.",
     "Use AFR when the trait genuinely begins when the individual enters the data (a first clutch, for example). Use AFE when individuals could have been measured earlier than they were, and give the age at which the trait starts.",
     "This setting changes the missingness figures only. It affects this tab's grid, missed-occasion counts and coverage; it does not enter any model, proxy or statistic anywhere in the app, all of which use AFR. Counting from AFE usually raises the estimated missingness, sometimes substantially, and changes its age profile at young ages, so the two definitions are not comparable: say which one you used when reporting."),
   afr_alr = info_entry("Agreement between AFR and ALR",
-    "Correlation between each individual's age at first record and its age at last record, with the mean and SD of the observation window (ALR \u2212 AFR).",
+    "Correlation between each individual's age at first record and its age at last record, with the mean and SD of the observation window (ALR \u2212 AFR). The figure shows the dashed 1:1 line and the linear regression of ALR on AFR (solid black, with its 95% band).",
     "Under a fixed entry age, AFR does not vary and the correlation is undefined. A correlation near zero means entry and exit are independent, so ALR reflects lifespan rather than when an individual was first seen. A strong positive correlation means individuals that enter late also leave late, so the two proxies carry overlapping information and AFR terms (Models 7-10) and ALR terms (Models 2, 4) compete for the same variance.",
     "A high correlation can arise from biology (late starters live longer) or purely from the study design (a short study window forces late entrants to have late exits), and this diagnostic cannot separate the two. With few individuals the correlation is unstable. Mean age is affected by both ends of the window, so a variable AFR degrades it as a proxy of lifespan more than it degrades ALR."),
   among_order = info_entry("Among-individual terms: polynomial order",
@@ -4233,8 +4606,8 @@ INFO <- list(
     "Matching the order adds parameters quickly (a quadratic ageing function doubles the proxy terms and their interactions), so it needs more individuals and a wider spread of lifespans. The extra terms are collinear with the linear ones by construction, so individual coefficients are hard to interpret: compare models by fit, and read the trajectories rather than the coefficients."),
   mapping = info_entry("Map columns",
     "Tells the app which columns hold ID, age and trait, plus optional ALR, lifespan, AFR (age at first observation), continuous and categorical fixed-effect covariates, their interactions, grouping, additional random intercepts, censoring and an optional age resolution. Uploaded columns keep their names.",
-    "Continuous covariates (e.g. temperature) enter the models as linear effects; categorical covariates (e.g. treatment, sex, diet) enter as factors with one coefficient per level. Interactions can be a covariate \u00d7 age (the covariate changes the shape of the ageing trajectory, e.g. diet \u00d7 (age + age\u00b2)) or between two covariates (e.g. diet \u00d7 sex, added to every model with both main effects). Covariates and interactions are used in the mixed models on tab 5 (Modelling). Map lifespan (LS) only if it is truly known; use nesting when IDs repeat across groups; map a censoring column for individuals alive at the end of the study.",
-    "Values of a continuous covariate that are not numbers are treated as missing, which drops those rows from the models. Categorical covariates with many levels or rare combinations make interaction models hard to estimate. Additional random intercepts are crossed with ID unless nested."),
+    "Continuous covariates (e.g. temperature) enter the models as linear effects; categorical covariates (e.g. treatment, sex, diet) enter as factors with one coefficient per level. Interactions can be a covariate \u00d7 age (the covariate changes the shape of the ageing trajectory, e.g. diet \u00d7 (age + age\u00b2)) or between two covariates (e.g. diet \u00d7 sex, added to every model with both main effects). Covariates and interactions are used in the mixed models on tab 5 (Modelling). Map lifespan (LS) only if it is truly known; use nesting when IDs repeat across groups; map a censoring column for individuals alive at the end of the study. With a 'next level up' column the random effects have three levels, e.g. individuals within fathers within families: (1 | family) + (1 | family:father) + (1 | family:father:ID). The CONTINUOUS and CATEGORICAL boxes warn straight away when a column looks as if it belongs in the other box.",
+    "Values of a continuous covariate that are not numbers are treated as missing, which drops those rows from the models. Categorical covariates with many levels or rare combinations make interaction models hard to estimate. Additional random intercepts are crossed with ID unless nested. Age must be numeric (whole numbers or decimals); it cannot be categorical."),
   subset = info_entry("Subset the data",
     "Restricts every analysis to the rows whose value of one categorical variable (a text column with up to 50 levels, or a numeric column with up to 10 distinct values) is among the chosen levels.",
     "Pick the variable, then tick the levels to keep (for example females only, or one treatment). Leave the variable empty to use all rows. The subset applies to the integrity checks, all diagnostics, individual fits and models, and to the exported R code only through the data you supply.",
@@ -4252,15 +4625,15 @@ INFO <- list(
     "The grouping variable forms the bins of the trajectory plot and the x-axis of the lifespan plot; the number of bins sets the number of groups in the trajectory plot and of age bins in the lifespan plot. Choose ALR, mean age or LS to diagnose selective disappearance and AFR to diagnose selective appearance. Every bin \u00d7 age point in the trajectory plot and every age bin in the lifespan plot needs at least 3 individuals, so sparse bins are not drawn. With no more distinct values than bins, each value is its own bin, and the same bin boundaries are used in every panel.",
     "Few bins hide patterns, many bins give noisy points. Facets split the sample, so each panel has fewer individuals. A time-varying covariate is summarised by each individual's most common value. On the log scale, differences are ratios."),
   a1 = info_entry("Trajectories within bins",
-    "Mean trait at each age for individuals grouped into bins of ALR, LS, mean age or AFR (each individual counted once), optionally in separate panels per covariate level. Points need at least 3 individuals. The bin boundaries (equal width or quantiles) and \u00b11 SE are set above the figure.",
+    "Mean trait at each age for individuals grouped into bins of ALR, LS, mean age or AFR (each individual counted once), optionally in separate panels per covariate level. Points need at least 3 individuals. The bin boundaries (equal width or quantiles), \u00b11 SE and the panels of this figure (any categorical variable, or as in the settings above) are set above the figure; the bin differences below use the same panels.",
     "Overlapping bins: no selective disappearance. Parallel but offset bins: age-independent selection. Bins that diverge or converge with age: age-dependent selection. Use AFR bins for selective appearance. Compare panels to see whether the pattern differs between treatments.",
     "At late ages only long-lived bins remain. ALR-based bins shift when final occasions are missed. If the bin means are non-monotonic (for example highest in the middle bins), the lifespan effect is not linear: Models 2 and 4 use a linear ALR term and will find nothing, so add ALR\u00b2 with 'Same polynomial order' or as an extra term."),
   a1_diff = info_entry("Difference between consecutive bins at each age",
-    "Signed difference in mean trait between consecutive bins (higher bin minus the next lower bin) at each age, with least-squares trend lines of difference against age: one line per bin pair, or a single line pooling all pairs (chosen above the figure).",
+    "Signed difference in mean trait between consecutive bins (higher bin minus the next lower bin) at each age, with least-squares trend lines of difference against age: one line per bin pair, or a single line pooling all pairs (chosen above the figure), each with its 95% confidence band (shaded).",
     "Differences near zero with flat lines: no selection. Constant non-zero differences (flat lines away from zero): age-independent selection. Lines that rise or fall: age-dependent selection. The single pooled line answers 'do neighbouring lifespan bins become more (or less) different with age on average?'; separate lines show whether particular bins drive the pattern, for example only the longest-lived bin diverging at late ages. The saved table reports each line's slope per unit age.",
-    "A point appears only where both bins have at least 3 individuals; differences at late ages rest on few individuals. The pooled line does not weight points by sample size, so treat its slope as descriptive."),
+    "A point appears only where both bins have at least 3 individuals; differences at late ages rest on few individuals. The pooled line does not weight points by sample size, so treat its slope as descriptive. The confidence bands come from the same unweighted least-squares fits (each plotted difference counts as one point), so they are descriptive too; a line through only two points has no band."),
   a2 = info_entry("Trait against lifespan within age bins",
-    "Each individual's mean trait within an age bin, plotted against its lifespan (or ALR / AFR), with a straight-line fit per age bin; age bins need at least 3 individuals. The table lists the regression coefficient (slope) in each consecutive age bin, its 95% CI, the correlation r, and the change from the previous bin, plus a weighted trend of the coefficient across age.",
+    "Each individual's mean trait within an age bin, plotted against its lifespan (or ALR / AFR), with a straight-line fit and its 95% confidence band per age bin; age bins need at least 3 individuals. The table lists the regression coefficient (slope) in each consecutive age bin, its 95% CI, the correlation r, and the change from the previous bin, plus a weighted trend of the coefficient across age.",
     "Coefficients near zero in every bin: no selection. Similar non-zero coefficients in every bin: age-independent selection. Coefficients that change across consecutive age bins: age-dependent selection. Untick 'Show individual points' above the figure to see only the fitted lines, which makes differences in slope between age bins easier to judge.",
     "Older age bins contain only long-lived individuals, so their lifespan range is narrow and coefficients are imprecise (wide CIs). When count means and variances fall with age, coefficients can change through scale alone: compare with the log scale or r. The age-specific coefficients share individuals, so the trend across ages treats correlated estimates as independent."),
   a5_terminal = info_entry("Trait before death (terminal trajectories)",
@@ -4292,8 +4665,8 @@ INFO <- list(
     "Clear associations suggest that missingness is not completely at random.",
     "Associations in observed data cannot prove MCAR, MAR or MNAR, and running many tests inflates false positives. Missingness that depends on the trait itself (the 'Prior observed trait' row) is the most serious case for this app: individuals whose trait is low are recorded less often, so their records end earlier and their trait values are the low ones. That produces the same evidence as age-dependent selective disappearance - the interaction and centring models (3, 4, 5) can beat Model 1 decisively when there is no selection at all - and no model on this data can separate the two. Treat a win for those models as conditional on this row, and check the trait-before-death figure on the Visual diagnosis tab as well. Each individual contributes many rows to these regressions, so the p-values are optimistic, and failing to detect an association is weak evidence for MCAR."),
   proxy_agreement = info_entry("ALR, mean age and lifespan",
-    "Pairwise agreement between ALR, mean sampled age and known lifespan (one point per individual, with r and a 1:1 line).",
-    "High r(ALR, LS) supports ALR-based models (2, 4); high r(mean age, LS) supports centring models (3, 5). Under complete sampling ALR and mean age are nearly interchangeable.",
+    "Pairwise agreement between ALR, mean sampled age and known lifespan (one point per individual, with r, a dotted 1:1 line and a solid black linear regression line).",
+    "High r(ALR, LS) supports ALR-based models (2, 4); high r(mean age, LS) supports centring models (3, 5). Under complete sampling ALR and mean age are nearly interchangeable. The regression line shows how one measure scales with the other: departures from the 1:1 line reveal systematic under- or overestimation, for example ALR falling increasingly short of lifespan when final occasions are missed.",
     "Missed final occasions make ALR underestimate lifespan; intermittent gaps shift mean age. With unknown lifespan only ALR vs mean age is shown."),
   a3_settings = info_entry("Individual fit settings",
     "Chooses the ageing function fitted to each individual, how the population curve is reconstructed, and which individuals are drawn. Individual fits are a visual diagnostic of how individuals age.",
@@ -4320,9 +4693,9 @@ INFO <- list(
     "Compare the result with the individual fits above: the individual comparison shows which shape describes individuals, this one which shape describes the population trajectory of the sampled records. Tick only the functions you want to compare to reduce clutter.",
     "Model 1 ignores selective disappearance, so the preferred function can change once proxies are added. Cubic curves extrapolate poorly. With count families the exponential model a \u00b7 exp(b \u00b7 age) equals the Linear function on the log scale and is left out. 'Asymptotic exponential' is an intercept plus \u03b2 \u00b7 exp(\u2212standardised age): it is linear in its coefficients and flattens towards a plateau, with the rate fixed by the age scale. It is a different model from 'Exponential (a \u00b7 exp(b \u00b7 age))', whose rate b is estimated, and its shape depends on the age distribution of the data analysed."),
   model_settings = info_entry("Model settings",
-    "Error family, ageing function, the individual-level random effects, how among-individual terms enter, standardisation, whether invalid fits may be ranked, and which models to compare. Each model row has a tick box, an 'i' that explains what the model tests (ALR- or centring-based; selective disappearance and appearance, age-dependent or age-independent) and gives its exact specification with the current covariates, interactions and random effects, and a menu to add terms to that model only (for example ALR additively to Model 5 or 6, or a covariate \u00d7 age).",
+    "Error family, ageing function, the individual-level random effects, how among-individual terms enter, standardisation, whether invalid fits may be ranked, and which models to compare. Each model row has a tick box, an 'i' that explains what the model tests (ALR- or centring-based; selective disappearance and appearance, age-dependent or age-independent) and gives its exact specification with the current covariates, interactions and random effects, and a menu to add terms to that model only (for example ALR additively to Model 5 or 6, or a covariate \u00d7 age). The wrench next to each menu builds a term from up to three chosen terms (age, ALR, AFR, LS, mean age or a covariate), each joined to the previous one by + (additive) or \u00d7 (interaction with main effects), for example ALR \u00d7 AFR \u00d7 age; built terms appear in that model's menu and can be removed there. Binomial families show a 'Weights' menu for the number of trials behind each proportion.",
     "Random effects: '(1 | ID)' random intercept; uncorrelated '(1 | ID) + (0 + age | ID)'; correlated '(1 + age | ID)'; 'Automatic' chooses from the data support shown below the menu (supported when at least 30 individuals and half of all individuals have \u2265 3 distinct ages). Among-individual terms (ALR, LS, AFR, mean age) enter linearly by default even with quadratic or cubic ageing; 'Same polynomial order' adds their squares (and cubes). The non-linear exponential fits trait = a \u00b7 exp(b \u00b7 z_age) with nlme (Gaussian traits); for counts it equals the Linear function on the log link. Press 'Fit models' after any change.",
-    "AIC compares models only within the same family and random-effect structure. Random slopes need several records per individual. Terms added to one model change what it tests, so nested likelihood-ratio tests are only reported for genuinely nested pairs. Including invalid fits in the ranking is for inspection only."),
+    "AIC compares models only within the same family and random-effect structure. Random slopes need several records per individual. Terms added to one model change what it tests, so nested likelihood-ratio tests are only reported for genuinely nested pairs. Including invalid fits in the ranking is for inspection only. Built interactions with age multiply the ageing terms (a three-way interaction with a quadratic adds many coefficients), so they can over-fit, fail to converge or be hard to interpret: compare them with simpler models. The zero-inflated negative binomial comes in two variance forms, nbinom2 (variance \u03bc + \u03bc\u00b2/\u03b8) and nbinom1 (variance \u03bc(1 + \u03c6)); compare them with the error-family check."),
   model_support = info_entry("Model support and fit validity",
     "\u0394AIC, Akaike weights, nested likelihood-ratio tests and fitting status for Models 1\u201310 (and any extra terms), all on the same rows. Each fit is classified: Valid (no warnings); Caution (boundary or singular fit, convergence-gradient warnings, rank-deficient terms dropped, or other notes); Failed (no fit, a non-positive-definite or singular Hessian, or a non-finite AIC).",
     "\u0394AIC < 2 means similar support. Model 2 vs 4 tests age-dependent selective disappearance through ALR, 3 vs 5 through mean age; 2 vs 7 and 4 vs 8 test selective appearance; Models 9 and 10 let disappearance and appearance differ in age dependence (9: ALR \u00d7 age + AFR; 10: ALR + AFR \u00d7 age). Likelihood-ratio tests are only reported for pairs whose terms are genuinely nested. Failed fits are excluded from the ranking, the Akaike weights, the tests, the prediction plot and all automated interpretation unless 'Include fits with invalid Hessians' is ticked.",
@@ -4337,7 +4710,7 @@ INFO <- list(
     "SDs near zero indicate boundary (singular) fits."),
   predictions = info_entry("Population-level trajectories",
     "Each model's predicted population-level trajectory, calculated by: (1) excluding random effects (re.form = NA), so the curve describes a typical individual rather than any sampled individual; (2) holding numeric covariates at their mean across individuals; (3) marginalising over factor covariates \u2014 predictions are made for every observed combination of factor levels and averaged, weighted by the number of individuals with that combination (or shown separately for each level of the factor chosen in 'Show predictions by'); (4) holding ALR, LS, AFR and individual mean-age terms at their individual-level means (polynomial among-individual terms use the square or cube of that mean value); (5) reporting the response scale, so count models include the zero-inflation probability. Observed means, the decomposition, the reconstruction from individual fits (mean of coefficients and mean of individual functions, using the function chosen on the 'Individual and population trajectories' tab) and, for simulations, the truth can be overlaid. Choose which models to draw to reduce clutter.",
-    "Models that account for selective disappearance should track the truth in simulations; observed means and the decomposition are biased under age-dependent selection. With covariate \u00d7 age interactions, show predictions by that covariate to see how its levels age differently.",
+    "Models that account for selective disappearance should track the truth in simulations; observed means and the decomposition are biased under age-dependent selection. With covariate \u00d7 age interactions, show predictions by that covariate to see how its levels age differently. Tick 'Individual records (jittered)' to add every record's raw trait value as a small transparent point, jittered slightly along age only (trait values are not changed). The decomposition (Rebke et al. 2010) chains the mean within-individual change between successive sampling occasions, using only the individuals sampled at both (survivor-restricted); on an irregular schedule the records are first placed on a common grid of occasions, and a caution appears below the figure.",
     "Curves at sparsely sampled late ages are uncertain. For counts the curve averages predictions across factor combinations on the response scale, which is not the same as a prediction at average covariate values. Failed fits are not drawn unless included; Caution fits are dashed. When selective disappearance is age-independent (lifespan linked to an individual's level, not to its rate of ageing), every model returns almost the same curve even when their AIC values differ by hundreds of units. This is expected, not a fault: the proxy is held at its mean, so additive and interaction proxy terms contribute nothing at that value, and the age slope is unbiased in all of the models. The AIC difference comes from explaining among-individual variation in level, which improves fit without changing the trajectory. Curves separate when disappearance is age-dependent, because then the uncorrected models estimate a biased slope."),
   accuracy = info_entry("Accuracy against the simulated truth",
     "Relativised deviation D = 100 \u00d7 (estimate \u2212 truth) / truth (Methods Eq. 11) for each model, observed means and the decomposition.",

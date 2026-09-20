@@ -1,10 +1,22 @@
-bibentry(
-  bibtype = "Misc",
-  title = "Biases in common methods used to quantify ageing and selective disappearance: a guide",
-  author = c(person("Krish", "Sanghvi"), person("Edward R.", "Ivimey-Cook")),
-  year = "2026",
-  doi = "10.17605/OSF.IO/KEVNM",
-  url = "https://osf.io/kevnm/",
-  textVersion = paste("Sanghvi, K., & Ivimey-Cook, E. R. (2026). Biases in common methods used to quantify",
-                      "ageing and selective disappearance: a guide. https://doi.org/10.17605/OSF.IO/KEVNM")
+c(
+  bibentry(
+    bibtype = "Manual",
+    title = "disappR: a shiny app to model ageing and selective [dis]appearance",
+    author = c(person("K.", "Sanghvi"), person("E. R.", "Ivimey-Cook")),
+    year = "2026",
+    note = "R package",
+    url = "https://github.com/EIvimeyCook/disappR",
+    textVersion = paste("Sanghvi, K., & Ivimey-Cook, E. R. (2026). disappR: a shiny app to model ageing and",
+                        "selective [dis]appearance. R package. https://github.com/EIvimeyCook/disappR")
+  ),
+  bibentry(
+    bibtype = "Article",
+    title = "A comparison of methods to assess selective disappearance and quantify ageing",
+    author = c(person("K.", "Sanghvi"), person("E. R.", "Ivimey-Cook"), person("S.", "Bouwhuis"),
+               person("I.", "Sepil"), person("M.", "van de Pol")),
+    journal = "EcoEvoRxiv",
+    year = "2026",
+    textVersion = paste("Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I., & van de Pol, M. (2026).",
+                        "A comparison of methods to assess selective disappearance and quantify ageing. EcoEvoRxiv.")
+  )
 )

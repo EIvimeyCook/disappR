@@ -80,6 +80,7 @@ server <- function(input, output, session) {
     list(
       trait = input$toy_trait %||% "mass",
       form = input$toy_form %||% "Quadratic",
+      shape = input$toy_shape %||% "default",
       strength = input$toy_strength %||% "dramatic",
       sd_type = sd_type,
       sd_dir = if (identical(sd_type, "none")) 1 else num_input(input$toy_sd_dir, 1),
@@ -98,6 +99,12 @@ server <- function(input, output, session) {
     toy_cfg(read_toy_inputs())
     notify("Simulated dataset ready. All tabs now use it; refit models on the Models tab.", duration = 4)
   }))
+  # Shapes offered within each simulated ageing form (biological scenarios); "default" is the form's original shape.
+  observeEvent(input$toy_form, disappr_guard("input$toy_form", {
+    ch <- toy_shape_choices(input$toy_form)
+    cur <- isolate(input$toy_shape)
+    updateSelectInput(session, "toy_shape", choices = ch, selected = if (isTRUE(cur %in% ch)) cur else "default")
+  }), ignoreInit = TRUE)
 
   output$toy_status <- renderUI({
     active <- toy_cfg()
@@ -162,6 +169,8 @@ server <- function(input, output, session) {
       column(4,
         selectInput("col_id", "Individual ID *", choices = cols, selected = pick(pm$id, cols[[1]])),
         selectInput("col_age", "Age / time *", choices = cols, selected = pick(pm$age, cols[[min(2, length(cols))]])),
+        box_note("Age must be numeric (whole numbers or decimals, e.g. years, days or sampling occasions); it cannot be categorical. Rows without a numeric age are dropped."),
+        uiOutput("age_type_note"),
         selectInput("col_trait", "Trait *", choices = cols, selected = pick(pm$trait, cols[[min(3, length(cols))]]))
       ),
       column(4,
@@ -171,14 +180,16 @@ server <- function(input, output, session) {
                     selected = if (identical(pm$life, "__AUTO_LAST__")) "__AUTO_LAST__" else pick(pm$life, ""))
       ),
       column(4,
-        selectizeInput("col_cov_num", "Continuous fixed-effect covariates (linear effects)", choices = cols, selected = pm_num,
+        selectizeInput("col_cov_num", tags$span(tags$b("CONTINUOUS"), " fixed-effect covariates (linear effects)"), choices = cols, selected = pm_num,
                        multiple = TRUE, options = list(placeholder = "e.g. temperature, body size")),
-        selectizeInput("col_cov_fac", "Categorical fixed-effect covariates (factors)", choices = cols, selected = pm_fac,
+        selectizeInput("col_cov_fac", tags$span(tags$b("CATEGORICAL"), " fixed-effect covariates (factors)"), choices = cols, selected = pm_fac,
                        multiple = TRUE, options = list(placeholder = "e.g. treatment, sex, diet")),
+        uiOutput("cov_type_warning"),
         uiOutput("cov_int_ui"),
         box_note("Fixed-effect covariates and their interactions are used in the mixed models on tab 5 (Modelling). Values of a continuous covariate that are not numbers are treated as missing."),
-        selectInput("col_group", "Higher-level random effect", choices = c("(none)" = "", cols), selected = pick(pm$group, "")),
-        checkboxInput("group_nested", "Individuals nested within this group", value = isTRUE(pm$nested)),
+        selectInput("col_group", "Higher-level random effect (group containing individuals, e.g. father)", choices = c("(none)" = "", cols), selected = pick(pm$group, "")),
+        selectInput("col_group2", "Next level up (optional: group containing that group, e.g. family)", choices = c("(none)" = "", cols), selected = pick(pm$group2, "")),
+        checkboxInput("group_nested", "Nested: individuals within the group (and the group within the next level up)", value = isTRUE(pm$nested)),
         selectizeInput("col_random", "Additional random intercepts: + (1 | X)", choices = cols,
                        selected = intersect(pm$random %||% character(0), cols), multiple = TRUE,
                        options = list(placeholder = "e.g. year, observer, replicate")),
@@ -210,7 +221,7 @@ server <- function(input, output, session) {
             box_note("AFR is what every model and statistic uses: it is the AFR term in Models 7\u201310 and the start of each individual's observed window. An age at first trait expression can be set on the 'Sampling and missingness' tab, where it changes the missingness figures only.")
           ),
           column(5,
-            selectInput("col_trials", "Number of binomial trials (optional)", choices = c("(none)" = "", cols), selected = pick(pm$trials, "")),
+            box_note("Binomial weights (the number of trials behind each proportion) are chosen on the Modelling tab, below the error family, when a binomial family is selected."),
             selectInput("col_censor", "Censoring indicator (optional)", choices = c("(none)" = "", cols), selected = pick(pm$censor, "")),
             uiOutput("censor_value_ui")
           )
@@ -221,6 +232,22 @@ server <- function(input, output, session) {
     )
   })
   try(outputOptions(output, "mapping_ui", suspendWhenHidden = FALSE), silent = TRUE)
+  # Immediate checks under the column menus: age must be numeric, and covariates should sit in the right box.
+  output$age_type_note <- renderUI({
+    df <- safe_get(raw_data())
+    col <- input$col_age %||% ""
+    if (is.null(df) || !nzchar(col) || !col %in% names(df)) return(NULL)
+    msg <- age_type_message(df[[col]], col)
+    if (!nzchar(msg)) return(NULL)
+    div(class = "small-note", style = "border-left: 3px solid #A50026; padding-left: 7px; margin: 4px 0 8px;", msg)
+  })
+  output$cov_type_warning <- renderUI({
+    df <- safe_get(raw_data())
+    if (is.null(df)) return(NULL)
+    msgs <- covariate_type_warnings(df, input$col_cov_num, input$col_cov_fac)
+    if (!length(msgs)) return(NULL)
+    div(class = "small-note", style = "border-left: 3px solid #A50026; padding-left: 7px; margin: 4px 0 8px;", lapply(msgs, div))
+  })
 
   output$censor_value_ui <- renderUI({
     df <- raw_data()
@@ -262,6 +289,8 @@ server <- function(input, output, session) {
     if (is.null(df)) return(NULL)
     cand <- subset_candidates(df)
     cur <- isolate(input$subset_var)
+    # an example opens with its own subset (e.g. one sex, as analysed in the paper) or with none
+    if (identical(isolate(input$data_source), "example")) cur <- isolate(current_example())$subset$var %||% ""
     tagList(
       fluidRow(
         column(4, selectInput("subset_var", "Keep only rows where", choices = c("(no subsetting)" = "", cand),
@@ -277,6 +306,8 @@ server <- function(input, output, session) {
     if (is.null(df) || !nzchar(v) || !v %in% names(df)) return(p(class = "small-note", style = "margin-top:26px;", "All rows are used."))
     lv <- sort(unique(as.character(df[[v]][!is.na(df[[v]])])))
     cur <- isolate(input$subset_levels)
+    ex_sub <- if (identical(isolate(input$data_source), "example")) isolate(current_example())$subset else NULL
+    if (!is.null(ex_sub) && identical(ex_sub$var, v) && length(intersect(ex_sub$levels, lv))) cur <- intersect(ex_sub$levels, lv)
     selectizeInput("subset_levels", paste(v, "is one of"), choices = lv, multiple = TRUE,
                    selected = if (length(intersect(cur, lv))) intersect(cur, lv) else lv[[1]])
   })
@@ -360,16 +391,22 @@ server <- function(input, output, session) {
 
   current_map <- reactive({
     req(input$col_id, input$col_age, input$col_trait)
-    list(id = input$col_id, age = input$col_age, trait = input$col_trait,
+    mp <- list(id = input$col_id, age = input$col_age, trait = input$col_trait,
          alr = input$col_alr %||% "__AUTO_LAST__", life = input$col_life %||% "",
          entry = if (identical(input$afr_mode %||% "auto", "column")) (input$col_entry %||% "__AUTO_FIRST__") else "__AUTO_FIRST__",
          condition = input$col_condition %||% "", trials = input$col_trials %||% "",
          covars = unique(c(input$col_cov_num, input$col_cov_fac)), cov_factor = input$col_cov_fac %||% character(0),
-         cov_int = input$col_cov_int %||% character(0), group = input$col_group %||% "",
+         cov_int = input$col_cov_int %||% character(0), group = input$col_group %||% "", group2 = input$col_group2 %||% "",
          nested = isTRUE(input$group_nested), random = input$col_random %||% character(0),
          censor = input$col_censor %||% "", censor_value = input$censor_value %||% "",
          cov_age = character(0),
          age_round = if (identical(input$data_source, "toy")) NA_real_ else num_input(input$age_round, NA_real_))
+    # a second grouping level chosen without the first is used as the first level
+    if (!nzchar(mp$group) && nzchar(mp$group2)) {
+      mp$group <- mp$group2
+      mp$group2 <- ""
+    }
+    mp
   })
 
   bundle <- reactive({
@@ -404,13 +441,19 @@ server <- function(input, output, session) {
     paste(input$data_source, input$example_id %||% "", nrow(d), length(unique(d$id)), signif(sum(d$age), 12), signif(sum(d$trait, na.rm = TRUE), 12),
           signif(sum(d$alr, na.rm = TRUE), 12), signif(sum(d$life, na.rm = TRUE), 12), signif(sum(d$entry, na.rm = TRUE), 12),
           paste(m$covars, collapse = ","), paste(m$random_terms, collapse = ","), m$has_group, m$nested, m$life_auto,
-          m$dup_action, m$n_censored, m$trials_col %||% "", input$afr_mode %||% "auto", paste(m$cov_age, collapse = ","), paste(m$cov_types, collapse = ","),
+          m$dup_action, m$n_censored, isTRUE(m$has_group2), if (isTRUE(m$has_group2)) m$map$group2 else "", input$afr_mode %||% "auto", paste(m$cov_age, collapse = ","), paste(m$cov_types, collapse = ","),
           paste(m$cov_pairs, collapse = ","), input$subset_var %||% "",
           paste(input$subset_levels %||% character(0), collapse = ","), sep = "|")
   })
 
-  # Sensible defaults whenever the data change: family and model selection.
+  # Sensible defaults whenever the data change: family and model selection. The data signature is compared with the
+  # previous one, so settings that leave the analysed data unchanged (e.g. the binomial weights column chosen on the
+  # Modelling tab) keep the user's family and model choices.
+  defaults_sig <- reactiveVal(NULL)
   observeEvent(safe_get(data_sig()), disappr_guard("data_sig()", {
+    sig <- safe_get(data_sig())
+    if (identical(sig, isolate(defaults_sig()))) return(invisible(NULL))
+    defaults_sig(sig)
     ex <- if (identical(input$data_source %||% "toy", "example")) current_example() else NULL
     fam <- if (is_toy()) {
       toy_family(toy_cfg()$trait)
@@ -500,26 +543,48 @@ server <- function(input, output, session) {
                 selected = if (isTRUE(cur %in% ch)) cur else "")
   })
   try(outputOptions(output, "facet_ui", suspendWhenHidden = FALSE), silent = TRUE)
-  facet_map <- reactive({
-    v <- input$facet_var %||% ""
-    if (!nzchar(v)) return(NULL)
+  # One panel label per individual (the individual's most common level of the chosen column), keyed by the
+  # individual IDs the app uses (group + ID when nested).
+  facet_map_for <- function(v) {
+    if (!nzchar(v %||% "")) return(NULL)
     df <- raw_data()
     m <- meta()
     if (!v %in% names(df)) return(NULL)
-    map <- m$map
-    ids <- as.character(df[[map$id]])
-    if (isTRUE(m$has_group) && isTRUE(m$nested)) {
-      g <- as.character(df[[map$group]])
-      ids <- ifelse(is.na(g), ids, paste(g, ids, sep = "/"))
-    }
+    ids <- individual_ids(df, m$map)
     lv <- as.character(df[[v]])
     ok <- !is.na(ids) & nzchar(ids) & !is.na(lv) & nzchar(lv)
     if (!any(ok)) return(NULL)
     per <- tapply(lv[ok], ids[ok], mode_or_na)
     stats::setNames(paste0(v, ": ", as.character(per)), names(per))
-  })
+  }
+  facet_map <- reactive(facet_map_for(input$facet_var %||% ""))
   facet_layer <- function() if (!is.null(facet_map())) facet_wrap(~ facet) else NULL
   facet_text <- function() if (nzchar(input$facet_var %||% "")) paste0("; panels by ", input$facet_var) else ""
+  # The trajectory figure (and the bin differences built from it) can have its own panels.
+  a1_facet_var <- reactive({
+    v <- input$a1_facet %||% "__same__"
+    if (identical(v, "__same__")) input$facet_var %||% "" else v
+  })
+  a1_facet_map <- reactive(facet_map_for(a1_facet_var()))
+  a1_facet_layer <- function() if (!is.null(a1_facet_map())) facet_wrap(~ facet) else NULL
+  a1_facet_text <- function() if (nzchar(a1_facet_var())) paste0("; panels by ", a1_facet_var()) else ""
+  output$a1_facet_ui <- renderUI({
+    df <- safe_get(raw_data())
+    m <- safe_get(meta())
+    if (is.null(df) || is.null(m)) return(NULL)
+    map <- m$map
+    cand <- setdiff(names(df), c(map$id, map$age, map$trait, map$alr, map$life, map$entry, map$censor))
+    n_lev <- vapply(cand, function(nm) {
+      v <- as.character(df[[nm]])
+      length(unique(v[!is.na(v) & nzchar(v)]))
+    }, integer(1))
+    cat_cov <- unname(m$cov_labels[names(m$cov_types)[m$cov_types == "categorical"]])
+    ch <- unique(c(intersect(cat_cov, cand[n_lev >= 2 & n_lev <= 12]), cand[n_lev >= 2 & n_lev <= 8]))
+    cur <- isolate(input$a1_facet) %||% "__same__"
+    selectInput("a1_facet", "Panels by (categorical variable)", choices = c("As in the settings above" = "__same__", "(none)" = "", ch),
+                selected = if (cur %in% c("__same__", "", ch)) cur else "__same__")
+  })
+  try(outputOptions(output, "a1_facet_ui", suspendWhenHidden = FALSE), silent = TRUE)
 
   # Bins range from 3 to the number of distinct values observed in >= the minimum number of individuals
   observe(disappr_guard("observer", {
@@ -560,7 +625,7 @@ server <- function(input, output, session) {
   })
   a1_bins <- reactive({
     binned_trajectory(visual_dat(), proxy_values(imet(), a1_px()), input$n_bins %||% 4, input$bin_method %||% "equal",
-                      3, facet = facet_map())
+                      3, facet = a1_facet_map())
   })
 
   output$a1_plot <- renderPlot(a1_plot_obj())
@@ -576,7 +641,7 @@ server <- function(input, output, session) {
       labs(x = "Age", y = paste("Mean", trait_label()), colour = paste(px, "bin"),
            title = paste(trait_label(), "across age by", px, "bin"),
            subtitle = "Each line joins bin means of individual \u00d7 age means; point size = number of individuals") +
-      facet_layer() + theme_disappR(13)
+      a1_facet_layer() + theme_disappR(13)
   })
 
   a2_data <- reactive({
@@ -631,11 +696,13 @@ server <- function(input, output, session) {
       p <- p + geom_point(alpha = 0.35, size = 1.4, position = position_jitter(width = jw, height = 0, seed = 1))
     }
     p +
-      geom_smooth(aes(group = age_bin), method = "lm", formula = y ~ x, se = FALSE, linewidth = 1.2, na.rm = TRUE) +
+      geom_smooth(aes(group = age_bin, fill = age_bin), method = "lm", formula = y ~ x, se = TRUE, level = 0.95, alpha = 0.15,
+                  linewidth = 1.2, na.rm = TRUE) +
       scale_colour_manual(values = cols, drop = FALSE) +
+      scale_fill_manual(values = cols, drop = FALSE, guide = "none") +
       labs(x = px, y = paste("Mean", trait_label(), "within age bin"), colour = "Age",
            title = paste(trait_label(), "against", px, "within age bins"),
-           subtitle = if (isTRUE(input$a2_points %||% TRUE)) "Points (jittered): each individual's mean within an age bin; lines: linear fit per age bin" else "Lines: linear fit of the trait on the proxy within each age bin (points hidden)") +
+           subtitle = if (isTRUE(input$a2_points %||% TRUE)) "Points (jittered): each individual's mean within an age bin; lines: linear fit per age bin with its 95% confidence band" else "Lines: linear fit of the trait on the proxy within each age bin, with 95% confidence bands (points hidden)") +
       facet_layer() + theme_disappR(13)
   })
 
@@ -664,33 +731,46 @@ server <- function(input, output, session) {
     if (length(rows)) do.call(rbind, rows) else data.frame()
   })
   output$bin_diff_plot <- renderPlot(bin_diff_obj())
+  # Least-squares lines of the differences against age (one per bin pair, or pooled) with 95% confidence bands.
+  bin_diff_bands <- reactive({
+    dz <- bin_diff_data()
+    pooled <- identical(input$diff_lines, "pooled")
+    grp <- if (pooled) dz$facet else paste(dz$facet, as.character(dz$pair), sep = "\r")
+    rows <- lapply(split(dz, grp), function(x) {
+      bd <- lm_band(x$age, x$difference)
+      if (!nrow(bd)) return(NULL)
+      bd$facet <- x$facet[[1]]
+      if (!pooled) bd$pair <- factor(as.character(x$pair[[1]]), levels = levels(dz$pair))
+      bd
+    })
+    rows <- Filter(Negate(is.null), rows)
+    if (length(rows)) do.call(rbind, rows) else data.frame()
+  })
   bin_diff_obj <- reactive({
     dz <- bin_diff_data()
-    tr <- bin_diff_trends()
     ages <- sort(unique(dz$age))
     st <- if (length(ages) > 1) min(diff(ages)) else 1
     np <- length(levels(dz$pair))
     dz$age_plot <- dz$age + (as.integer(dz$pair) - (np + 1) / 2) * st * min(0.6 / np, 0.15)
+    bands <- bin_diff_bands()
+    pooled <- identical(input$diff_lines, "pooled")
     p <- ggplot(dz, aes(age_plot, difference, colour = pair)) +
-      geom_hline(yintercept = 0, linetype = 2, colour = "grey55") +
-      geom_point(size = 3, alpha = 0.9)
-    if (identical(input$diff_lines, "pooled")) {
-      pl <- bin_diff_pooled()
-      if (nrow(pl)) {
-        p <- p + geom_segment(data = pl, aes(x = x, xend = xend, y = y, yend = yend), inherit.aes = FALSE, colour = "black", linewidth = 1.2)
-      }
-    } else if (nrow(tr)) {
-      seg <- data.frame(facet = tr$Facet, pair = factor(tr$Pair, levels = levels(dz$pair)), x = tr$Age_from, xend = tr$Age_to,
-                        y = tr$Intercept + tr$Slope_per_age * tr$Age_from, yend = tr$Intercept + tr$Slope_per_age * tr$Age_to)
-      p <- p + geom_segment(data = seg, aes(x = x, xend = xend, y = y, yend = yend, colour = pair), inherit.aes = FALSE, linewidth = 1)
+      geom_hline(yintercept = 0, linetype = 2, colour = "grey55")
+    if (nrow(bands) && pooled) {
+      p <- p + geom_ribbon(data = bands, aes(x = x, ymin = lo, ymax = hi), inherit.aes = FALSE, fill = "grey45", alpha = 0.2, na.rm = TRUE) +
+        geom_line(data = bands, aes(x = x, y = fit), inherit.aes = FALSE, colour = "black", linewidth = 1.2)
+    } else if (nrow(bands)) {
+      p <- p + geom_ribbon(data = bands, aes(x = x, ymin = lo, ymax = hi, fill = pair, group = pair), inherit.aes = FALSE, alpha = 0.13, na.rm = TRUE) +
+        geom_line(data = bands, aes(x = x, y = fit, colour = pair, group = pair), inherit.aes = FALSE, linewidth = 1)
     }
-    p +
+    p + geom_point(size = 3, alpha = 0.9) +
       scale_colour_manual(values = distinct_colours(np), drop = FALSE) +
+      scale_fill_manual(values = distinct_colours(np), drop = FALSE, guide = "none") +
       scale_x_continuous(breaks = if (length(ages) <= 15) ages else waiver()) +
       labs(x = "Age", y = paste("Difference in mean", trait_label(), "(higher \u2212 lower", a1_px(), "bin)"), colour = NULL,
            title = paste("Difference between", a1_px(), "bins at each age"),
-           subtitle = if (identical(input$diff_lines, "pooled")) "Bin numbers as in the trajectory legend; black line: least-squares trend across all pairs. A rising or falling line indicates age-dependent selection." else "Bin numbers as in the trajectory legend; lines: least-squares trend of each difference against age. Trends that rise or fall indicate age-dependent selection.") +
-      facet_layer() + theme_disappR(13)
+           subtitle = if (pooled) "Bin numbers as in the trajectory legend; black line: least-squares trend across all pairs, with its 95% confidence band (grey). A rising or falling line indicates age-dependent selection." else "Bin numbers as in the trajectory legend; lines: least-squares trend of each difference against age, with 95% confidence bands. Trends that rise or fall indicate age-dependent selection.") +
+      a1_facet_layer() + theme_disappR(13)
   })
 
   output$toy_card_visual <- renderUI({
@@ -848,10 +928,11 @@ server <- function(input, output, session) {
     ggplot(df, aes(x, y)) +
       geom_count(colour = warm_palette[[3]], alpha = 0.7) +
       geom_abline(slope = 1, intercept = 0, linetype = 3, colour = "grey50") +
+      geom_smooth(method = "lm", formula = y ~ x, se = FALSE, colour = "black", linewidth = 0.9, na.rm = TRUE) +
       annotate("text", x = -Inf, y = Inf, label = if (is.finite(r)) sprintf("r = %.3f", r) else "r = NA",
                hjust = -0.2, vjust = 1.5, colour = "#453A32") +
       scale_size_area(max_size = 6, guide = "none") +
-      labs(x = xlab, y = ylab, subtitle = paste(ylab, "vs", xlab, "(one point per individual; dotted line: 1:1)")) +
+      labs(x = xlab, y = ylab, subtitle = paste(ylab, "vs", xlab, "(one point per individual; dotted line: 1:1; solid black line: linear regression)")) +
       theme_disappR(12)
   }
   output$afr_alr_plot <- renderPlot({
@@ -867,10 +948,10 @@ server <- function(input, output, session) {
     ggplot(df, aes(AFR, ALR)) +
       geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey55") +
       geom_count(alpha = 0.55, colour = warm_palette[[2]]) +
-      geom_smooth(method = "lm", formula = y ~ x, colour = warm_palette[[1]], fill = warm_palette[[1]], alpha = 0.18) +
+      geom_smooth(method = "lm", formula = y ~ x, colour = "black", fill = "grey55", alpha = 0.18, linewidth = 1) +
       scale_size_area(max_size = 6, guide = "none") +
       labs(x = "Age at first record (AFR)", y = "Age at last record (ALR)",
-           subtitle = sprintf("r = %s; points on the dashed line were recorded once", format_num(r))) +
+           subtitle = sprintf("r = %s; dashed line: 1:1 (points on it were recorded once); solid black line: linear regression with 95%% band", format_num(r))) +
       theme_disappR(12)
   })
 
@@ -1064,7 +1145,8 @@ server <- function(input, output, session) {
     ex <- stats::setNames(lapply(MODEL_IDS, function(mid) as.character(input[[paste0("extra_", mid)]] %||% character(0))), MODEL_IDS)
     ex <- ex[vapply(ex, length, integer(1)) > 0]
     list(family = fam,
-         zi = if (fam %in% c("zip", "zinb") && length(zi_vars)) paste("~", paste(zi_vars, collapse = " + ")) else "~1",
+         zi = if (fam %in% ZI_FAMILIES && length(zi_vars)) paste("~", paste(zi_vars, collapse = " + ")) else "~1",
+         trials = if (fam %in% BINOMIAL_FAMILIES) (input$col_trials %||% "") else "",
          age_function = input$model_age_function %||% "Quadratic",
          models = MODEL_IDS[vapply(MODEL_IDS, function(mid) isTRUE(input[[paste0("use_", mid)]]), logical(1))],
          random_slope = normalise_slope(input$random_structure %||% "none"),
@@ -1074,7 +1156,7 @@ server <- function(input, output, session) {
          extra = if (length(ex)) ex else NULL)
   })
   settings_sig <- function(s) {
-    paste(s$family, s$zi, s$random_slope, s$standardise, s$among, s$include_invalid, sep = "||")
+    paste(s$family, s$zi, s$random_slope, s$standardise, s$among, s$include_invalid, s$trials %||% "", sep = "||")
   }
   model_sig <- reactive({
     s <- model_settings()
@@ -1112,6 +1194,8 @@ server <- function(input, output, session) {
     fn_default$n <- tab$N_common[[1]]
     fn_default$nonlinear_best <- identical(tab$Function[[1]], A3_NONLINEAR)
     if (!is.null(fn_default$manual)) return(invisible(NULL))
+    # an empirical example keeps the ageing function of its published model
+    if (identical(input$data_source %||% "toy", "example") && !is.null(current_example()$age_function)) return(invisible(NULL))
     updateSelectInput(session, "model_age_function", selected = lin[[1]])
   }))
   output$function_default_note <- renderUI({
@@ -1119,6 +1203,11 @@ server <- function(input, output, session) {
     if (!is.null(fn_default$manual)) {
       return(p(class = "small-note", sprintf("Chosen on tab 4 (individual fits): %s.%s You can still change it here.", fn_default$manual,
                                              if (!is.null(b)) sprintf(" Lowest mean \u0394AICc across individuals: %s.", b) else "")))
+    }
+    ex_fn <- if (identical(input$data_source %||% "toy", "example")) current_example()$age_function else NULL
+    if (!is.null(ex_fn)) {
+      return(p(class = "small-note", sprintf("Set by the example to the ageing function of the published model (%s).%s You can still change it here.", ex_fn,
+                                             if (!is.null(b)) sprintf(" Lowest mean \u0394AICc across individual fits: %s.", b) else "")))
     }
     if (is.null(b)) {
       return(p(class = "small-note", "Default: Quadratic. The default follows the individual fits once they can be compared (tab 4)."))
@@ -1140,6 +1229,26 @@ server <- function(input, output, session) {
                    options = list(placeholder = "constant (~1) if empty"))
   })
   try(outputOptions(output, "zi_ui", suspendWhenHidden = FALSE), silent = TRUE)
+  # Binomial weights: the column holding the number of trials behind each proportion (binomial families only).
+  output$trials_ui <- renderUI({
+    df <- safe_get(raw_data())
+    cols <- if (is.null(df)) character(0) else names(df)
+    cur <- isolate(input$col_trials) %||% ""
+    pre <- safe_get(isolate(preset_map())$trials) %||% ""
+    sel <- if (cur %in% cols) cur else if (length(pre) == 1 && pre %in% cols) pre else ""
+    tagList(
+      selectInput("col_trials", "Weights: number of binomial trials", choices = c("None: binary 0/1 trait (one trial per record)" = "", cols), selected = sel),
+      box_note("For a binary (0/1) trait keep 'None'. For a proportion (successes / trials), choose the column holding the number of trials (for example clutch size): each record is then weighted by its trials, so the model is fitted to successes out of trials. Records without a positive number of trials are dropped. The beta-binomial family needs proportions with trials.")
+    )
+  })
+  try(outputOptions(output, "trials_ui", suspendWhenHidden = FALSE), silent = TRUE)
+  observeEvent(input$model_family, disappr_guard("input$model_family", {
+    if (isTRUE(input$model_family %in% BINOMIAL_FAMILIES)) {
+      notify(paste(if (identical(input$model_family, "betabinomial")) "Beta-binomial family." else "Binomial family.",
+                   "A binary (0/1) trait needs no weights. For proportions, choose the column with the number of trials under 'Weights' below the error family, so that each proportion is weighted by its number of trials."),
+             duration = 12)
+    }
+  }), ignoreInit = TRUE)
   output$random_support_note <- renderUI({
     d <- safe_get(dat())
     if (is.null(d)) return(NULL)
@@ -1162,15 +1271,111 @@ server <- function(input, output, session) {
   extra_term_label <- function(x, m) {
     ch <- extra_term_choices(m)
     lab <- names(ch)[match(x, ch)]
+    built <- is.na(lab) & startsWith(as.character(x), "term:")
+    if (any(built)) lab[built] <- vapply(x[built], function(k) extra_term_display(k, m), character(1))
     ifelse(is.na(lab), x, lab)
   }
+  # Terms made with the term builder, per model; they are offered in that model's menu while their terms exist.
+  built_terms <- reactiveValues()
+  extra_choices_for <- function(mid, m) {
+    b <- isolate(built_terms[[mid]]) %||% character(0)
+    b <- b[vapply(b, built_term_ok, logical(1), covars = m$covars %||% character(0), USE.NAMES = FALSE)]
+    c(extra_term_choices(m), stats::setNames(b, vapply(b, function(k) extra_term_display(k, m), character(1), USE.NAMES = FALSE)))
+  }
+  # An example opens with its own extra terms (e.g. lifespan added to Model 1 for the bee data): they are set when the
+  # example changes or the app leaves the examples; otherwise the current selection is kept.
+  example_extra_id <- reactiveVal("")
   observeEvent(safe_get(meta()$covars), disappr_guard("safe_get(meta()$covars)", {
-    ch <- extra_term_choices(safe_get(meta()))
+    m <- safe_get(meta())
+    ex_id <- if (identical(isolate(input$data_source) %||% "toy", "example")) (isolate(input$example_id) %||% "") else ""
+    reset <- !identical(ex_id, isolate(example_extra_id()))
+    if (reset) example_extra_id(ex_id)
+    ex_extra <- if (nzchar(ex_id)) EXAMPLES[[ex_id]]$extra else NULL
     for (mid in MODEL_IDS) {
-      cur <- isolate(input[[paste0("extra_", mid)]]) %||% character(0)
+      ch <- extra_choices_for(mid, m)
+      cur <- if (reset) (ex_extra[[mid]] %||% character(0)) else (isolate(input[[paste0("extra_", mid)]]) %||% character(0))
       updateSelectizeInput(session, paste0("extra_", mid), choices = ch, selected = intersect(cur, ch))
     }
   }), ignoreNULL = FALSE)
+
+  # ---- Term builder: up to three terms joined by + (additive) or x (interaction), per model ----
+  build_target <- reactiveVal(NULL)
+  builder_tokens <- function(m) {
+    covs <- if (is.null(m) || !length(m$covars)) character(0) else stats::setNames(m$covars, unname(m$cov_labels[m$covars]))
+    lk <- isTRUE(m$has_life) && !isTRUE(m$life_auto)
+    c("Age (the ageing terms)" = "age", "ALR (age at last record)" = "ALR", "AFR (age at first record)" = "AFR",
+      if (lk) c("LS (known lifespan)" = "LS"), "Mean age of the individual" = "mean_age", covs)
+  }
+  builder_ops <- c("\u00d7 (interaction)" = "*", "+ (additive)" = "+")
+  builder_key <- function() {
+    tk <- c(input$tb_t1 %||% "", input$tb_t2 %||% "", input$tb_t3 %||% "")
+    op <- c(input$tb_o1 %||% "*", input$tb_o2 %||% "*")
+    if (!nzchar(tk[[1]])) return(NULL)
+    txt <- tk[[1]]
+    if (nzchar(tk[[2]])) txt <- paste0(txt, if (identical(op[[1]], "+")) "+" else "*", tk[[2]])
+    if (nzchar(tk[[3]])) txt <- paste0(txt, if (identical(op[[2]], "+")) "+" else "*", tk[[3]])
+    comps <- parse_built_term(paste0("term:", txt))
+    if (!length(comps)) return(NULL)
+    paste0("term:", paste(vapply(comps, paste, character(1), collapse = "*"), collapse = "+"))
+  }
+  lapply(MODEL_IDS, function(mid) {
+    observeEvent(input[[paste0("build_", mid)]], disappr_guard("input[[paste0('build_', mid)]]", {
+      if (!is.function(session$sendModal)) return(invisible(NULL))
+      toks <- builder_tokens(safe_get(meta()))
+      build_target(mid)
+      showModal(modalDialog(
+        title = paste("Build a term for", model_label(mid)),
+        p(class = "small-note", "Choose up to three terms and how each joins the previous one: \u00d7 fits an interaction together with its main effects (A * B in R), + adds the term on its own. For example ALR \u00d7 AFR \u00d7 age fits a three-way interaction. 'Age' stands for all ageing terms of the chosen function. The term is added to this model's menu, where it can be removed again."),
+        fluidRow(
+          column(3, selectInput("tb_t1", "Term 1", choices = toks)),
+          column(2, selectInput("tb_o1", "Join", choices = builder_ops)),
+          column(3, selectInput("tb_t2", "Term 2", choices = c("(none)" = "", toks), selected = "")),
+          column(2, selectInput("tb_o2", "Join", choices = builder_ops)),
+          column(2, selectInput("tb_t3", "Term 3", choices = c("(none)" = "", toks), selected = ""))
+        ),
+        uiOutput("tb_preview"),
+        footer = tagList(modalButton("Cancel"), actionButton("tb_add", "Add to this model", class = "btn-primary", icon = icon("plus"))),
+        easyClose = TRUE, size = "l"))
+    }), ignoreInit = TRUE)
+  })
+  output$tb_preview <- renderUI({
+    key <- builder_key()
+    if (is.null(key)) return(p(class = "small-note", "Choose at least one term."))
+    mid <- build_target() %||% "M1"
+    m <- safe_get(meta())
+    s <- model_settings()
+    fn <- if (identical(s$age_function, A3_NONLINEAR)) "Linear" else s$age_function
+    b <- switch(fn, Quadratic = c("f1", "f2"), Cubic = c("f1", "f2", "f3"), "f1")
+    fr <- built_term_formula(key, b, s$among, mid %in% c("M3", "M5"))
+    n_terms <- tryCatch(length(attr(stats::terms(stats::as.formula(paste("~", fr))), "term.labels")), error = function(e) NA_integer_)
+    ok <- built_term_ok(key, m$covars %||% character(0))
+    tagList(
+      div(class = "truth-card small-note",
+          strong("Term: "), extra_term_display(key, m), br(),
+          strong("Added to the formula: "), tags$code(display_term(fr)),
+          if (is.finite(n_terms)) tagList(br(), sprintf("%d fixed-effect terms when expanded (more coefficients for categorical covariates with more than two levels).", n_terms)) else NULL),
+      if (!ok) div(class = "diagnosis-card", div(class = "diagnosis-detail", "This combination cannot be added: use at most three terms from the lists.")) else NULL,
+      if (built_term_age_interaction(key)) div(class = "diagnosis-card", div(class = "diagnosis-detail", strong("Caution: interaction with age. "),
+        "Every ageing term (e.g. age and age\u00b2 for a quadratic) gets its own coefficient for each interacting term, so interactions with age add parameters quickly, especially three-way interactions and categorical covariates with several levels. Such models can be over-fitted, unstable (check the fitting status and random-effect variances) and hard to interpret: compare them with simpler models.")) else NULL
+    )
+  })
+  observeEvent(input$tb_add, disappr_guard("input$tb_add", {
+    mid <- build_target()
+    key <- builder_key()
+    m <- safe_get(meta())
+    if (is.null(mid) || is.null(key) || !built_term_ok(key, m$covars %||% character(0))) {
+      notify("Choose at least one term from the lists (at most three).", type = "warning")
+      return(invisible(NULL))
+    }
+    built_terms[[mid]] <- unique(c(built_terms[[mid]], key))
+    cur <- input[[paste0("extra_", mid)]] %||% character(0)
+    updateSelectizeInput(session, paste0("extra_", mid), choices = extra_choices_for(mid, m), selected = unique(c(cur, key)))
+    if (is.function(session$sendModal)) removeModal()
+    age_int <- built_term_age_interaction(key)
+    notify(paste0("Added to ", model_label(mid), ": ", extra_term_display(key, m),
+                  if (age_int) ". Caution: interactions with age add many parameters and can over-fit." else "."),
+           type = if (age_int) "warning" else "message", duration = 8)
+  }))
   lapply(MODEL_IDS, function(mid) {
     observeEvent(input[[paste0("info_model_", mid)]], disappr_guard("input[[paste0('info_model_', mid)]]", {
       s <- model_settings()
@@ -1243,18 +1448,19 @@ server <- function(input, output, session) {
       paste(vapply(m$covars, function(cv) paste0(m$cov_labels[[cv]], if (cv %in% (m$cov_age %||% character(0))) " (\u00d7 age)" else ""), character(1)), collapse = ", ")
     } else "none"
     div(class = "truth-card small-note",
-        strong("Random effects: "), rstr, if (isTRUE(m$has_group) && isTRUE(m$nested)) " (IDs nested in group)" else "", br(),
+        strong("Random effects: "), rstr, if (isTRUE(m$has_group) && isTRUE(m$nested)) (if (isTRUE(m$has_group2)) " (IDs nested in groups, nested in top-level groups)" else " (IDs nested in group)") else "", br(),
         strong("Covariates: "), cov, br(),
         strong("Among-individual terms: "), if (identical(s$among, "same")) "same polynomial order as the ageing function" else "linear", br(),
         if (length(s$extra)) tagList(strong("Extra terms: "), paste(paste0(model_label(names(s$extra)), ": ",
                                      vapply(s$extra, function(x) paste(extra_term_label(x, m), collapse = ", "), character(1))), collapse = "; "), br()) else NULL,
+        if (any(vapply(unlist(s$extra), built_term_age_interaction, logical(1)))) tagList(strong("Caution: "), "built terms that interact with age add many parameters and can over-fit the models they are added to.", br()) else NULL,
         "Change covariates and grouping on the Data tab.")
   })
 
   output$b2_settings <- renderUI({
     s <- model_settings()
     p(class = "small-note", strong("Current settings: "), family_label(s$family),
-      if (s$family %in% c("zip", "zinb")) paste0(", zero-inflation ", s$zi) else "",
+      if (s$family %in% ZI_FAMILIES) paste0(", zero-inflation ", s$zi) else "",
       ", ", slope_text(s$random_slope), ".")
   })
 
@@ -1430,8 +1636,10 @@ server <- function(input, output, session) {
     m <- meta()
     grp_lab <- function(g) {
       out <- g
-      out[g == "id"] <- if (isTRUE(m$has_group) && isTRUE(m$nested)) paste0(m$map$group, ":", m$map$id) else m$map$id
-      out[g == "group"] <- m$map$group %||% "group"
+      glab <- if (isTRUE(m$has_group2) && isTRUE(m$nested)) paste0(m$map$group2, ":", m$map$group) else (m$map$group %||% "group")
+      out[g == "id"] <- if (isTRUE(m$has_group) && isTRUE(m$nested)) paste0(glab, ":", m$map$id) else m$map$id
+      out[g == "group"] <- glab
+      out[g == "group2"] <- m$map$group2 %||% "group2"
       rt <- g %in% names(m$random_labels)
       out[rt] <- unname(m$random_labels[g[rt]])
       out
@@ -1501,6 +1709,13 @@ server <- function(input, output, session) {
   })
   obs_traj <- reactive(observed_trajectory(dat()))
   decomp_traj <- reactive(decomposition_trajectory(dat()))
+  output$decomp_note <- renderUI({
+    if (!isTRUE(input$show_decomp)) return(NULL)
+    de <- safe_get(decomp_traj())
+    cau <- if (is.data.frame(de)) attr(de, "caution") else NULL
+    if (!length(cau) || !nzchar(cau[[1]])) return(NULL)
+    div(class = "small-note", style = "border-left: 3px solid #B35806; padding-left: 7px; margin: 4px 0 8px;", strong("Decomposition: "), cau[[1]])
+  })
 
   output$pred_plot <- renderPlot(pred_plot_obj())
   pred_plot_obj <- reactive({
@@ -1508,6 +1723,22 @@ server <- function(input, output, session) {
     validate(need(nrow(pc) > 0, "Choose at least one model to draw (or predictions could not be computed for the chosen models)."))
     by_on <- "level" %in% names(pc)
     p <- ggplot()
+    if (isTRUE(input$show_raw_points)) {
+      # every record's raw trait value, small and transparent, jittered slightly along age only
+      dd <- dat()
+      rp <- dd[is.finite(dd$trait) & is.finite(dd$age), , drop = FALSE]
+      if (by_on) {
+        byv <- input$pred_by
+        rp <- rp[!is.na(rp[[byv]]) & as.character(rp[[byv]]) %in% unique(pc$level), , drop = FALSE]
+        rp$level <- as.character(rp[[byv]])
+      }
+      if (nrow(rp)) {
+        st <- infer_age_step(rp$age, rp$id)
+        if (!is.finite(st) || st <= 0) st <- max(diff(range(rp$age)), 1) / 50
+        p <- p + geom_point(data = rp, aes(age, trait), colour = "grey25", alpha = 0.15, size = 0.8,
+                            position = position_jitter(width = 0.12 * st, height = 0, seed = 1))
+      }
+    }
     if (isTRUE(input$show_observed)) {
       ob <- if (by_on) {
         byv <- input$pred_by
@@ -1556,6 +1787,7 @@ server <- function(input, output, session) {
       labs(x = "Age", y = current_map()$trait, colour = NULL,
            subtitle = paste0(if (!is.null(tc)) "Black: simulated typical-individual trajectory; " else "",
                              if (!by_on) "dashed purple: decomposition; dot-dash: reconstruction from individual fits (if shown); " else "panels: levels of the chosen covariate; ",
+                             if (isTRUE(input$show_raw_points)) "small grey dots: individual records (slightly jittered); " else "",
                              "points: observed means; dashed model lines: Caution fits")) +
       theme_disappR(13) + guides(colour = guide_legend(nrow = 2))
   })
@@ -1981,7 +2213,7 @@ server <- function(input, output, session) {
         "}",
         "print(utils::head(raw, 10))"),
       visual = c(
-        script_header(data_entries("mode_or_na", "proxy_values", "binned_trajectory", "bin_differences", "bin_difference_trends",
+        script_header(data_entries("mode_or_na", "individual_ids", "proxy_values", "binned_trajectory", "bin_differences", "bin_difference_trends",
                                    "trait_by_age_bins", "a2_bin_slopes", "a2_slope_trend", "disappearance_data", "terminal_data",
                                    "selection_differentials", "life_table")),
         script_data_lines(),
@@ -1990,35 +2222,36 @@ server <- function(input, output, session) {
         paste0("n_bins <- ", dput_text(as.numeric(input$n_bins %||% 4))),
         paste0("bin_method <- ", dput_text(input$bin_method %||% "equal"), "   # \"equal\" or \"quantile\""),
         paste0("trait_scale <- ", dput_text(input$trait_scale %||% "raw"), "   # \"raw\" or \"log1p\""),
-        paste0("facet_column <- ", dput_text(input$facet_var %||% ""), "   # \"\" for no panels"),
+        paste0("facet_column <- ", dput_text(input$facet_var %||% ""), "   # \"\" for no panels (trait against the grouping variable)"),
+        paste0("facet_column_trajectory <- ", dput_text(safe_get(a1_facet_var()) %||% ""), "   # panels of the trajectory and bin-difference figures"),
         "",
         "vis <- dat",
         "if (identical(trait_scale, \"log1p\")) vis$trait <- log1p(vis$trait)",
-        "facet <- NULL",
-        "if (nzchar(facet_column)) {",
-        "  ids <- as.character(raw[[map$id]])",
-        "  if (isTRUE(meta$has_group) && isTRUE(meta$nested)) {",
-        "    g <- as.character(raw[[map$group]])",
-        "    ids <- ifelse(is.na(g), ids, paste(g, ids, sep = \"/\"))",
-        "  }",
-        "  lv <- as.character(raw[[facet_column]])",
+        "make_facet <- function(column) {",
+        "  if (!nzchar(column)) return(NULL)",
+        "  ids <- individual_ids(raw, map)   # the individual IDs used by the app (group + ID when nested)",
+        "  lv <- as.character(raw[[column]])",
         "  ok <- !is.na(ids) & nzchar(ids) & !is.na(lv) & nzchar(lv)",
         "  per <- tapply(lv[ok], ids[ok], mode_or_na)",
-        "  facet <- stats::setNames(paste0(facet_column, \": \", as.character(per)), names(per))",
+        "  stats::setNames(paste0(column, \": \", as.character(per)), names(per))",
         "}",
+        "facet <- make_facet(facet_column)",
+        "facet_traj <- make_facet(facet_column_trajectory)",
         "panels <- if (is.null(facet)) NULL else facet_wrap(~ facet)",
+        "panels_traj <- if (is.null(facet_traj)) NULL else facet_wrap(~ facet)",
         "pvals <- proxy_values(im, proxy)",
         "",
         "# ---- Trait trajectory within bins (at least 3 individuals per point) ----",
-        "traj <- binned_trajectory(vis, pvals, n_bins, bin_method, 3, facet = facet)",
-        "print(ggplot(traj, aes(age, mean, colour = bin, group = bin)) + geom_line(linewidth = 1) + geom_point(aes(size = n)) + panels +",
+        "traj <- binned_trajectory(vis, pvals, n_bins, bin_method, 3, facet = facet_traj)",
+        "print(ggplot(traj, aes(age, mean, colour = bin, group = bin)) + geom_line(linewidth = 1) + geom_point(aes(size = n)) + panels_traj +",
         "        labs(x = \"Age\", y = \"Mean trait\", colour = paste(proxy, \"bin\"), size = \"Individuals\") + theme_minimal())",
         "",
-        "# ---- Difference between consecutive bins at each age ----",
+        "# ---- Difference between consecutive bins at each age (least-squares lines with 95% confidence bands) ----",
         "diffs <- bin_differences(traj, \"successive\")",
         "print(bin_difference_trends(diffs))",
         "print(ggplot(diffs, aes(age, difference, colour = pair)) + geom_hline(yintercept = 0, linetype = 2) + geom_point() +",
-        "        geom_smooth(method = \"lm\", formula = y ~ x, se = FALSE) + panels + labs(x = \"Age\", y = \"Difference in mean trait\", colour = NULL) + theme_minimal())",
+        "        geom_smooth(aes(fill = pair), method = \"lm\", formula = y ~ x, se = TRUE, alpha = 0.15) + panels_traj +",
+        "        labs(x = \"Age\", y = \"Difference in mean trait\", colour = NULL, fill = NULL) + theme_minimal())",
         "",
         "# ---- Trait against the grouping variable within age bins (at least 3 individuals per bin) ----",
         "a2 <- trait_by_age_bins(vis, pvals, n_bins, facet = facet)",
@@ -2027,8 +2260,8 @@ server <- function(input, output, session) {
         "print(slopes)",
         "print(a2_slope_trend(slopes))",
         "print(ggplot(a2, aes(proxy, trait, colour = age_bin)) + geom_point(alpha = 0.35) +",
-        "        geom_smooth(aes(group = age_bin), method = \"lm\", formula = y ~ x, se = FALSE) + panels +",
-        "        labs(x = proxy, y = \"Mean trait within the age bin\", colour = \"Age bin\") + theme_minimal())",
+        "        geom_smooth(aes(group = age_bin, fill = age_bin), method = \"lm\", formula = y ~ x, se = TRUE, alpha = 0.15) + panels +",
+        "        labs(x = proxy, y = \"Mean trait within the age bin\", colour = \"Age bin\", fill = \"Age bin\") + theme_minimal())",
         "",
         "# ---- Disappearance diagnostics ----",
         "terminal <- terminal_data(dat, meta, 3)",
@@ -2080,11 +2313,15 @@ server <- function(input, output, session) {
         "",
         "# ---- Agreement between lifespan proxies ----",
         "cat(\"r(mean age, ALR) =\", round(stats::cor(im$mean_age, im$alr, use = \"complete.obs\"), 3), \"\\n\")",
-        "print(ggplot(im, aes(alr, mean_age)) + geom_point(alpha = 0.5) + geom_smooth(method = \"lm\", formula = y ~ x) +",
-        "        labs(x = \"ALR (age at last record)\", y = \"Mean age of the records\") + theme_minimal())",
+        "print(ggplot(im, aes(mean_age, alr)) + geom_point(alpha = 0.5) + geom_abline(slope = 1, intercept = 0, linetype = 3) +",
+        "        geom_smooth(method = \"lm\", formula = y ~ x, se = FALSE, colour = \"black\") +",
+        "        labs(x = \"Mean age of the records\", y = \"ALR (age at last record)\", subtitle = \"Dotted: 1:1; solid black: linear regression\") + theme_minimal())",
         "if (life_known) {",
         "  cat(\"r(ALR, LS) =\", round(stats::cor(im$alr, im$lifespan, use = \"complete.obs\"), 3), \"\\n\")",
-        "  print(ggplot(im, aes(lifespan, alr)) + geom_point(alpha = 0.5) + geom_abline(linetype = 2) + labs(x = \"Lifespan (LS)\", y = \"ALR\") + theme_minimal())",
+        "  print(ggplot(im, aes(lifespan, alr)) + geom_point(alpha = 0.5) + geom_abline(slope = 1, intercept = 0, linetype = 3) +",
+        "          geom_smooth(method = \"lm\", formula = y ~ x, se = FALSE, colour = \"black\") + labs(x = \"Lifespan (LS)\", y = \"ALR\") + theme_minimal())",
+        "  print(ggplot(im, aes(lifespan, mean_age)) + geom_point(alpha = 0.5) + geom_abline(slope = 1, intercept = 0, linetype = 3) +",
+        "          geom_smooth(method = \"lm\", formula = y ~ x, se = FALSE, colour = \"black\") + labs(x = \"Lifespan (LS)\", y = \"Mean age\") + theme_minimal())",
         "}"),
       individual = {
         s <- model_settings()
@@ -2360,14 +2597,14 @@ server <- function(input, output, session) {
     add_saved("2 Visual diagnosis", paste("Trait trajectory by", px, "bin"),
               text = paste0(sprintf("%s %s bins (%s boundaries); at least 3 individuals per point; trait scale: %s",
                                     input$n_bins %||% 4, px, input$bin_method %||% "equal", input$trait_scale %||% "raw"),
-                            facet_text()),
+                            a1_facet_text()),
               plots = list(pl))
   }))
   observeEvent(input$save_a1_diff, disappr_guard("input$save_a1_diff", {
     pl <- safe_get(bin_diff_obj())
     dz <- safe_get(bin_diff_data())
     if (is.null(pl) || is.null(dz)) return(nothing_to_save())
-    faceted <- !is.null(facet_map())
+    faceted <- !is.null(a1_facet_map())
     tab <- data.frame(Pair = as.character(dz$pair), Age = dz$age, Difference = signif(dz$difference, 4))
     if (faceted) tab <- cbind(Panel = dz$facet, tab, stringsAsFactors = FALSE)
     tr <- safe_get(bin_diff_trends())
@@ -2387,7 +2624,7 @@ server <- function(input, output, session) {
       }
     }
     add_saved("2 Visual diagnosis", paste("Difference between", safe_get(a1_px()) %||% "", "bins at each age"),
-              text = paste0("Consecutive bin pairs; trend lines: ", if (identical(input$diff_lines, "pooled")) "one across all pairs" else "one per pair", facet_text()),
+              text = paste0("Consecutive bin pairs; trend lines: ", if (identical(input$diff_lines, "pooled")) "one across all pairs" else "one per pair", "; shaded: 95% confidence bands", a1_facet_text()),
               tables = list(`Trend across all pairs` = pooled, `Trend of each difference against age` = tr, `Differences (higher minus lower bin)` = tab), plots = list(pl))
   }))
   observeEvent(input$save_a2, disappr_guard("input$save_a2", {
@@ -2519,7 +2756,8 @@ server <- function(input, output, session) {
     add_saved("5 Modelling", "Population-level ageing trajectories",
               text = paste0("Models drawn: ", paste(model_label(intersect(input$pred_models %||% safe_get(eligible_models()), safe_get(eligible_models()) %||% character(0))), collapse = ", "),
                             if (nzchar(input$pred_by %||% "")) paste0("; by ", input$pred_by) else "",
-                            if (isTRUE(input$show_a3)) paste0("; reconstruction from individual fits with the ", input$a3_function %||% "Quadratic", " function") else ""),
+                            if (isTRUE(input$show_a3)) paste0("; reconstruction from individual fits with the ", input$a3_function %||% "Quadratic", " function") else "",
+                            if (isTRUE(input$show_raw_points)) "; individual records shown as jittered points" else ""),
               tables = list(`Deviation from the simulated truth` = dv), plots = list(pl))
   }))
   observeEvent(input$save_coefs, disappr_guard("input$save_coefs", {

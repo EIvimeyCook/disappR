@@ -52,13 +52,14 @@ the **Help and videos** tab inside the app.
 - **Individual and population trajectories.** Parametric fits (linear to
   exponential) for each individual, population curves rebuilt from individual
   fits, and a population-level comparison of ageing functions.
-- **Ten comparative mixed models.** Gaussian, Poisson, negative binomial and
-  zero-inflated families, random slopes, fixed covariates and their
-  interactions, and nested or crossed random effects.
+- **Ten comparative mixed models.** Gaussian, Poisson, negative binomial,
+  zero-inflated (nbinom1 and nbinom2) and binomial families, random slopes,
+  fixed covariates and their interactions, a term builder for extra terms, and
+  nested (up to three levels) or crossed random effects.
 - **Teaching simulations with known answers.** Choose the ageing form, the type
   of selection and the sampling scheme, and see how each model scores against the
   true trajectory.
-- **Published data to practise on.** Seven empirical datasets from laboratory
+- **Published data to practise on.** Ten empirical datasets from laboratory
   and wild populations, each pre-set to the analysis reported in its paper.
 - **Reproducible output.** Residual diagnostics, downloadable R code for every
   section, and HTML or text reports of saved results.
@@ -131,7 +132,7 @@ reparameterisation and leaves AIC unchanged.
 
 ## Example data
 
-Seven published datasets are bundled, each pre-mapped to the model reported in
+Ten published datasets are bundled, each pre-mapped to the model reported in
 its paper:
 
 - Sanghvi et al. 2025, *American Naturalist*: *Drosophila melanogaster* daily fecundity
@@ -141,6 +142,9 @@ its paper:
 - Allain et al. 2023, *Oikos*: eastern chipmunk reproduction
 - Bouwhuis et al. 2009, *Proc. R. Soc. B*: great tit recruit production
 - Warner et al. 2016, *PNAS*: painted turtle reproduction
+- McKenna-Ell et al. 2023, *Biology Letters*: Soay sheep breeding probability and offspring survival (binomial)
+- McKenna-Ell et al. 2023, *Biology Letters*: Soay sheep offspring birth weight
+- Szejner-Sigal et al. 2025, *Proc. R. Soc. B*: alfalfa leafcutting bee locomotor activity
 
 Sources and licences are listed in
 [`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md).
@@ -177,13 +181,20 @@ Please file issues and feature requests at
 
 ## Citation
 
-If disappR helps with your work, please cite:
+If disappR helps with your work, please cite the software and the paper:
 
-> Sanghvi, K., & Ivimey-Cook, E. R. (2026). Biases in common methods used to
-> quantify ageing and selective disappearance: a guide.
-> <https://doi.org/10.17605/OSF.IO/KEVNM>
+> Sanghvi, K., & Ivimey-Cook, E. R. (2026). *disappR: a shiny app to model
+> ageing and selective [dis]appearance.* R package.
+> <https://github.com/EIvimeyCook/disappR>
 
-In R, `citation("disappR")` gives the same reference. A machine-readable
+> Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I., & van de Pol, M.
+> (2026). A comparison of methods to assess selective disappearance and
+> quantify ageing. *EcoEvoRxiv*.
+
+Data, code and supplementary material for the paper are on OSF:
+<https://doi.org/10.17605/OSF.IO/KEVNM>.
+
+In R, `citation("disappR")` gives the same references. A machine-readable
 [`CITATION.cff`](CITATION.cff) is included, so GitHub's "Cite this repository"
 button gives formatted APA and BibTeX.
 

@@ -1,10 +1,12 @@
 cff-version: 1.2.0
-message: "If you use disappR, please cite the paper below."
-title: "disappR: Diagnose and Model Selective Disappearance and Appearance in Longitudinal Ageing Data"
+message: "If you use disappR, please cite the software and the paper."
+title: "disappR: a shiny app to model ageing and selective [dis]appearance"
+abstract: "A Shiny workflow for diagnosing and modelling selective disappearance and selective appearance in longitudinal ageing data."
 type: software
-version: 0.9.3
+version: 0.9.6
 license: MIT
 repository-code: "https://github.com/EIvimeyCook/disappR"
+url: "https://osf.io/kevnm/"
 authors:
   - family-names: Sanghvi
     given-names: Krish
@@ -20,15 +22,19 @@ keywords:
   - mixed models
   - shiny
   - R
-preferred-citation:
-  type: article
-  title: "Biases in common methods used to quantify ageing and selective disappearance: a guide"
-  year: 2026
-  doi: "10.17605/OSF.IO/KEVNM"
-  url: "https://osf.io/kevnm/"
-  authors:
-    - family-names: Sanghvi
-      given-names: Krish
-    - family-names: Ivimey-Cook
-      given-names: Edward R.
-      orcid: "https://orcid.org/0000-0003-4910-0443"
+references:
+  - type: article
+    title: "A comparison of methods to assess selective disappearance and quantify ageing"
+    journal: "EcoEvoRxiv"
+    year: 2026
+    authors:
+      - family-names: Sanghvi
+        given-names: "K."
+      - family-names: Ivimey-Cook
+        given-names: "E. R."
+      - family-names: Bouwhuis
+        given-names: "S."
+      - family-names: Sepil
+        given-names: "I."
+      - family-names: van de Pol
+        given-names: "M."

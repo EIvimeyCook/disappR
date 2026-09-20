@@ -1,6 +1,6 @@
 Package: disappR
 Title: Diagnose and Model Selective Disappearance and Appearance in Longitudinal Ageing Data
-Version: 0.9.3
+Version: 0.9.6
 Authors@R:
     c(person("Krish", "Sanghvi", role = "aut"),
       person("Edward R.", "Ivimey-Cook", role = c("aut", "cre"),
@@ -11,10 +11,11 @@ Description: A Shiny workflow for longitudinal ageing data that follows a
     trait trajectories within ALR, lifespan and AFR bins, proxy-trait
     associations at each age, individual parametric fits, sampling and
     missingness diagnostics, ageing-function comparison and comparative mixed
-    models (Models 1-8) with Gaussian, Poisson, negative binomial and
-    zero-inflated families, fixed covariates and nested or crossed random
-    effects. Includes teaching simulations with known answers, an empirical
-    seven published empirical examples, residual checks and exportable R code.
+    models (Models 1-10) with Gaussian, Poisson, negative binomial,
+    zero-inflated (nbinom1 and nbinom2) and binomial families, fixed covariates
+    and nested (up to three levels) or crossed random effects. Includes
+    teaching simulations with known answers, ten published empirical examples,
+    residual checks and exportable R code.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

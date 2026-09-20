@@ -469,6 +469,183 @@ if (is.null(fly)) {
   }
 }
 
+# ---- 0.9.4: binary binomial without trials, zinb1, three-level nesting, built terms, simulator shapes ----
+local({
+  set.seed(94)
+  n_id <- 150
+  fam_i <- sprintf("F%02d", sample(1:15, n_id, replace = TRUE))
+  sire_i <- sprintf("S%d", sample(1:3, n_id, replace = TRUE))   # sire labels restart within each family
+  ls_i <- sample(3:8, n_id, replace = TRUE)
+  raw <- do.call(rbind, lapply(seq_len(n_id), function(i) {
+    data.frame(ID = sprintf("I%02d", i %% 50), family = fam_i[i], sire = sire_i[i], age = seq_len(ls_i[i]),
+               lifespan = ls_i[i], treat = if (i %% 2) "a" else "b", stringsAsFactors = FALSE)
+  }))
+  raw$y <- stats::rbinom(nrow(raw), 1, stats::plogis(0.5 - 0.3 * raw$age + 0.2 * raw$lifespan))
+  raw$cnt <- ifelse(stats::runif(nrow(raw)) < 0.3, 0L, stats::rnbinom(nrow(raw), size = 2, mu = exp(2 - 0.15 * raw$age)))
+  map <- list(id = "ID", age = "age", trait = "y", alr = "__AUTO_LAST__", life = "lifespan", entry = "__AUTO_FIRST__",
+              condition = "", covars = "treat", cov_factor = "treat", cov_int = character(0), group = "sire", group2 = "family",
+              nested = TRUE, random = character(0), censor = "", censor_value = "", age_round = NA_real_, cov_age = character(0))
+  b <- check("0.9.4 three-level standardise", standardise_data(raw, map))
+  if (is.null(b)) return(invisible(NULL))
+  n_true <- nrow(unique(raw[, c("family", "sire", "ID")]))
+  expect("0.9.4 three-level nesting: second level detected", isTRUE(b$meta$has_group2))
+  expect("0.9.4 three-level nesting: one individual per family/sire/ID", length(unique(b$data$id)) == n_true)
+  expect("0.9.4 individual_ids() matches standardise_data()", setequal(unique(individual_ids(raw, map)), unique(b$data$id)))
+  expect("0.9.4 random-effect string has three levels",
+         identical(random_term_string("f1", "none", TRUE, character(0), TRUE), "(1 | group2) + (1 | group) + (1 | id)"))
+  expect("0.9.4 binary trait suggested as binomial", identical(suggest_family(b$data$trait, b$data$age)$family, "binomial"))
+  fs <- apply_extra_terms(model_formula_strings(c("f1", "f2")), c("f1", "f2"),
+                          list(M1 = "term:ALR*AFR*age", M5 = "term:cv_treat+ALR"), "linear")
+  expect("0.9.4 built three-way term", identical(fs[["M1"]], "f1 + f2 + ALR * AFR * (f1 + f2)"))
+  expect("0.9.4 built additive terms", identical(fs[["M5"]], "mean_f1 * (delta_f1 + delta_f2) + cv_treat + ALR"))
+  ce <- clean_extra_terms(list(M1 = c("term:ALR*cv_treat", "term:bad*age", "term:ALR*AFR*LS*age")), "cv_treat")
+  expect("0.9.4 built terms validated", identical(ce, list(M1 = "term:ALR*cv_treat")))
+  w <- covariate_type_warnings(data.frame(a = rep(c("x", "y"), 5), b = seq(0.5, 5, by = 0.5), stringsAsFactors = FALSE), num = "a", fac = "b")
+  expect("0.9.4 covariate box warnings", length(w) == 2)
+  bd <- lm_band(1:10, (1:10) + stats::rnorm(10))
+  expect("0.9.4 confidence band", nrow(bd) == 50 && all(bd$lo <= bd$fit & bd$fit <= bd$hi))
+  expect("0.9.4 default shape reproduces the original simulation",
+         identical(simulate_toy_data(list(seed = 3, n_id = 60)), simulate_toy_data(list(seed = 3, n_id = 60, shape = "default"))))
+  for (fm in names(TOY_SHAPES)) for (sh in names(TOY_SHAPES[[fm]])) for (tr in c("mass", "count_nb")) {
+    z <- check(paste("0.9.4 shape", fm, sh, tr), simulate_toy_data(list(form = fm, shape = sh, trait = tr, n_id = 60, seed = 2)))
+    if (!is.null(z)) expect(paste("0.9.4 shape", fm, sh, tr, "has data"), nrow(z) > 100 && all(is.finite(z[[3]])))
+  }
+  if (HAS_GLMMTMB) {
+    rb <- check("0.9.4 binary binomial fit", fit_model_suite(b$data, b$meta, c("M1", "M2", "M4"), "Linear", "binomial"))
+    expect("0.9.4 binary 0/1 trait fits with the binomial family", isTRUE(rb$ok))
+    expect("0.9.4 three-level random effects in the fitted models", isTRUE(grepl("(1 | group2) + (1 | group)", rb$random, fixed = TRUE)))
+    b2 <- check("0.9.4 counts standardise", standardise_data(raw, utils::modifyList(map, list(trait = "cnt"))))
+    if (!is.null(b2)) {
+      rz <- check("0.9.4 zinb1 fit", fit_model_suite(b2$data, b2$meta, c("M1", "M2"), "Linear", "zinb1"))
+      expect("0.9.4 zero-inflated nbinom1 fits", isTRUE(rz$ok))
+    }
+  } else {
+    notes <<- c(notes, "[SKIP] glmmTMB not installed: 0.9.4 binomial and zinb1 fits not run")
+  }
+})
+
+# ---- 0.9.5: Soay sheep and leafcutting-bee examples, and the decomposition on an unequal first interval ----
+local({
+  for (k in c("mckennaell_breeding", "mckennaell_weight", "szejnersigal_activity")) {
+    ex <- EXAMPLES[[k]]
+    raw <- check(paste("0.9.5 load", k), load_example_file(ex$file))
+    expect(paste("0.9.5", k, "mapping resolves"), is.data.frame(raw) &&
+             all(c(ex$mapping$id, ex$mapping$age, ex$mapping$trait, ex$mapping$covars, ex$mapping$random) %in% names(raw)))
+  }
+  coef_of <- function(res, pattern) {
+    ct <- res$coefficients
+    ct$Estimate[ct$Model == "Model 2" & grepl(pattern, ct$Raw_term)][1]
+  }
+  wt <- load_example_file(EXAMPLES$mckennaell_weight$file)
+  bw <- check("0.9.5 sheep weight standardise", standardise_data(wt, EXAMPLES$mckennaell_weight$mapping))
+  if (!is.null(bw)) {
+    rw <- check("0.9.5 sheep weight fit", fit_model_suite(bw$data, bw$meta, "M2", "Linear", "gaussian", standardise = FALSE))
+    expect("0.9.5 sheep weight fits", isTRUE(rw$ok))
+    if (isTRUE(rw$ok)) {
+      expect("0.9.5 sheep weight: age -0.061", isTRUE(abs(coef_of(rw, "^f1$") + 0.061) < 0.005))
+      expect("0.9.5 sheep weight: age at last observation +0.016", isTRUE(abs(coef_of(rw, "^ALR$") - 0.016) < 0.005))
+      expect("0.9.5 sheep weight: twin -0.826", isTRUE(abs(coef_of(rw, "TwinStatus2$") + 0.826) < 0.01))
+      expect("0.9.5 sheep weight: capture age +0.112", isTRUE(abs(coef_of(rw, "CaptureAge$") - 0.112) < 0.005))
+    }
+  }
+  if (HAS_GLMMTMB) {
+    fe <- load_example_file(EXAMPLES$mckennaell_breeding$file)
+    bf <- check("0.9.5 sheep breeding standardise", standardise_data(fe, EXAMPLES$mckennaell_breeding$mapping))
+    if (!is.null(bf)) {
+      rf <- check("0.9.5 sheep breeding fit", fit_model_suite(bf$data, bf$meta, "M2", "Linear", "binomial", standardise = FALSE))
+      expect("0.9.5 sheep breeding probability fits (binary 0/1, binomial)", isTRUE(rf$ok))
+      if (isTRUE(rf$ok)) {
+        expect("0.9.5 sheep breeding: age -0.487", isTRUE(abs(coef_of(rf, "^f1$") + 0.487) < 0.05))
+        expect("0.9.5 sheep breeding: age at last observation +0.188", isTRUE(abs(coef_of(rf, "^ALR$") - 0.188) < 0.03))
+        expect("0.9.5 sheep breeding: age x bred as a yearling -0.210", isTRUE(abs(coef_of(rf, "BredYearling1:f1") + 0.210) < 0.03))
+      }
+    }
+    bs <- check("0.9.5 sheep survival standardise",
+                standardise_data(fe, utils::modifyList(EXAMPLES$mckennaell_breeding$mapping, list(trait = "OffspringRecruitment"))))
+    if (!is.null(bs)) {
+      rs <- check("0.9.5 sheep survival fit", fit_model_suite(bs$data, bs$meta, "M2", "Linear", "binomial", standardise = FALSE))
+      expect("0.9.5 sheep offspring survival fits (binomial)", isTRUE(rs$ok))
+      if (isTRUE(rs$ok)) {
+        expect("0.9.5 sheep survival: n = 2573", identical(as.integer(rs$aic$N[[1]]), 2573L))
+        expect("0.9.5 sheep survival: age -0.232", isTRUE(abs(coef_of(rs, "^f1$") + 0.232) < 0.05))
+        expect("0.9.5 sheep survival: early-life recruitment +0.869", isTRUE(abs(coef_of(rs, "EarlyLifeRec$") - 0.869) < 0.1))
+      }
+    }
+  } else {
+    notes <<- c(notes, "[SKIP] glmmTMB not installed: 0.9.5 Soay sheep binomial replications not run")
+  }
+  be <- load_example_file(EXAMPLES$szejnersigal_activity$file)
+  if (is.data.frame(be)) {
+    bb <- check("0.9.5 bee standardise", standardise_data(be[be$sex == "f", , drop = FALSE], EXAMPLES$szejnersigal_activity$mapping))
+    if (!is.null(bb)) {
+      expect("0.9.5 bee sampling step is weekly (7 days)", isTRUE(abs(infer_age_step(bb$data$age, bb$data$id) - 7) < 1e-8))
+      dc <- check("0.9.5 bee decomposition", decomposition_trajectory(bb$data))
+      expect("0.9.5 bee decomposition runs through the weekly occasions, not only days 1 and 7", is.data.frame(dc) && nrow(dc) >= 7)
+      rb <- check("0.9.5 bee fit", fit_model_suite(bb$data, bb$meta, c("M1", "M2", "M6"), "Quadratic", "gaussian",
+                                                   extra = EXAMPLES$szejnersigal_activity$extra))
+      expect("0.9.5 bee models fit", isTRUE(rb$ok))
+      if (isTRUE(rb$ok) && !is.null(rb$fits[["M1"]])) {
+        cv <- predict_population_curve(rb$fits[["M1"]], rb, 1:56)
+        pk <- cv$age[which.max(cv$fitted)]
+        expect("0.9.5 bee female activity peaks in mid-life (about 26 days)", length(pk) == 1 && pk >= 20 && pk <= 32)
+      }
+    }
+  }
+  fl <- load_example_file("sanghvi_2022_beetle_female_fecundity.csv")
+  if (is.data.frame(fl)) {
+    bl <- standardise_data(fl, EXAMPLES$sanghvi_female$mapping)
+    dl <- decomposition_trajectory(bl$data)
+    expect("0.9.5 decomposition on a regular daily schedule links every consecutive day", nrow(dl) >= 5 && all(abs(diff(dl$age) - 1) < 1e-8))
+  }
+})
+
+# ---- 0.9.6: decomposition on regular, missing, staggered-entry, unequal and irregular schedules ----
+local({
+  sc <- list(complete = list(sd_type = "none"), mcar = list(sd_type = "none", missingness = "mcar"),
+             missing_when_old = list(sd_type = "none", missingness = "mwo"), individual_afr = list(sd_type = "none", afr_mode = "individual"))
+  for (nm in names(sc)) {
+    raw <- simulate_toy_data(utils::modifyList(list(n_id = 400, seed = 5), sc[[nm]]))
+    b <- standardise_data(raw, toy_mapping(raw))
+    de <- check(paste("0.9.6 decomposition", nm), decomposition_trajectory(b$data))
+    if (is.data.frame(de) && nrow(de)) {
+      obs <- observed_trajectory(b$data)
+      ok <- de$age %in% obs$age[obs$n >= 20]
+      tr <- toy_true_curve(attr(raw, "truth"), de$age)
+      D <- 100 * mean(abs(de$fitted[ok] - tr[ok]) / abs(tr[ok]))
+      expect(sprintf("0.9.6 decomposition tracks the truth without selective disappearance (%s): mean |D| = %.1f%%", nm, D), is.finite(D) && D < 5)
+      expect(sprintf("0.9.6 decomposition starts at the first age (%s)", nm), isTRUE(de$age[[1]] <= min(b$data$age) + 1e-8))
+      expect(sprintf("0.9.6 no caution on a regular schedule (%s)", nm), is.null(attr(de, "caution")))
+    }
+  }
+  raw <- simulate_toy_data(list(n_id = 400, seed = 6, sd_type = "none"))
+  set.seed(1)
+  jit <- raw
+  jit$age <- jit$age + stats::runif(nrow(jit), -0.35, 0.35)
+  bj <- standardise_data(jit, toy_mapping(jit))
+  dj <- check("0.9.6 decomposition, irregular ages", decomposition_trajectory(bj$data))
+  expect("0.9.6 irregular ages: the decomposition runs across the ages and carries a caution",
+         is.data.frame(dj) && nrow(dj) >= 20 && length(attr(dj, "caution")) == 1)
+  off <- raw[raw$age == 1 | raw$age %% 3 == 0, , drop = FALSE]
+  bo <- standardise_data(off, toy_mapping(off))
+  dof <- check("0.9.6 decomposition, age 1 then every third age", decomposition_trajectory(bo$data))
+  expect("0.9.6 unequal first interval: the decomposition runs past the first two occasions", is.data.frame(dof) && nrow(dof) >= 8)
+  one <- raw[!duplicated(raw$ID), , drop = FALSE]
+  bs <- standardise_data(one, toy_mapping(one))
+  ds <- check("0.9.6 decomposition, one record per individual", decomposition_trajectory(bs$data))
+  expect("0.9.6 one record per individual: no decomposition, no error", is.data.frame(ds) && !nrow(ds))
+  code <- check("0.9.6 exported model script", {
+    r <- fit_model_suite(b$data, b$meta, c("M1", "M2"), "Quadratic", "gaussian")
+    if (isTRUE(r$ok)) model_r_code(r, b$meta) else ""
+  })
+  expect("0.9.6 exported model script defines and calls the app's decomposition",
+         is.character(code) && grepl("decomposition_trajectory <- function", code, fixed = TRUE) &&
+           grepl("decomposition_on_grid <- function", code, fixed = TRUE) && grepl("decomp <- decomposition_trajectory(dat)", code, fixed = TRUE))
+  if (is.character(code) && nzchar(code)) {
+    pe <- tryCatch({ parse(text = code); TRUE }, error = function(e) conditionMessage(e))
+    expect("0.9.6 exported model script parses", isTRUE(pe))
+  }
+})
+
 cat("\n", paste(notes, collapse = "\n"), "\n", sep = "")
 if (length(fails)) {
   cat("\nFAILURES (", length(fails), "):\n", sep = "")

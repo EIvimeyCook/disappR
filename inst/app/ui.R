@@ -21,7 +21,13 @@ ui <- dashboardPage(
     ),
     tags$hr(),
     div(class = "sidebar-note", strong("Diagnose visually, then model."), br(),
-        "Visual and descriptive diagnostics first, then sampling and ageing functions, then the comparative models.")
+        "Visual and descriptive diagnostics first, then sampling and ageing functions, then the comparative models."),
+    tags$hr(),
+    div(class = "sidebar-cite", strong("Citation"),
+        tags$ol(
+          tags$li("Sanghvi, K., Ivimey-Cook, E. 2026. disappR: a shiny app to model ageing and selective [dis]appearance."),
+          tags$li("Sanghvi, K., Ivimey-Cook, E.R., Bouwhuis, S., Sepil, I. and van de Pol, M., 2026. A comparison of methods to assess selective disappearance and quantify ageing. ",
+                  tags$em("EcoEvoRxiv"))))
   ),
   dashboardBody(
     tags$head(tags$script(HTML("function disapprCopy(id){var el=document.getElementById(id);if(!el){return;}var txt=el.innerText||el.textContent;if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt);}else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);}}")), tags$style(HTML("
@@ -40,6 +46,12 @@ ui <- dashboardPage(
       .skin-blue .sidebar-menu>li>a { color:#EFE4D6 !important; border-left:3px solid transparent; }
       .skin-blue .sidebar-menu>li:hover>a, .skin-blue .sidebar-menu>li.active>a { background:#5B4B40 !important; color:#FFF9F2 !important; border-left-color:#D6A15E !important; }
       .sidebar-note { padding:2px 18px 18px; color:#DCCFC0; font-size:12px; line-height:1.55; }
+      .sidebar-cite { padding:2px 18px 18px; color:#DCCFC0; font-size:11.5px; line-height:1.45; }
+      .purpose .purpose-lead { color:#4D4036; font-size:14.5px; line-height:1.6; margin:0 0 8px; }
+      .purpose ul { padding-left:18px; margin:4px 0 10px; }
+      .purpose li { color:#5E4E42; font-size:13.5px; line-height:1.55; margin-bottom:6px; }
+      .sidebar-cite ol { padding-left:16px; margin:6px 0 0; }
+      .sidebar-cite li { margin-bottom:7px; }
       .main-sidebar hr { border-color:rgba(255,255,255,.10); margin:14px 18px; }
       .box { border-radius:12px; border-top:0 !important; box-shadow:0 3px 14px rgba(79,60,44,.08); background:#FFFDF9; }
       .box.box-solid.box-primary>.box-header, .box.box-solid.box-info>.box-header, .box.box-solid.box-warning>.box-header { background:#E5D2BE !important; color:#463B33 !important; }
@@ -80,6 +92,23 @@ ui <- dashboardPage(
       # ---------------------------------------------------------------- overview
       tabItem(tabName = "overview",
         fluidRow(
+          box(width = 12, title = "Purpose", status = "primary", solidHeader = TRUE,
+            div(class = "purpose",
+              p(class = "purpose-lead",
+                "Longitudinal studies of ageing do not follow a fixed set of individuals: some die or leave early (selective disappearance) and some are first recorded late (selective appearance). When these individuals differ in their trait, the ageing pattern seen in the data can differ markedly from how individuals actually age."),
+              tags$ul(
+                tags$li(strong("Pervasive, but the remedies are recent. "),
+                        "Selective disappearance is found across traits and taxa, yet the methods that account for it date from the last two decades and were built for simple cases: linear ageing, complete sampling, and lifespan linked only to an individual's average trait level."),
+                tags$li(strong("Missing data bias some methods. "),
+                        "With incomplete sampling, mean age becomes a poor proxy of lifespan, and the decomposition runs short of individuals sampled at successive occasions."),
+                tags$li(strong("Age-dependent selection is widely overlooked. "),
+                        "Lifespan, or the age at first record, can be linked to how fast or in what shape individuals age, not only to their average level: longer-lived individuals may senesce more slowly, and late starters may age differently from early ones. The bias then grows with age, and additive lifespan terms, mean-age centring, random slopes and the decomposition do not remove it, yet most analyses assume without testing that selection acts on the level alone."),
+                tags$li(strong("Many options, little guidance. "),
+                        "It is still unclear which of the many available models to fit, and how to interpret them, when selection is present.")),
+              p(class = "purpose-lead",
+                "disappR diagnoses these problems in your data first, visually and descriptively, checks sampling and missingness, and then fits and compares the models side by side, with simulations whose true answer is known.")))
+        ),
+        fluidRow(
           box(width = 8, title = info_title("A visual-first workflow for selective disappearance and appearance", "overview"),
               status = "primary", solidHeader = TRUE,
             div(class = "section-lead",
@@ -112,7 +141,7 @@ ui <- dashboardPage(
           box(width = 4, title = info_title("Quick start", "quickstart"), status = "info", solidHeader = TRUE,
             p("Start with a simulated dataset where the answer is known and the patterns are deliberately obvious."),
             actionButton("go_toy", "Simulated teaching data", class = "btn-primary btn-block-space", icon = icon("flask")),
-            p(style = "margin-top:10px;", "Or explore published data: seven empirical examples from laboratory systems (fruit flies, seed beetles) and wild populations (common terns, painted turtles, great tits, eastern chipmunks), each pre-set to the analysis reported in its paper."),
+            p(style = "margin-top:10px;", "Or explore published data: ten empirical examples from laboratory systems (fruit flies, seed beetles, leafcutting bees) and wild populations (common terns, painted turtles, great tits, eastern chipmunks, Soay sheep), each pre-set to the analysis reported in its paper."),
             actionButton("go_fly", "Empirical examples (published data)", class = "btn-default btn-block-space", icon = icon("bug")),
             tags$hr(),
             p(class = "small-note", "Use 'Save to summary' on any result you want in the exported report (tab 7)."),
@@ -130,6 +159,7 @@ ui <- dashboardPage(
               selectInput("toy_trait", "Trait and distribution", choices = TOY_TRAITS, selected = "mass"),
               conditionalPanel("input.toy_trait != 'paper'",
                 selectInput("toy_form", "Ageing form", choices = AGE_FUNCTIONS, selected = "Quadratic"),
+                selectInput("toy_shape", "Shape within this form (biological scenario)", choices = toy_shape_choices("Quadratic"), selected = "default"),
                 radioButtons("toy_strength", "Pattern strength", inline = TRUE,
                              choices = c("Dramatic (teaching)" = "dramatic", "Moderate" = "moderate"), selected = "dramatic"),
                 sliderInput("toy_mean_ls", "Mean lifespan (number of sampling occasions)", min = 3, max = 30, value = 20, step = 1),
@@ -174,7 +204,7 @@ ui <- dashboardPage(
             ),
             conditionalPanel("input.data_source == 'upload'",
               fileInput("data_file", "CSV file (one row per individual \u00d7 age)", accept = ".csv"),
-              box_note("Required: individual ID, age, trait. Optional: known lifespan, ALR, AFR, condition, covariates, grouping and random-effect variables, a censoring indicator.")
+              box_note("Required: individual ID, age (numeric: whole numbers or decimals, not categories), trait. Optional: known lifespan, ALR, AFR, condition, covariates, grouping and random-effect variables, a censoring indicator. Missing values can be blank cells or NA (both are read as missing, as are '.', '-', 'NaN', 'N/A', '#N/A' and 'NULL').")
             ),
             tags$hr(),
             radioButtons("dup_action", "Repeated ID \u00d7 age records", inline = TRUE,
@@ -184,7 +214,7 @@ ui <- dashboardPage(
             uiOutput("mapping_ui"),
             box_note(strong("ALR"), " = age at last record (automatic by default). ",
                      strong("LS"), " = known lifespan; an automatic last-age LS is only a proxy and cannot serve as the Model 6 positive control. ",
-                     strong("Nesting"), " identifies individuals by group + ID, i.e. (1 | group) + (1 | group:ID). ",
+                     strong("Nesting"), " identifies individuals by group + ID, i.e. (1 | group) + (1 | group:ID); with a next level up (e.g. individual within father within family) it adds (1 | family) and uses (1 | family:father) + (1 | family:father:ID). ",
                      strong("Additional random intercepts"), " enter every model as + (1 | X). ",
                      strong("Censored"), " individuals keep their records but their LS is treated as unknown.")
           )
@@ -231,10 +261,11 @@ ui <- dashboardPage(
           box(width = 12, title = info_title("Trait trajectory within bins", "a1"), status = "primary", solidHeader = TRUE,
             fluidRow(
               column(4, radioButtons("bin_method", "Bin boundaries", inline = TRUE, choices = c("Equal width" = "equal", "Quantiles" = "quantile"))),
-              column(4, checkboxInput("show_se", "Show \u00b11 SE", FALSE))
+              column(3, checkboxInput("show_se", "Show \u00b11 SE", FALSE)),
+              column(5, uiOutput("a1_facet_ui"))
             ),
             plotOutput("a1_plot", height = 430),
-            box_note("Bins are formed among individuals (each individual counts once); points are means of individual \u00d7 age means, sized by the number of individuals."),
+            box_note("Bins are formed among individuals (each individual counts once); points are means of individual \u00d7 age means, sized by the number of individuals. 'Panels by' splits this figure, and the bin differences below, by a categorical variable."),
             save_button("save_a1")
           )
         ),
@@ -362,7 +393,8 @@ ui <- dashboardPage(
               column(4,
                 selectInput("model_family", "Error family", choices = MODEL_FAMILIES, selected = "gaussian"),
                 uiOutput("family_hint"),
-                conditionalPanel("input.model_family == 'zip' || input.model_family == 'zinb'", uiOutput("zi_ui")),
+                conditionalPanel("input.model_family == 'zip' || input.model_family == 'zinb' || input.model_family == 'zinb1'", uiOutput("zi_ui")),
+                conditionalPanel("input.model_family == 'binomial' || input.model_family == 'betabinomial'", uiOutput("trials_ui")),
                 selectInput("model_age_function", "Ageing function", choices = c(AGE_FUNCTIONS, A3_NONLINEAR), selected = "Quadratic"),
                 uiOutput("function_default_note"),
                 selectInput("random_structure", "Random effects for individuals", choices = RANDOM_STRUCTURES, selected = "none"),
@@ -373,57 +405,67 @@ ui <- dashboardPage(
                 checkboxInput("include_invalid", "Include fits with invalid Hessians in the ranking (inspection only)", FALSE)
               ),
               column(8,
-                h5(strong("Models to compare"), span(class = "small-note", " \u2014 tick models; click ", icon("circle-info"), " for what a model tests and its exact specification; add terms to a model in its menu")),
+                h5(strong("Models to compare"), span(class = "small-note", " \u2014 tick models; click ", icon("circle-info"), " for what a model tests and its exact specification; add terms to a model in its menu, or click ", icon("wrench"), " to build a term from chosen terms joined by + or \u00d7")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M1", paste0("Model 1 \u00b7 ", MODEL_MEANING[["M1"]]$name), TRUE)),
                     actionLink("info_model_M1", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M1", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M1", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M2", paste0("Model 2 \u00b7 ", MODEL_MEANING[["M2"]]$name), TRUE)),
                     actionLink("info_model_M2", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M2", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M2", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M3", paste0("Model 3 \u00b7 ", MODEL_MEANING[["M3"]]$name), TRUE)),
                     actionLink("info_model_M3", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M3", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M3", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M4", paste0("Model 4 \u00b7 ", MODEL_MEANING[["M4"]]$name), TRUE)),
                     actionLink("info_model_M4", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M4", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M4", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M5", paste0("Model 5 \u00b7 ", MODEL_MEANING[["M5"]]$name), TRUE)),
                     actionLink("info_model_M5", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M5", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M5", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M6", paste0("Model 6 \u00b7 ", MODEL_MEANING[["M6"]]$name), FALSE)),
                     actionLink("info_model_M6", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M6", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M6", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M7", paste0("Model 7 \u00b7 ", MODEL_MEANING[["M7"]]$name), FALSE)),
                     actionLink("info_model_M7", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M7", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M7", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M8", paste0("Model 8 \u00b7 ", MODEL_MEANING[["M8"]]$name), FALSE)),
                     actionLink("info_model_M8", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M8", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M8", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M9", paste0("Model 9 \u00b7 ", MODEL_MEANING[["M9"]]$name), FALSE)),
                     actionLink("info_model_M9", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M9", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M9", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 div(class = "model-row",
                     div(class = "model-row-check", checkboxInput("use_M10", paste0("Model 10 \u00b7 ", MODEL_MEANING[["M10"]]$name), FALSE)),
                     actionLink("info_model_M10", icon("circle-info"), class = "info-link"),
                     div(class = "model-row-extra", selectizeInput("extra_M10", NULL, choices = EXTRA_TERM_KEYS, multiple = TRUE,
-                                                                 options = list(placeholder = "add terms to this model (optional)")))),
+                                                                 options = list(placeholder = "add terms to this model (optional)"))),
+                    actionLink("build_M10", icon("wrench"), class = "info-link", title = "Build a term: chosen terms joined by + or \u00d7 (up to three-way interactions)")),
                 uiOutput("structure_note"),
                 actionButton("fit_models", "Fit models", class = "btn-primary btn-block-space", icon = icon("play"))
               )
@@ -450,12 +492,14 @@ ui <- dashboardPage(
         fluidRow(
           box(width = 7, title = info_title("Population-level ageing trajectories", "predictions"), status = "primary", solidHeader = TRUE,
             fluidRow(
-              column(4, checkboxInput("show_observed", "Observed means", TRUE)),
-              column(4, checkboxInput("show_decomp", "Decomposition", TRUE)),
-              column(4, checkboxInput("show_a3", "Reconstruction from individual fits", FALSE))
+              column(3, checkboxInput("show_observed", "Observed means", TRUE)),
+              column(3, checkboxInput("show_raw_points", "Individual records (jittered)", FALSE)),
+              column(3, checkboxInput("show_decomp", "Decomposition", TRUE)),
+              column(3, checkboxInput("show_a3", "Reconstruction from individual fits", FALSE))
             ),
             fluidRow(column(8, uiOutput("pred_models_ui")), column(4, uiOutput("pred_by_ui"))),
             plotOutput("pred_plot", height = 430),
+            uiOutput("decomp_note"),
             box_note("Random effects excluded; numeric covariates at their mean; factor covariates marginalised over observed level combinations (weighted by individuals); ALR, LS, AFR and mean age at their individual-level means; response scale. Failed fits are not drawn; Caution fits are dashed."),
             save_button("save_predictions")),
           box(width = 5, title = info_title("Accuracy against the simulated truth", "accuracy"), status = "info", solidHeader = TRUE,
@@ -543,8 +587,10 @@ ui <- dashboardPage(
               tags$a(href = "https://osf.io/kevnm/", target = "_blank", "osf.io/kevnm"), "."),
             tags$hr(),
             p(strong("Citation")),
-            p(class = "small-note", style = "overflow-wrap:anywhere;", "Sanghvi, K., & Ivimey-Cook, E. R. (2026). Biases in common methods used to quantify ageing and selective disappearance: a guide. ",
-              tags$a(href = "https://doi.org/10.17605/OSF.IO/KEVNM", target = "_blank", "https://doi.org/10.17605/OSF.IO/KEVNM")))
+            tags$ol(class = "small-note", style = "padding-left:18px; overflow-wrap:anywhere;",
+              tags$li("Sanghvi, K., Ivimey-Cook, E. 2026. disappR: a shiny app to model ageing and selective [dis]appearance."),
+              tags$li("Sanghvi, K., Ivimey-Cook, E.R., Bouwhuis, S., Sepil, I. and van de Pol, M., 2026. A comparison of methods to assess selective disappearance and quantify ageing. ",
+                      tags$em("EcoEvoRxiv"))))
         )
       )
     )

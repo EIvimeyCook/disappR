@@ -43,3 +43,11 @@ The bundled file is the paper's full sample of 7,341 breeding attempts by 4,935 
 7,126-row subset that excluded 215 attempts with no lay date; refitting on the full sample moves the
 individual-level peak from 2.85 to 2.80, exactly the published value, and brings the three component traits
 closer to the published coefficients as well.
+
+## Added in 0.9.5
+
+| Example | What the paper reports | What the app returns | Verdict |
+|---|---|---|---|
+| **McKenna-Ell 2023** — sheep offspring birth weight | Age −0.061, age at last observation +0.016, capture age +0.112, sex +0.106, twin −0.826; early-life terms and their interactions with age n.s.; variances 0.066 / 0.057 / 0.004 / 0.115 | Model 2 with the example's covariates, unstandardised (offline ML refit): every slope identical to three decimals (bred as a yearling +0.054); variances 0.065 / 0.055 / 0.004 / 0.114 (ML; the paper's are REML). Krish confirmed the match in the app | **Quantitative match** |
+| **McKenna-Ell 2023** — breeding probability and offspring survival | Breeding: age −0.487, age at last observation +0.188, age × bred as a yearling −0.210. Survival: age −0.232, age at last observation +0.089, early-life recruitment +0.869 | Model 2, binomial (glmmTMB), same terms and random effects. Not refitted offline (no R here): `tests/smoke_test.R` compares these coefficients | **To confirm in R** |
+| **Szejner-Sigal 2025** — bee locomotor activity | Negative parabola with age; peak at the day-28 occasion in females and day 21 in males; early-life activity only weakly linked to lifespan | Model 1 + lifespan (offline ML refit): peaks at 26.1 days (females) and 17.3 days (males), whose nearest weekly occasions are days 28 and 21; lifespan n.s. in both sexes; a housing-box random intercept does not improve AIC. Letting lifespan interact with age (Model 6) lowers AIC by about 11 (females) and 14 (males) | **Qualitative match**, peaks consistent with the reported occasions |

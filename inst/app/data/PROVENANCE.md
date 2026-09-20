@@ -33,3 +33,14 @@ a within-individual effect of +0.851; this derivation gives -0.769 and +0.903. T
 `sex_raw` preserves the original coding. `sex` harmonises the numeric codes to letters: nineteen individuals
 appear under both codings, and code 1 always coincides with m (nine individuals) and 2 with f (nine), never the
 reverse, so the mapping is supported by the data rather than assumed.
+
+## Added in 0.9.5
+
+Supplied by Krish from the papers' data archives (Soay sheep: doi:10.5061/dryad.stqjq2c7s; bees:
+doi:10.5061/dryad.j9kd51cq3) and bundled byte for byte under new file names.
+
+| File | Rows | Columns | Values | Derived columns |
+|---|---|---|---|---|
+| mckennaell_2023_soay_breeding_survival.csv (`fecundityoffsurv.csv`) | 3173 records of 762 females (the paper's breeding-probability sample; 2573 non-blank offspring-survival records of 714 females) | unchanged | unchanged | none |
+| mckennaell_2023_soay_offspring_weight.csv (`offspringwt.csv`) | 2317 lambs of 649 mothers (the paper's sample) | unchanged | unchanged | none |
+| szejnersigal_2025_bee_activity.csv (`Activity.csv`) | 808 records of 184 bees (414 female, 394 male records); the paper's text reports 199 bees in the activity experiment | unchanged | unchanged | none |

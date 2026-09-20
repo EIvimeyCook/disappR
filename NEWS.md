@@ -1,3 +1,70 @@
+# disappR 0.9.6
+
+* Start page: a short Purpose section above the workflow sets out why the app exists: selective disappearance and
+  appearance are pervasive, the methods that handle them are recent and were built for simple cases, some are biased
+  under missing data or under age-dependent selection (which is rarely tested), and there is little guidance on which
+  model to fit.
+* Decomposition on any sampling schedule. It always uses two successive sampling occasions and only the individuals
+  sampled at both (survivor-restricted). On a common schedule the result is unchanged (identical to 0.9.5 for every
+  bundled dataset except the chipmunk data, whose ages are irregular). On an irregular schedule the records are now
+  placed on a common grid of occasions, spaced by the median interval between an individual's successive records,
+  before the chain is built, and a caution below the population-trajectory figure says the result is approximate.
+  Schedules such as "age 1, then every third age" are now decomposed through every occasion instead of stopping after
+  the first two.
+* The exported model script uses the app's own decomposition functions, so its figure matches the app.
+
+# disappR 0.9.5
+
+* Three new empirical examples, each pre-set to the published model: Soay sheep breeding probability and offspring
+  first-winter survival (binomial) and Soay sheep offspring birth weight (Gaussian) from McKenna-Ell et al. 2023,
+  Biology Letters, with age, age at last observation, bred as a yearling and early-life recruitment (each interacting
+  with age; lamb capture age, sex and twin status for weight) and random intercepts for female, year and cohort; and
+  leafcutting-bee locomotor activity from Szejner-Sigal et al. 2025, Proc. R. Soc. B, with a quadratic age function,
+  lifespan added to Model 1 and a random intercept per bee, opening on females as in the paper.
+* Examples can open with a data subset and with extra model terms; both are reset when another example is chosen.
+* An example now keeps the ageing function of its published model when the Modelling tab opens; before, the tab
+  replaced it with the function that fitted individuals best (the tab's own default for simulated and uploaded data).
+* Decomposition: consecutive records are linked when their interval rounds to one sampling step, instead of only
+  when it equals the step exactly. Schedules with an unequal first interval (day 1, then weekly on days 7, 14, 21, as
+  in the bee data) are now decomposed through every occasion rather than stopping after the first two ages. Regular
+  schedules give exactly the same result as before, and a missed occasion still breaks the chain. The exported
+  figure code uses the same rule.
+* Sampling step: a smallest common interval that is close to but not a divisor of a clearly dominant interval (6 and
+  7 days in the bee data) is treated as an unequal first interval, and the dominant interval becomes the step, so the
+  sampling grid follows the weekly schedule. No other bundled or test dataset changes step.
+* The CONTINUOUS-box note about few distinct whole-number values no longer fires for counts from zero (0, 1, 2, 3).
+
+# disappR 0.9.4
+
+* Binomial models now fit binary (0/1) traits. Without a mapped trials column, the internal trials column (all
+  missing) was still passed to glmmTMB as prior weights, so every row was dropped and the fit stopped with
+  "contrasts can be applied only to factors with 2 or more levels". Weights are now used only when every analysed
+  row has a positive number of trials. The exported model script wrote the negative binomial family for binomial
+  fits and omitted the weights; it now writes binomial() or betabinomial() with weights = .trials.
+* The number of binomial trials ("Weights") is chosen on the Modelling tab below the error family and is shown only
+  for the binomial and beta-binomial families; a note pops up when one of them is selected. Changing it no longer
+  resets the family and the model selection.
+* New error family: zero-inflated negative binomial with linear variance (nbinom1), next to the nbinom2 version, in
+  the models, the error-family check, the model equations and the exported code.
+* Three-level nesting: an optional "next level up" grouping column, e.g. individuals within fathers within families,
+  (1 | family) + (1 | family:father) + (1 | family:father:ID), in every model (including the non-linear exponential
+  models), the equations, the variance table, the figures' panels and the exported code, with an integrity row for
+  group labels reused across top-level groups.
+* Term builder: the wrench on each model row adds a term built from up to three chosen terms (age, ALR, AFR, LS,
+  mean age or any covariate) joined by + or x, including three-way interactions; interactions with age carry an
+  over-fitting caution.
+* Simulator: each ageing form offers biologically motivated shapes (slow, fast or no senescence; early or late peak;
+  U-shape; rapid or gradual decline or growth that levels off; late-life increase). The default shape of each form
+  is unchanged, so earlier simulations are reproduced exactly.
+* Data tab: CONTINUOUS and CATEGORICAL covariate boxes that warn immediately when a column looks as if it belongs in
+  the other box; a note and a check that age must be numeric; the upload note states that blank cells and NA are
+  both read as missing.
+* Figures: 95% confidence bands on the bin-difference trend lines and on the lines of the trait-against-lifespan
+  figure; solid black regression lines on the ALR, mean age, LS and AFR agreement plots; a 'Panels by' menu
+  (categorical variables) in the trajectory figure; optional jittered individual records in the population-level
+  trajectory plot.
+* The references to cite are shown in the sidebar.
+
 # disappR 0.9.3
 
 * Age at first trait expression (AFE) now lives only where it applies: the "Count missed occasions from" control

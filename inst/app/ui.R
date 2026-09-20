@@ -43,7 +43,9 @@ ui <- dashboardPage(
       .model-row-extra { flex:1 1 auto; } .model-row-extra .form-group { margin:3px 0; } .model-row-extra .selectize-control { margin:0; }
       .main-header .navbar { background:#91634E !important; }
       .skin-blue .main-sidebar { background:#493D34 !important; }
-      .skin-blue .sidebar-menu>li>a { color:#EFE4D6 !important; border-left:3px solid transparent; }
+      .skin-blue .sidebar-menu>li>a { color:#EFE4D6 !important; border-left:3px solid transparent; white-space:normal; line-height:1.3; padding-right:12px; }
+      .sidebar-menu>li>a>.fa, .sidebar-menu>li>a>.far, .sidebar-menu>li>a>.fas { float:left; margin-top:2px; }
+      .sidebar-menu>li>a>span { display:block; white-space:normal; margin-left:26px; }
       .skin-blue .sidebar-menu>li:hover>a, .skin-blue .sidebar-menu>li.active>a { background:#5B4B40 !important; color:#FFF9F2 !important; border-left-color:#D6A15E !important; }
       .sidebar-note { padding:2px 18px 18px; color:#DCCFC0; font-size:12px; line-height:1.55; }
       .sidebar-cite { padding:2px 18px 18px; color:#DCCFC0; font-size:11.5px; line-height:1.45; }

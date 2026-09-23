@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)
 <!-- badges: end -->
 
-disappR is an R package with an interactive Shiny app for **diagnosing and modelling
+disappR is an R package providing a Shiny app for **diagnosing and modelling
 selective disappearance and selective appearance** in longitudinal ageing data.
 
 Ecologists want to know the average within-individual ageing pattern, but they only
@@ -24,32 +24,39 @@ first port of call for empiricists analysing longitudinal data, especially on
 ageing, covering the diagnostics and models behind a publishable analysis with
 guidance at every step.
 
+disappR works through this in the order you would want to: it first shows
+whether selective disappearance or appearance is visible in your data, then
+checks how complete your sampling is and what shape ageing takes, and only then
+fits and compares a set of ten mixed models built to separate the two. Every
+panel explains what it shows and how to read it, and everything you run can be
+exported as R code.
+
 ## Features
 
-- **Visual-first diagnosis.** Trait trajectories of lifespan or age-at-first-record
-  groups and their differences across age, the trait against lifespan within age
-  bins, the trait before death, selection differentials by age, and the
-  disappearance hazard — before any model is fitted.
-- **Sampling and missingness checks.** The expected-occasion grid, missingness by
-  age and by other variables, and agreement between lifespan proxies, to choose one
-  for the models.
-- **Individual and population trajectories.** A function fitted to each individual
-  (linear to a non-linear exponential), the population curve rebuilt from the
-  individual fits, and ageing functions compared at the population level.
-- **Ten comparative mixed models.** From a negative control to models for
-  age-independent and age-dependent selective disappearance and appearance, with
-  Gaussian, Poisson, negative binomial, zero-inflated, binomial and beta-binomial
-  families, random slopes, fixed covariates and their interactions with age, and
-  nested (up to three levels) or crossed random effects.
-- **Teaching simulations with a known answer.** Choose the ageing form, the
-  organism's biology, the sampling scheme, and the type and strength of selection,
-  then see how each model's estimate compares with the truth.
-- **13 published datasets to practise on**, from 12 studies in laboratory and wild
-  populations, each pre-set to the analysis reported in its paper.
-- **Reproducible output.** Residual diagnostics, a null-model test of the lifespan
-  effect, downloadable R code for every analysis, and HTML or text reports of saved
-  results.
-- **Runs entirely on your machine.** Your data are read locally and never uploaded.
+- **Visual diagnosis before modelling.** Trait trajectories of lifespan and
+  age-at-entry groups, how far apart those groups are at each age, the trait
+  before death, selection differentials by age and the disappearance hazard.
+- **Sampling and missingness checks.** When each individual was actually seen,
+  how much is missing and at which ages, whether missingness tracks the trait,
+  and which lifespan proxy to use.
+- **Individual and population trajectories.** An ageing function fitted to each
+  individual, the average within-individual trajectory rebuilt from those fits,
+  and a comparison of ageing functions at both levels.
+- **Ten comparative mixed models**, from a naive model to models for
+  age-independent and age-dependent selective disappearance and appearance,
+  with Gaussian, Poisson, negative binomial, zero-inflated, binomial and
+  beta-binomial families.
+- **Checks on the fitted models.** Likelihood-ratio tests, residual diagnostics
+  (DHARMa and performance), error-family and ageing-function checks, effect
+  sizes and a null-model bootstrap for the lifespan effect.
+- **Teaching simulations.** Generate data with a known true trajectory, choosing
+  the ageing shape, the sampling design and the type and strength of selection,
+  and see how close each model gets to the truth.
+- **13 published datasets** from 12 studies of laboratory and wild populations,
+  each set up to reproduce the analysis in its paper.
+- **Reproducible output.** Downloadable R code for every section, HTML and text
+  reports, the analysis data, and a reproducibility bundle of every setting used.
+- **Runs locally.** Your data never leave your machine.
 
 ## Installation
 
@@ -60,103 +67,161 @@ install.packages("devtools")
 devtools::install_github("EIvimeyCook/disappR")
 ```
 
-Only `shiny`, `shinydashboard`, `ggplot2` and `lme4` are required. Everything
-else is optional and enables specific features:
+The app needs `shiny`, `shinydashboard`, `ggplot2` and `lme4`, which are
+installed automatically. The packages below are optional. Without them the app
+still runs with fewer analyses, and the *Start here* page lists anything that is
+missing.
 
-| Optional package | Enables |
-| :---------------- | :------ |
+```r
+install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance", "see", "codetools", "callr"))
+```
+
+| Package | Enables |
+| :------ | :------ |
 | `glmmTMB` | Count, proportion and binary traits |
 | `lmerTest` | p-values for Gaussian models |
 | `nlme` | The non-linear exponential ageing function |
 | `DHARMa` | Simulation-based residual checks |
 | `performance`, `see` | Model diagnostics and their plots |
 | `codetools` | Exported R code |
-| `callr` | Runs a step in a separate R process, so a failure there cannot stop the app |
-
-```r
-install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance", "see", "codetools", "callr"))
-```
-
-Without them the app still runs, with fewer analyses; the *Start here* page lists
-any that are missing.
+| `callr` | Runs the trajectory fits in a separate R process, so a failure there cannot stop the app |
 
 ## Usage
 
-The package exports one function that launches the app:
+Video walkthrough [here](https://osf.io/kevnm/files/m6utp).
 
 ```r
 library(disappR)
 run_app()
 ```
 
-This opens the app in your browser or the RStudio viewer, arguments are passed to
-`shiny::runApp()`. The left-hand sidebar takes you through six steps, plus a
-teaching-simulation mode:
+This opens the app in your browser or the RStudio viewer. Any arguments are
+passed on to `shiny::runApp()`, for example `run_app(port = 4000)`.
 
-1. **Data:** load simulated data with a known answer, one of the 13 published
-   datasets, or your own CSV. Map the individual, age and trait columns, plus
-   lifespan, age at first record, covariates, groups and censoring; the app checks
-   that these are read correctly and names any individual whose rows disagree.
-2. **Visual diagnosis:** look for the signatures of selective disappearance and
-   appearance before fitting anything.
-3. **Missingness and proxies:** check how complete sampling is, and which lifespan
-   proxy — age at last record or mean age — best matches known lifespan.
-4. **Trajectories:** fit each individual's ageing shape, rebuild the population
-   curve from the individual fits, and compare ageing functions.
-5. **Modelling:** fit and compare the ten models, with the error family, random
-   effects and ageing function you choose; check the fits and see the coefficients,
-   predictions and diagnostics.
-6. **Summary and report:** gather every result you saved into a cautious automatic
-   summary, and export it as an HTML or text report together with the data and R
-   code.
-
-### Diagnosing bias before modelling
-
-| Source of bias | Level | What the app shows | Step |
-| :-------------- | :---- | :------------------ | :--- |
-| Selective disappearance and appearance | Population | Trait trajectories of lifespan or age-at-first-record groups and their differences across age; the trait against lifespan within age bins; the trait before death; selection differentials by age; the disappearance hazard | 2 · Visual diagnosis |
-| Incomplete sampling | Data | The sampling grid; missingness by age and against the trait and other variables; agreement between lifespan proxies | 3 · Missingness and proxies |
-| A misspecified ageing shape | Individual and population | A function fitted to each individual; the population curve rebuilt from the individual fits; ageing functions compared | 4 · Trajectories |
-
-### Scripted use
-
-The same analyses run from R without the app:
+If you would rather not install the package, you can run the app straight from a
+downloaded copy of the repository:
 
 ```r
-library(disappR)
-x   <- disappr_prepare(my_data, disappr_mapping(id = "ID", age = "age", trait = "mass", life = "lifespan"))
-fit <- disappr_fit(x, models = c("M1", "M2", "M4"), age_function = "Quadratic")
-disappr_compare(fit)
+shiny::runApp("path/to/disappR/inst/app")
 ```
 
-`disappr_mapping()`, `disappr_prepare()`, `disappr_fit()`, `disappr_compare()`,
-`disappr_predict()`, `disappr_interpret()`, `disappr_diagnose()`, `disappr_code()`,
-`disappr_provenance()`, `disappr_read()`, `disappr_example()` and
-`disappr_simulate()` are all exported; `vignette("disappR", package = "disappR")`
-lists what each one does.
+## Basic workflow
 
-## Getting help inside the app
+The app is laid out as six numbered steps in the left-hand sidebar. You can move
+between them freely, but each builds on the one before.
 
-Every panel has an ⓘ button explaining what it shows and how to read it — click it
-for the specifics of any figure, table or setting. The vignettes cover the broader
-picture:
+**Start here.** An overview of the problem and the workflow. The *Quick start*
+buttons load a simulated dataset where the answer is known, or open the list of
+published examples. This page also lists which optional packages are installed.
 
-```r
-browseVignettes("disappR")
-```
+1. **Data** — choose a data source: simulated teaching data, one of the 13
+   published datasets, or your own CSV (one row per individual per sampling
+   occasion). Then map your columns: individual ID, age and trait are required,
+   and lifespan, age at first observation, covariates, groups and censoring are
+   optional (see [Preparing your data](#preparing-your-data)). The *Data
+   integrity checks* panel flags anything that looks wrong, such as repeated
+   records, IDs shared between groups, or an individual whose lifespan differs
+   between its rows. You can also subset the data and look at the distribution
+   of any variable.
+2. **Visual diagnosis** — does the phenotype of long- and short-lived (or early-
+   and late-entering) individuals differ, and does that difference change with
+   age? A constant gap between groups points to age-independent selection; a gap
+   that widens or narrows with age points to age-dependent selection. Further
+   panels look at the trait just before death, whether survivors differ from
+   those that disappear at each age, and the age-specific disappearance hazard.
+3. **Missingness and proxies** — a grid of when each individual was actually
+   seen, how much is missing at each age, and whether what is missing is related
+   to the trait. This step also compares age at last record (ALR) and individual
+   mean age as proxies for lifespan, which tells you which of the models in step
+   5 to trust.
+4. **Trajectories** — fits linear, quadratic, cubic, logarithmic, asymptotic and
+   exponential functions to each individual, rebuilds the average
+   within-individual trajectory from those fits, and compares the functions at
+   the individual and population level. Use the best-supported function as the
+   ageing function in step 5.
+5. **Modelling** — choose the error family, random effects (intercepts, or
+   correlated or uncorrelated random slopes), the ageing function and any
+   covariates, tick the models you want, and press *Fit models*. The results
+   show which selective processes the data support, likelihood-ratio tests
+   between nested models, coefficients in original units, predicted population
+   trajectories, and a set of checks on the fits.
+6. **Summary and report** — every result you saved with a *Save to summary*
+   button is collected here, along with an evidence summary that grades what
+   the saved results suggest about selective disappearance and appearance. Export
+   it as an HTML report (with plots) or a text report, alongside the R script,
+   the analysis data and a reproducibility bundle.
 
-- **disappR** — an overview of the package and its workflow.
-- **workflow** — a walkthrough of the six steps, tab by tab.
-- **models-and-methods** — the ten models, their fixed effects, and what each
-  comparison tests.
-- **validation-and-replication** — how the app's output was checked against
-  independent implementations and the published analyses it reproduces.
-- **development-and-testing** — the test suite and how to run it.
+> **Tip.** Start with the simulated data before loading your own. The simulated
+> datasets make the patterns deliberately obvious, and on the Modelling tab the
+> app scores each model against the true trajectory, so you can see what each
+> diagnostic looks like when you already know the answer.
+
+> **Tip.** Click the ⓘ next to any panel title for what it shows, how to read it
+> and what to watch out for. The ⓘ next to each model in the model settings gives
+> its exact specification.
+
+## Preparing your data
+
+Data should be a CSV with **one row per individual per sampling occasion**.
+
+| Column | Required? | Notes |
+| :----- | :-------- | :---- |
+| Individual ID | Yes | Can be nested within a group (for example family), and within a second level above that |
+| Age | Yes | Numeric, in any unit; can be rounded to a set resolution |
+| Trait | Yes | Continuous, count, proportion or binary (0/1) |
+| Age at last record (ALR) | No | Worked out from each individual's last row if not mapped |
+| Known lifespan (LS) | No | Map only if lifespan is truly known; enables Model 6 |
+| Age at first observation (AFR) | No | Worked out from each individual's first row if not mapped; enables Models 7–10 |
+| Censoring | No | Marks individuals still alive at the end of the study |
+| Covariates | No | Continuous or categorical, with optional interactions with age or with each other |
+| Group / random effects | No | Grouping variables and additional random intercepts |
+| Number of trials | No | For proportion traits with the binomial families (chosen on the Modelling tab) |
+
+Each individual must have a single ALR, lifespan and AFR. If a mapped column
+gives an individual different values in different rows, loading stops and names
+the individuals involved; you can then fix the data or tick the box to exclude
+them. Repeated records of the same individual at the same age can be kept or
+averaged.
+
+## The models
+
+With `b(age)` the chosen ageing function (for example age + age²), `mean(age)`
+an individual's mean age and `Δb(age)` its within-individual deviation:
+
+| Model | Fixed effects | What it tests |
+| :---- | :------------ | :------------ |
+| 1 | b(age) | Naive model: selection not accounted for |
+| 2 | b(age) + ALR | Age-independent selective disappearance |
+| 3 | mean(age) + Δb(age) | Age-independent selective disappearance, by mean-age centring |
+| 4 | b(age) × ALR | Age-dependent selective disappearance (ALR) |
+| 5 | mean(age) × Δb(age) | Age-dependent selective disappearance (mean age) |
+| 6 | b(age) × LS | Positive control when lifespan is known |
+| 7 | b(age) + ALR + AFR | Age-independent disappearance and appearance |
+| 8 | b(age) × ALR + b(age) × AFR | Age-dependent disappearance and appearance |
+| 9 | b(age) × ALR + AFR | Age-dependent disappearance, age-independent appearance |
+| 10 | b(age) + ALR + b(age) × AFR | Age-independent disappearance, age-dependent appearance |
+
+Mapped covariates enter every model, and all models are fitted by maximum
+likelihood to the same rows, so their AICs can be compared directly. The
+*models-and-methods* vignette gives the full specification of each.
+
+## Teaching simulations
+
+The simulator generates longitudinal data with a known true ageing trajectory.
+You can set the trait and its distribution (body mass, or fecundity as Poisson,
+negative binomial or zero-inflated counts), the ageing form and a biological
+scenario within it (for example slow or fast senescence, an early or late peak,
+or terminal investment), mean lifespan, individual variation in ageing rates,
+the type and direction of selective disappearance and appearance, the sampling
+design (including several kinds of missingness), a diet covariate, families as
+a nested random effect, the number of individuals and the seed. Each simulation
+lists what you should expect to see, and the simulated data can be downloaded
+as a CSV.
 
 ## Example data
 
-13 published datasets are bundled, each pre-mapped to the model reported in its
-paper, spanning laboratory systems and wild populations:
+Thirteen published datasets are bundled, each opening with the settings that
+most closely reproduce the analysis in its paper:
 
 - Sanghvi et al. 2025, *American Naturalist* — *Drosophila melanogaster* daily fecundity
 - Sanghvi et al. 2022, *Evolution* — seed beetle female fecundity
@@ -172,24 +237,65 @@ paper, spanning laboratory systems and wild populations:
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep offspring birth weight
 - Szejner-Sigal et al. 2025, *Proc. R. Soc. B* — alfalfa leafcutting bee locomotor activity
 
-Sources and licences are listed in
+Sources and licences for each are listed in
 [`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md).
 
-## Data format
+## Scripted use
 
-One row per individual per occasion. Required columns are the individual's ID, its
-age and the trait. Optional columns — known lifespan, age at first record,
-covariates, a grouping variable and censoring — unlock more models and figures but
-are not required to get started; age at last record and age at first record are
-computed automatically when not mapped.
+The functions behind the app can also be used directly in R scripts:
 
-## Interpretation caveats
+```r
+library(disappR)
 
-Associations between missingness and observed variables cannot prove data are
-missing completely at random, at random, or not at random. AIC measures relative
-support, not causation. The app is a first port of call, not a substitute for
-checking your own model's assumptions and residuals — the vignettes and the ⓘ
-panels say where each of those caveats applies.
+sim <- disappr_simulate(n_id = 150, seed = 1, sd_type = "both")
+map <- disappr_mapping(id = "ID", age = "age", trait = "body_mass", life = "lifespan")
+x   <- disappr_prepare(sim, map)
+fit <- disappr_fit(x, models = c("M1", "M2", "M4"), age_function = "Quadratic")
+
+disappr_compare(fit)          # AIC table
+disappr_predict(fit, "M4")    # predicted population trajectory
+cat(disappr_code(fit, x))     # R code that reproduces the analysis
+```
+
+| Function | Purpose |
+| :------- | :------ |
+| `disappr_read()` | Read a CSV or other delimited file |
+| `disappr_example()` | Load a bundled dataset with its published settings |
+| `disappr_simulate()` | Simulate data with a known trajectory |
+| `disappr_mapping()` | Say which column holds which variable |
+| `disappr_prepare()` | Check and standardise the data |
+| `disappr_fit()` | Fit and compare Models 1–10 |
+| `disappr_compare()` | The AIC table |
+| `disappr_predict()` | Predicted population trajectory for one model |
+| `disappr_diagnose()` | Fit validity, dropped rows and notes |
+| `disappr_interpret()` | Interpretation notes |
+| `disappr_code()` | A standalone R script for the analysis |
+| `disappr_provenance()` | Every setting and package version used |
+
+`?disappr_api` documents the arguments of each.
+
+## Getting help
+
+- **Inside the app**, every panel has an ⓘ button explaining what it shows and
+  how to read it.
+- **The video walkthrough** on [OSF](https://osf.io/kevnm/files/m6utp) shows the
+  app in use.
+- **The vignettes** cover the bigger picture. Run `browseVignettes("disappR")`
+  for an overview of the package, a tab-by-tab walkthrough of the workflow, the
+  models and methods, how the app was validated against independent code and
+  the published analyses, and the test suite.
+
+## Tips and limitations
+
+- An association between missingness and an observed variable cannot show
+  whether data are missing completely at random, at random, or not at random.
+- AIC measures relative support among the models fitted, not causation. Check
+  the model comparison against the visual diagnosis and the residual checks
+  before drawing conclusions.
+- Mean age is a poor proxy for lifespan when sampling is incomplete. Step 3 tells
+  you whether this applies to your data.
+- The evidence summary on step 6 is deliberately cautious and only uses results
+  you have saved.
 
 ## Bug reports and contributions
 
@@ -198,32 +304,34 @@ Please file issues and feature requests at
 
 ## Related tools
 
-- [**DCQC**](https://github.com/SORTEE/DCQC) — data and code quality control for
-  ecology and evolutionary biology
-- [**READMEBuilder**](https://github.com/EIvimeyCook/READMEBuilder) — document a
-  finished analysis project for archiving
+- [**READMEBuilder**](https://github.com/EIvimeyCook/READMEBuilder) — document
+  your finished analysis for archiving
+- [**DCQC**](https://github.com/SORTEE/DCQC) — data and code quality control
+  for ecology and evolutionary biology
 
 ## Citation
 
-If disappR helps with your work, please cite it:
+If disappR helps with your work, please cite:
 
-> Sanghvi, K., & Ivimey-Cook, E. R. (2026). *disappR: a shiny app to model ageing
-> and selective [dis]appearance.* R package.
+> Sanghvi, K., & Ivimey-Cook, E. R. (2026). *disappR: a shiny app to model
+> ageing and selective [dis]appearance.* R package.
 > <https://github.com/EIvimeyCook/disappR>
 
-and the methods paper it implements:
+and the paper describing the methods:
 
-> Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I., & van de Pol, M. (2026).
-> A comparison of methods to assess selective disappearance and quantify ageing.
-> *EcoEvoRxiv*.
+> Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I., & van de Pol, M.
+> (2026). A comparison of methods to assess selective disappearance and
+> quantify ageing. *EcoEvoRxiv*.
 
-`citation("disappR")` gives both references. A machine-readable
-[`CITATION.cff`](CITATION.cff) is included, so GitHub's "Cite this repository"
-button gives formatted APA and BibTeX.
+Data, code and supplementary material for the paper are on
+[OSF](https://osf.io/kevnm/). `citation("disappR")` gives both references, and a
+machine-readable [`CITATION.cff`](CITATION.cff) is included, so GitHub's "Cite
+this repository" button gives formatted APA and BibTeX.
 
 ## Contact
 
-E. R. Ivimey-Cook — <e.ivimeycook@gmail.com>
+Edward R. Ivimey-Cook — <e.ivimeycook@gmail.com> —
+[ORCID 0000-0003-4910-0443](https://orcid.org/0000-0003-4910-0443)
 
 ## License
 

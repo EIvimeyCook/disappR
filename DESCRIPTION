@@ -1,6 +1,6 @@
 Package: disappR
 Title: Diagnose and Model Selective Disappearance and Appearance in Longitudinal Ageing Data
-Version: 0.21.5
+Version: 0.21.16
 Authors@R: c(
     person("Krish", "Sanghvi", role = "aut"),
     person(c("E.", "R."), "Ivimey-Cook", role = c("aut", "cre"), email = "E.Ivimey-Cook@uea.ac.uk"))

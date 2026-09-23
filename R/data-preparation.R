@@ -121,8 +121,18 @@ integrity_condition <- function(conflicts, map) {
 }
 
 standardise_data <- function(df, map, dup_action = "keep") {
+  if (!is.data.frame(df)) stop("The data must be a data frame.", call. = FALSE)
   n_raw <- nrow(df)
   has_col <- function(nm) length(nm) == 1 && !is.na(nm) && nzchar(nm) && nm %in% names(df)
+  # a mapped column that is not in the data gives a clear message, not "arguments imply differing number of rows"
+  need <- c(id = map$id, age = map$age, trait = map$trait)
+  gone <- need[!vapply(need, has_col, logical(1))]
+  if (length(gone)) stop(structure(class = c("disappr_input_error", "error", "condition"), list(
+    message = sprintf("Mapped column%s not found in the data: %s. Available: %s.",
+                      if (length(gone) == 1) "" else "s",
+                      paste(sprintf("%s (%s)", gone, names(gone)), collapse = ", "),
+                      paste(utils::head(names(df), 12), collapse = ", ")),
+    call = NULL)))
   out <- data.frame(
     id = trimws(as.character(df[[map$id]])),
     age = safe_numeric(df[[map$age]]),
@@ -328,7 +338,8 @@ individual_metrics <- function(dat) {
   f <- factor(dat$id, levels = ids)
   okt <- is.finite(dat$trait)
   fo <- factor(dat$id[okt], levels = ids)
-  num_mean <- function(v) as.numeric(tapply(v, f, finite_mean))
+  # a column the data frame does not carry (condition, in hand-built frames) gives NA, not an error
+  num_mean <- function(v) if (is.null(v) || length(v) != length(f)) rep(NA_real_, length(ids)) else as.numeric(tapply(v, f, finite_mean))
   out <- data.frame(
     id = ids,
     n_rows = tabulate(as.integer(f), nbins = length(ids)),
@@ -352,11 +363,14 @@ individual_metrics <- function(dat) {
   out$lifespan <- num_mean(dat$life)
   out$entry <- num_mean(dat$entry)
   out$condition <- num_mean(dat$condition)
-  out$condition_label <- as.character(tapply(dat$condition_label, f, mode_or_na))
-  out$group <- as.character(tapply(dat$group, f, function(g) {
+  # the same guard for the character summaries: a column the frame does not carry gives NA per individual
+  chr_by <- function(v, fun) if (is.null(v) || length(v) != length(f)) rep(NA_character_, length(ids)) else
+    as.character(tapply(v, f, fun))
+  out$condition_label <- chr_by(dat$condition_label, mode_or_na)
+  out$group <- chr_by(dat$group, function(g) {
     g <- g[!is.na(g)]
-    if (length(g)) g[[1]] else NA_character_
-  }))
+    if (length(g)) as.character(g[[1]]) else NA_character_
+  })
   out
 }
 

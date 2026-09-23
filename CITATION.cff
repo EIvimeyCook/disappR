@@ -1,19 +1,17 @@
 cff-version: 1.2.0
 message: "If you use disappR, please cite the software and the paper."
 title: "disappR: a shiny app to model ageing and selective [dis]appearance"
-abstract: "A Shiny workflow for diagnosing and modelling selective disappearance and selective appearance in longitudinal ageing data."
+abstract: "A Shiny workflow for longitudinal ageing data that follows a visual-first diagnosis of selective disappearance and selective appearance, then fits and compares ten comparative mixed models."
 type: software
-version: 0.9.6
+version: 0.21.16
 license: MIT
 repository-code: "https://github.com/EIvimeyCook/disappR"
-url: "https://osf.io/kevnm/"
 authors:
   - family-names: Sanghvi
     given-names: Krish
   - family-names: Ivimey-Cook
-    given-names: Edward R.
+    given-names: E. R.
     email: e.ivimeycook@gmail.com
-    orcid: "https://orcid.org/0000-0003-4910-0443"
 keywords:
   - ageing
   - senescence

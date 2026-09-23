@@ -61,6 +61,9 @@ joint_wald <- function(fit, terms) {
 prediction_contrast <- function(lo, hi, ratio) {
   pr <- merge(data.frame(age = lo$age, lo = lo$fitted), data.frame(age = hi$age, hi = hi$fitted), by = "age")
   pr <- pr[order(pr$age), , drop = FALSE]
+  # no shared ages: return the empty frame with its columns, rather than failing on the assignment below
+  if (!nrow(pr)) return(data.frame(age = numeric(0), lo = numeric(0), hi = numeric(0),
+                                   eff = numeric(0), usable = logical(0)))
   usable <- is.finite(pr$lo) & is.finite(pr$hi)
   if (isTRUE(ratio)) usable <- usable & pr$lo > 0 & pr$hi > 0
   pr$eff <- NA_real_

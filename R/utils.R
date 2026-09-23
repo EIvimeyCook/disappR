@@ -72,7 +72,17 @@ empty_plot <- function(msg) {
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
-safe_numeric <- function(x) suppressWarnings(as.numeric(as.character(x)))
+# A numeric column is kept as it is. Converting it through text is not safe: as.character() follows
+# options(OutDec), so under OutDec = "," every non-integer value came back as NA (0.21.12).
+safe_numeric <- function(x) if (is.numeric(x)) as.numeric(x) else suppressWarnings(as.numeric(as.character(x)))
+
+# Numbers recovered from table() names: factor levels are made with as.character(), which uses OutDec.
+names_num <- function(x) {
+  nm <- names(x)
+  od <- getOption("OutDec", ".")
+  if (!identical(od, ".")) nm <- gsub(od, ".", nm, fixed = TRUE)
+  suppressWarnings(as.numeric(nm))
+}
 
 mode_or_na <- function(x) {
   x <- as.character(x)
@@ -157,7 +167,7 @@ infer_age_step <- function(age, id = NULL) {
   }
   d <- signif(d, 6)
   tab <- table(d)
-  vals <- as.numeric(names(tab))
+  vals <- names_num(tab)
   share <- as.numeric(tab) / length(d)
   common <- vals[share >= 0.05]
   if (!length(common)) return(stats::median(d))
@@ -178,7 +188,8 @@ squish_to <- function(x, lim, pad = 0.5) {
 }
 
 # Legend labels wrapped onto several lines, so long labels stay inside the figure.
-wrap_label <- function(x, width = 26) vapply(as.character(x), function(s) paste(strwrap(s, width), collapse = "\n"), character(1), USE.NAMES = FALSE)
+# strwrap() breaks so that lines stay strictly under `width`; the label should be allowed to fill it
+wrap_label <- function(x, width = 26) vapply(as.character(x), function(s) paste(strwrap(s, width + 1L), collapse = "\n"), character(1), USE.NAMES = FALSE)
 
 display_term <- function(x) gsub("(^|[^A-Za-z0-9_])(cv|re)_", "\\1", x)
 
@@ -193,3 +204,6 @@ with_time_limit <- function(expr, seconds) {
   on.exit(setTimeLimit(elapsed = Inf, transient = FALSE), add = TRUE)
   expr
 }
+
+# columns referred to inside ggplot2 aesthetics and data.table-style expressions
+utils::globalVariables(c("w", "wt", ".wts"))

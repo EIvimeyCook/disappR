@@ -631,6 +631,6 @@ extra_term_choices <- function(m) {
 builder_tokens <- function(m) {
   covs <- if (is.null(m) || !length(m$covars)) character(0) else stats::setNames(m$covars, unname(m$cov_labels[m$covars]))
   lk <- isTRUE(m$has_life) && !isTRUE(m$life_auto)
-  c("Age (the ageing terms)" = "age", "ALR (age at last record)" = "ALR", "AFR (age at first record)" = "AFR",
+  c("Age (the ageing terms)" = "age", "ALR (age at last record)" = "ALR", "AFR (age at first observation)" = "AFR",
     if (lk) c("LS (known lifespan)" = "LS"), "Mean age of the individual" = "mean_age", covs)
 }

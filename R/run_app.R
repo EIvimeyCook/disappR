@@ -14,6 +14,8 @@
 #'   run_app()
 #' }
 run_app <- function(...) {
+  op <- options(OutDec = ".")
+  on.exit(options(op), add = TRUE)
   needed <- c("shiny", "shinydashboard", "ggplot2", "lme4")
   missing <- needed[!vapply(needed, requireNamespace, logical(1), quietly = TRUE)]
   if (length(missing) > 0) {

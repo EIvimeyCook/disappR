@@ -168,7 +168,7 @@ fit_individual_function <- function(dat, fun, min_resid_df = 1, draw_ids = chara
   # extrapolate few individuals' fits. The threshold sets the drawn range only: the curve is the fitted function at
   # the mean coefficients, so the values at ages already covered do not change when it moves (0.20.22: 10 -> 5).
   n_at_age <- table(id_age_means(d)$age)
-  ok_age <- as.numeric(names(n_at_age))[as.numeric(n_at_age) >= A3_MIN_IND_PER_AGE]
+  ok_age <- names_num(n_at_age)[as.numeric(n_at_age) >= A3_MIN_IND_PER_AGE]
   rng <- if (length(ok_age)) range(ok_age) else range(d$age)
   ag <- seq(rng[1], rng[2], length.out = 120)
   pred <- curve_of(mcf, ag)
@@ -280,14 +280,22 @@ compare_individual_functions <- function(dat, min_resid_df = 1, max_individuals 
     }
   }
   funs <- unique(per$Function)
-  fin <- per[is.finite(per$AICc), , drop = FALSE]
+  # AICc needs n > k + 1 records per individual. A function whose AICc cannot be computed for most individuals (a
+  # cubic with six records per individual) used to empty the common set, so the whole ranking fell back to adjusted
+  # R-squared without saying so. Such a function is now left out of the AICc comparison and reported (0.21.15);
+  # with fewer than two comparable functions the previous behaviour is kept.
+  share_fin <- vapply(funs, function(fn) mean(is.finite(per$AICc[per$Function == fn])), numeric(1))
+  comparable <- funs[share_fin >= 0.5]
+  if (length(comparable) < 2) comparable <- funs
+  excluded <- setdiff(funs, comparable)
+  fin <- per[is.finite(per$AICc) & per$Function %in% comparable, , drop = FALSE]
   common <- character(0)
   if (nrow(fin)) {
     nf <- tapply(fin$Function, fin$id, function(v) length(unique(v)))
-    common <- names(nf)[nf == length(funs)]
+    common <- names(nf)[nf == length(comparable)]
   }
   per$Delta_AICc <- NA_real_
-  cc <- per$id %in% common
+  cc <- per$id %in% common & per$Function %in% comparable
   if (any(cc)) per$Delta_AICc[cc] <- stats::ave(per$AICc[cc], per$id[cc], FUN = function(v) v - min(v))
   out <- do.call(rbind, lapply(funs, function(fn) {
     z <- per[per$Function == fn, , drop = FALSE]
@@ -301,6 +309,8 @@ compare_individual_functions <- function(dat, min_resid_df = 1, max_individuals 
   }))
   out <- out[order(out$Mean_dAICc, -out$Mean_adj_R2, na.last = TRUE), , drop = FALSE]
   attr(out, "chat") <- chat
+  # functions left out of the AICc ranking, with the share of individuals for which their AICc was incomputable
+  attr(out, "excluded") <- stats::setNames(round(100 * (1 - share_fin[excluded])), excluded)
   out
 }
 
@@ -312,6 +322,31 @@ observed_trajectory <- function(dat) {
   names(z)[names(z) == "trait"] <- "fitted"
   z
 }
+
+# Population prediction from the fixed effects of a glmmTMB fit (random effects at zero), on the response scale.
+# Used only when predict() refuses: with rank_check = "adjust", glmmTMB drops collinear columns and then rejects new
+# data whose design contains them ("unknown fixed effects"). A dropped column has no coefficient, which is the same as
+# a coefficient of zero, so the retained coefficients give the model's own prediction (0.21.15).
+glmmtmb_fixed_predict <- function(fit, nd) {
+  fe <- glmmTMB::fixef(fit)
+  lin <- function(b, form) {
+    if (!length(b) || is.null(form)) return(NULL)
+    b[!is.finite(b)] <- 0
+    X <- stats::model.matrix(stats::delete.response(stats::terms(form)), nd)
+    keep <- intersect(colnames(X), names(b))
+    as.numeric(X[, keep, drop = FALSE] %*% b[keep])
+  }
+  eta <- lin(fe$cond, stats::formula(fit, fixed.only = TRUE))
+  if (is.null(eta)) stop("no conditional fixed effects")
+  mu <- stats::family(fit)$linkinv(eta)
+  zf <- fit$modelInfo$allForm$ziformula
+  if (length(fe$zi) && !is.null(zf)) {
+    ez <- lin(fe$zi, zf)
+    if (!is.null(ez)) mu <- mu * (1 - stats::plogis(ez))
+  }
+  mu
+}
+
 
 # Model prediction trajectory from a fitted model (see the "i" help for the Models tab):
 #   * random effects excluded (re.form = NA);
@@ -378,15 +413,28 @@ predict_population_curve <- function(fit, res, ages, hold = NULL, by = NULL) {
     nd[["mean_f1_3"]] <- nd[["mean_f1"]]^3
   }
   nd$id <- d$id[[1]]
+  nd$.wts <- 1          # binomial fits weight by trials; the mean on the response scale does not depend on it
   if ("group" %in% names(d)) nd$group <- d$group[[1]]
   if ("group2" %in% names(d)) nd$group2 <- d$group2[[1]]
   for (rt in intersect(res$random_terms %||% character(0), names(d))) nd[[rt]] <- d[[rt]][[1]]
+  err <- NULL
   pr <- tryCatch({
     if (inherits(fit, "nlme")) as.numeric(stats::predict(fit, newdata = nd, level = 0))
     else as.numeric(stats::predict(fit, newdata = nd, re.form = NA, type = "response", allow.new.levels = TRUE))
-  }, error = function(e) rep(NA_real_, nrow(nd)))
+  }, error = function(e) { err <<- conditionMessage(e); rep(NA_real_, nrow(nd)) })
+  if (!any(is.finite(pr)) && inherits(fit, "glmmTMB")) {
+    pr2 <- tryCatch(glmmtmb_fixed_predict(fit, nd), error = function(e) {
+      err <<- paste0(err, " | fixed-effect fallback: ", conditionMessage(e)); NULL })
+    if (length(pr2) == nrow(nd)) pr <- pr2
+  }
   ok <- is.finite(pr)
-  if (!any(ok)) return(data.frame())
+  if (!any(ok)) {
+    # an empty curve is how the app signals "cannot predict here"; the reason is attached for the tests and the logs
+    empty <- data.frame()
+    attr(empty, "predict_error") <- err %||% "prediction returned no finite value"
+    attr(empty, "predict_newdata_names") <- names(nd)
+    return(empty)
+  }
   grp <- paste(nd$.level[ok], format(nd$age[ok], digits = 15), sep = "\r")
   first <- !duplicated(grp)
   num_w <- tapply(pr[ok] * nd$.w[ok], grp, sum)

@@ -62,3 +62,14 @@ test_that("random terms that explain no variance are flagged, with advice that f
   expect_match(random_term_flag_text("ID", "(Intercept)", TRUE, share = 0.002), "stays in the models")
   expect_match(random_term_flag_text("ID", "age (first ageing term)", TRUE, share = 0), "without random slopes")
 })
+
+test_that("the fixed-effect fallback reproduces glmmTMB's own population prediction", {
+  skip_if_not_installed("glmmTMB")
+  set.seed(3)
+  d <- data.frame(id = factor(rep(1:30, each = 5)), f1 = rep(seq(-1, 1, length.out = 5), 30))
+  d$trait <- stats::rpois(nrow(d), exp(1 + 0.3 * d$f1))
+  fit <- glmmTMB::glmmTMB(trait ~ f1 + (1 | id), data = d, family = stats::poisson())
+  nd <- data.frame(f1 = c(-0.5, 0, 0.5), id = d$id[[1]])
+  expect_equal(glmmtmb_fixed_predict(fit, nd),
+               as.numeric(stats::predict(fit, newdata = nd, re.form = NA, type = "response")), tolerance = 1e-8)
+})

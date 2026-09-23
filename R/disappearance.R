@@ -604,13 +604,13 @@ proxy_pair_plot <- function(x, y, xlab, ylab) {
   shiny::validate(shiny::need(sum(ok) >= 4, "Not enough individuals with both values."))
   df <- data.frame(x = x[ok], y = y[ok])
   r <- cor_safe(df$x, df$y)
-  ggplot(df, aes(x, y)) +
-    geom_count(colour = warm_palette[[3]], alpha = 0.7) +
-    geom_abline(slope = 1, intercept = 0, linetype = 3, colour = "grey50") +
-    geom_smooth(method = "lm", formula = y ~ x, se = FALSE, colour = "black", linewidth = 0.9, na.rm = TRUE) +
-    annotate("text", x = -Inf, y = Inf, label = if (is.finite(r)) sprintf("r = %.3f", r) else "r = NA",
-             hjust = -0.2, vjust = 1.5, colour = "#453A32") +
-    scale_size_area(max_size = 6, guide = "none") +
-    labs(x = xlab, y = ylab, subtitle = paste(ylab, "vs", xlab, "(one point per individual; dotted line: 1:1; solid black line: linear regression)")) +
+  ggplot2::ggplot(df, ggplot2::aes(x, y)) +
+    ggplot2::geom_count(colour = warm_palette[[3]], alpha = 0.7) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, linetype = 3, colour = "grey50") +
+    ggplot2::geom_smooth(method = "lm", formula = y ~ x, se = FALSE, colour = "black", linewidth = 0.9, na.rm = TRUE) +
+    ggplot2::annotate("text", x = -Inf, y = Inf, label = if (is.finite(r)) sprintf("r = %.3f", r) else "r = NA",
+                      hjust = -0.2, vjust = 1.5, colour = "#453A32") +
+    ggplot2::scale_size_area(max_size = 6, guide = "none") +
+    ggplot2::labs(x = xlab, y = ylab, subtitle = paste(ylab, "vs", xlab, "(one point per individual; dotted line: 1:1; solid black line: linear regression)")) +
     theme_disappR(12)
 }

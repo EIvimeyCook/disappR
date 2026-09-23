@@ -67,3 +67,23 @@ test_that("the average trajectory spans ages held by at least five individuals",
   expect_gte(max(z$mean_curve$age), 9)               # five or more individuals at every age here
   expect_true(all(is.finite(z$mean_curve$fitted)))
 })
+
+test_that("a function whose AICc cannot be computed is left out of the ranking, not the whole ranking (0.21.15)", {
+  set.seed(1)
+  d <- do.call(rbind, lapply(seq_len(30), function(i) data.frame(id = paste0("i", i), age = 1:6,
+                                                                  trait = 10 - 0.3 * (1:6) + 0.02 * (1:6)^2 + stats::rnorm(6, 0, 0.5))))
+  tab <- compare_individual_functions(d)
+  ex <- attr(tab, "excluded")
+  expect_true("Cubic" %in% names(ex))                            # six records cannot carry a cubic's AICc
+  expect_true(tab$N_common[[1]] > 0)                             # the other functions are still compared
+  expect_true(is.finite(tab$Mean_dAICc[[1]]))                    # the leader is chosen by AICc, not R-squared
+  expect_true(is.na(tab$Mean_dAICc[tab$Function == "Cubic"]))    # and the excluded function has no dAICc
+  expect_identical(utils::tail(tab$Function, 1), "Cubic")        # listed last
+})
+
+test_that("with records enough for every function, nothing is left out", {
+  set.seed(2)
+  d <- do.call(rbind, lapply(seq_len(20), function(i) data.frame(id = paste0("i", i), age = 1:10,
+                                                                  trait = 5 + 0.4 * (1:10) + stats::rnorm(10, 0, 0.5))))
+  expect_false("Cubic" %in% names(attr(compare_individual_functions(d), "excluded")))
+})

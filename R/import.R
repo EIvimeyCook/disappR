@@ -74,7 +74,7 @@ EXAMPLES <- list(
                  "them with actual age, age at access to dominance (selective appearance) and age at last observation",
                  "(selective disappearance): older ages at last observation went with more lymphocytes and fewer",
                  "neutrophils, and age at access to dominance mattered for neither. Model 7 with ALO mapped as the proxy",
-                 "is that published model; the app supplies age at first record for AFR, since age at access to dominance",
+                 "is that published model; the app supplies age at first observation for AFR, since age at access to dominance",
                  "is not in the archived file. Switch the trait to neutrophil_count, monocyte_count, eosinophil_count or",
                  "log_leukocyte_concentration (the last with the Gaussian family) for the other four responses. ")),
   moullec_swift = list(
@@ -119,7 +119,7 @@ EXAMPLES <- list(
                  "published standard error. Random-slope models fitted better than random-intercept ones there, so the example",
                  "opens with a correlated random slope. Switch the trait to thorax_width or body_mass for the other",
                  "responses. Because",
-                 "age is counted from first capture, every individual starts at age 0, so age at first record carries no",
+                 "age is counted from first capture, every individual starts at age 0, so age at first observation carries no",
                  "information and the appearance models are unavailable; age at last record is the number of days a",
                  "butterfly was still being recaught, and 31% of individuals were caught only once. ")),
   wynn = list(

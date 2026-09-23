@@ -10,18 +10,12 @@
 \alias{disappr_diagnose}
 \alias{disappr_interpret}
 \alias{disappr_code}
+\alias{disappr_simulate}
 \alias{disappr_read}
 \alias{disappr_example}
 \alias{disappr_provenance}
-\alias{disappr_simulate}
 \title{Scripted disappR analyses}
 \usage{
-disappr_read(path)
-
-disappr_example(key)
-
-disappr_provenance(fit)
-
 disappr_mapping(...)
 
 disappr_prepare(data, mapping, dup_action = "keep")
@@ -45,12 +39,14 @@ disappr_interpret(fit)
 disappr_code(fit, x, source_label = "your_data.csv")
 
 disappr_simulate(...)
+
+disappr_read(path)
+
+disappr_example(key)
+
+disappr_provenance(fit)
 }
 \arguments{
-\item{path}{Path to a CSV or other delimited text file.}
-
-\item{key}{Name of a bundled example, e.g. \code{\"bouwhuis\"}.}
-
 \item{...}{For \code{disappr_mapping()}: column roles (\code{id}, \code{age}, \code{trait}, \code{alr}, \code{life}, \code{entry}, \code{covars},
 \code{cov_factor}, \code{cov_age}, \code{group}, \code{group2}, \code{random}, ...). For \code{disappr_fit()}: further settings passed to the
 model suite (\code{random_slope}, \code{standardise}, \code{zi_str}, \code{among}, \code{include_invalid}, \code{extra}). For
@@ -80,6 +76,10 @@ model suite (\code{random_slope}, \code{standardise}, \code{zi_str}, \code{among
 \item{by}{Optional categorical covariate whose levels get separate predictions.}
 
 \item{source_label}{File name the exported script reads.}
+
+\item{path}{Path to a CSV or other delimited text file.}
+
+\item{key}{Name of a bundled example, e.g. \code{"bouwhuis"} (see \code{names(disappR:::EXAMPLES)}).}
 }
 \value{
 \code{disappr_mapping()}: a mapping list. \code{disappr_prepare()}: a list with \code{data} and \code{meta}.
@@ -96,7 +96,8 @@ and the reproducible code.
 \examples{
 \dontrun{
 sim <- disappr_simulate(n_id = 150, seed = 1, sd_type = "both")
-x <- disappr_prepare(sim, disappr_mapping(id = "ID", age = "age", trait = "body_mass", life = "lifespan"))
+map <- disappr_mapping(id = "ID", age = "age", trait = "body_mass", life = "lifespan")
+x <- disappr_prepare(sim, map)
 fit <- disappr_fit(x, models = c("M1", "M2", "M4"))
 disappr_compare(fit)
 }

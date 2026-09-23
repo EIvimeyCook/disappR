@@ -2793,7 +2793,7 @@ server <- function(input, output, session) {
           tags$li(strong("Random effects: "), rs, "."),
           tags$li(strong("Lifespan proxy: "), if (sg$has_life) "known lifespan (LS), with age at last record (ALR) for comparison." else "age at last record (ALR)."),
           tags$li(strong("Models worth starting with: "), paste(model_label(sg$models), collapse = ", "),
-                  if (sg$afr_varies) " \u2014 age at first record varies, so the appearance models are available too" else "")),
+                  if (sg$afr_varies) " \u2014 age at first observation varies, so the appearance models are available too" else "")),
         tags$details(class = "advanced-block",
           tags$summary("Why these settings?"),
           tags$ul(class = "small-note",
@@ -2841,16 +2841,24 @@ server <- function(input, output, session) {
   output$a3_common_warning <- renderUI({
     tab <- a3_compare_current()
     if (is.null(tab) || !nrow(tab) || !all(c("N_common", "N_considered") %in% names(tab))) return(NULL)
+    # a function whose AICc could not be computed for most individuals is left out of the ranking
+    ex <- attr(tab, "excluded")
+    ex_card <- if (length(ex)) div(class = "diagnosis-card", style = "border-left: 5px solid #E0A526;",
+      div(class = "diagnosis-title", badge("caution"), " Left out of the AICc ranking"),
+      div(class = "diagnosis-detail", sprintf(
+        "%s: too few records per individual to compute its AICc (%s). It is listed last, by adjusted R\u00b2 only.",
+        paste(names(ex), collapse = ", "),
+        paste(sprintf("%s%% of individuals", ex), collapse = "; "))))
     nc <- suppressWarnings(as.numeric(tab$N_common[[1]]))
     nt <- suppressWarnings(as.numeric(tab$N_considered[[1]]))
-    if (!is.finite(nc) || !is.finite(nt) || nt <= 0 || nc >= nt) return(NULL)
+    if (!is.finite(nc) || !is.finite(nt) || nt <= 0 || nc >= nt) return(ex_card)
     drop <- 100 * (nt - nc) / nt
-    if (drop < 20) return(NULL)
-    div(class = "diagnosis-card", style = "border-left: 5px solid #A50026;",
+    if (drop < 20) return(ex_card)
+    tagList(ex_card, div(class = "diagnosis-card", style = "border-left: 5px solid #A50026;",
         div(class = "diagnosis-title", badge("caution"), " Unreliable AICc comparison"),
         div(class = "diagnosis-detail",
             sprintf("N_common is %.0f%% lower than the total (%d of %d individuals have every function estimable). The \u0394AICc comparison uses only that common set, so with a drop this large it is unreliable and should not be used to choose an ageing function. Compare the mean adjusted R\u00b2 instead, which uses every individual each function can be fitted to.",
-                    drop, as.integer(nc), as.integer(nt))))
+                    drop, as.integer(nc), as.integer(nt)))))
   })
 
   # The answer to the page's question, stated once at the top: which ageing shapes the individual fits support.

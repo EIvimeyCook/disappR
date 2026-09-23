@@ -30,3 +30,19 @@ test_that("data without a grouping column still standardises (0.20.27 regression
   expect_identical(p$meta$n_multi_group_gap, 0L)
   expect_true(is.data.frame(data_integrity(p$data, p$meta)$table))
 })
+
+test_that("numbers survive a comma decimal mark (0.21.12)", {
+  op <- options(OutDec = ",")
+  on.exit(options(op))
+  expect_identical(safe_numeric(c(1.5, 2.25)), c(1.5, 2.25))
+  expect_identical(safe_numeric(c("1.5", "2")), c(1.5, 2))
+  expect_identical(names_num(table(c(0.5, 0.5, 1.5))), c(0.5, 1.5))
+  d <- data.frame(id = rep(c("a", "b"), each = 3), age = rep(c(0.5, 1.5, 2.5), 2), trait = c(1.1, 2.2, 3.3, 1.4, 2.5, 3.6))
+  p <- standardise_data(d, list(id = "id", age = "age", trait = "trait"), "keep")
+  expect_true(all(is.finite(p$data$trait)) && all(is.finite(p$data$age)))
+})
+
+test_that("a mapped column missing from the data is a classed, readable error", {
+  d <- data.frame(id = "a", age = 1, trait = 2)
+  expect_error(standardise_data(d, list(id = "id", age = "AGE", trait = "trait"), "keep"), class = "disappr_input_error")
+})

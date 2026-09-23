@@ -73,7 +73,7 @@ model_r_code <- function(res, meta, source_label = "your_data.csv", source_type 
     if (res$family %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) paste0("dat$.trials <- as.numeric(dat[[", q(meta$trials_col), "]])  # number of binomial trials (prior weights)") else NULL,
     "dat <- dat[!is.na(dat$id) & is.finite(dat$age), ]",
     if (isTRUE(meta$alr_mapped)) paste0("dat$ALR_raw <- as.numeric(dat[[", q(map$alr), "]])") else "dat$ALR_raw <- ave(dat$age, dat$id, FUN = max)  # age at last record",
-    if (isTRUE(meta$entry_mapped)) paste0("dat$AFR_raw <- as.numeric(dat[[", q(map$entry), "]])") else "dat$AFR_raw <- ave(dat$age, dat$id, FUN = min)  # age at first record",
+    if (isTRUE(meta$entry_mapped)) paste0("dat$AFR_raw <- as.numeric(dat[[", q(map$entry), "]])") else "dat$AFR_raw <- ave(dat$age, dat$id, FUN = min)  # age at first observation",
     if (isTRUE(meta$has_life) && !isTRUE(meta$life_auto)) paste0("dat$LS_raw <- as.numeric(dat[[", q(map$life), "]])") else "dat$LS_raw <- NA_real_",
     if (isTRUE(meta$has_censor)) sprintf("dat$LS_raw[dat$id %%in%% dat$id[as.character(dat[[%s]]) %%in%% %s]] <- NA  # censored individuals: lifespan unknown",
                                          q(map$censor), q(map$censor_value)) else NULL,

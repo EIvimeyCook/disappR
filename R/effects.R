@@ -115,6 +115,9 @@ INTERACTION_MODELS <- c("M4", "M5", "M6", "M8", "M9", "M10")
 # test it keeps each individual's own ages, so the mean-age models (3 and 5) can be tested too.
 BOOTSTRAP_MODELS <- c("M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10")
 
+# With fewer refitted datasets p < 0.05 is impossible: the smallest p is 1 / (n_ok + 1).
+BOOTSTRAP_MIN_OK <- 19L
+
 #' Null-model parametric bootstrap for selective disappearance
 #'
 #' Fits a null model with no lifespan-proxy term - a flexible (cubic) ageing function, individual differences in level
@@ -133,8 +136,6 @@ BOOTSTRAP_MODELS <- c("M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10")
 #' @param progress Optional function(fraction, message) for a progress bar.
 #' @param seed Seed for the simulations; the session's random-number stream is restored afterwards.
 #' @return A list with the observed statistics, the null draws, one-sided p-values and the null model used.
-BOOTSTRAP_MIN_OK <- 19L   # with fewer refitted datasets p < 0.05 is impossible: the smallest p is 1 / (n_ok + 1)
-
 bootstrap_test <- function(dat, meta, model = "M4", against = "M1", n_boot = 39,
                            settings = list(), progress = NULL, seed = 1L) {
   had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
@@ -344,6 +345,7 @@ permutation_reading <- function(z) {
 #' @param n_perm Number of permutations.
 #' @param settings A list of fitting settings (family, age_function, random_slope, standardise, zi, among, extra).
 #' @param progress Optional function(fraction, message) for a progress bar.
+#' @param seed Seed for the permutations; the session's random-number stream is restored afterwards.
 #' @return A list with the observed statistics, the null draws and one-sided p-values.
 permutation_test <- function(dat, meta, model = "M4", against = "M1", n_perm = 100,
                              settings = list(), progress = NULL, seed = 1L) {

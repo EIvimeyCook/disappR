@@ -1,3 +1,102 @@
+# disappR 0.21.16
+
+* `individual_metrics()` guards its character summaries (condition label, group) as it already guarded the numeric
+  ones, and the missingness grid does the same for the entry and lifespan columns: a frame without those columns gives
+  NA per individual instead of an error. Only hand-built frames lack them; the app always creates them.
+
+# disappR 0.21.15
+
+* **The step-4 function ranking no longer collapses when one function cannot be scored.** AICc needs more records per
+  individual than a function has parameters plus one; a cubic with six records per individual has none, and because
+  an individual only counted when every function had a finite AICc, one such function emptied the comparison and the
+  ranking silently fell back to adjusted R-squared. A function whose AICc is incomputable for most individuals is now
+  left out of the AICc comparison, listed last, and named in a caution beside the table. The remaining functions are
+  ranked by mean dAICc over the individuals they share, as the table always claimed. The default ageing function, the
+  shape headline and the common-set warning read the same table, so they follow.
+* **Population curves for rank-adjusted count models.** When glmmTMB drops collinear columns (AFR cubed with a cubic
+  ageing function), its `predict()` refuses new data. The curve is now computed from the retained fixed effects, a
+  dropped column counting as a zero coefficient; a test checks this equals `predict()` wherever `predict()` works.
+  Fits, AICs and coefficients are unchanged.
+
+# disappR 0.21.14
+
+* **Population curves for binomial and beta-binomial fits with trials.** The trials were passed to glmmTMB as a
+  vector, so predicting at new ages failed with "variable lengths differ (found for '(weights)')" and the trajectory
+  figure stayed empty. They are now a column of the model data. The fits, AICs and coefficients are unchanged.
+* **Population curves for the non-linear exponential.** `predict()` re-evaluates the nlme call, which named local
+  objects (`fx`, the random and grouping structure, the starting values) that do not exist outside the fitting
+  function. The values themselves are now stored in the call. The fits are unchanged.
+* `diagnose_failures.R` also reports the rank-deficient cubic count models (Models 8 to 10).
+
+# disappR 0.21.13
+
+* Diagnostics only; the package is unchanged. The walkthrough uses the app's real input ids (`model_family`, the
+  sidebar's tab names), fits all ten models before visiting the tabs, and reads only the log lines each step added,
+  so one error no longer marks every later step as failed. `diagnose_failures.R` evaluates the test file's data
+  builders inside the package namespace, as testthat does. The package check ignores names the package declares
+  with `utils::globalVariables()`, which codetools does not see when called directly.
+
+# disappR 0.21.12
+
+* **Fixed silent data loss under a comma decimal mark.** With `options(OutDec = ",")`, which some European R
+  set-ups use, `as.character()` writes 1.5 as "1,5". Numeric columns were converted through text, so every non-integer
+  age or trait value became NA and was dropped without warning; integers survived, so the data looked partly intact.
+  Numeric columns now stay numeric, numbers read back from table names are parsed with the decimal mark accounted for,
+  and the app sets `OutDec = "."` for its own session. Found by the locale diagnostic.
+* The missing-column message is a classed condition (`disappr_input_error`), like the integrity error.
+* Diagnostics: the fuzzer counts a classed rejection as a clean rejection; the package check fails only on problems
+  that can break at run time (unused locals and lints are reported, not failed); the walkthrough finds Chrome on a Mac
+  or says clearly that it needs it; `diagnose_failures.R` loads the combination data builders from the test file.
+
+# disappR 0.21.11
+
+* The UI walkthrough sets `NOT_CRAN`, without which shinytest2 stops with "Reason: On CRAN"; the runner sets it for
+  every script. `diagnose_failures.R` now ships in `tests/diagnostics/`.
+
+# disappR 0.21.10
+
+* **A mapped column that is not in the data now gives a clear message** ("Mapped column not found in the data: X")
+  instead of "arguments imply differing number of rows". Found by the import fuzzer; it affects the API, not the app,
+  where columns are chosen from the file.
+* **R CMD check notes cleared:** the Shiny and shinydashboard helpers the UI functions use are imported in NAMESPACE,
+  the two aesthetic column names are declared as global variables, and the long line in the API example is split.
+* **Diagnostic scripts fixed** (mine, not the package's): the suggested-package matrix now inlines the hidden
+  package name into its tracer, the export check runs the script in a directory holding the file it reads, and the
+  locale check reports why a fit failed instead of failing on the comparison.
+
+# disappR 0.21.9
+
+* **Fixes from the first full R test run.**
+  - `individual_metrics()` no longer fails when the data frame carries no condition column: a missing column gives
+    NA per individual instead of an error in `tapply()` (six failures in the missingness grid tests).
+  - `prediction_contrast()` returns an empty frame when two predictions share no ages, rather than failing on the
+    assignment.
+  - `proxy_pair_plot()` qualifies its ggplot2 calls, so it works when the package is used without ggplot2 attached.
+    It was the only plotting function left unqualified.
+  - `wrap_label()` lets a line fill the requested width; `strwrap()` breaks strictly below it.
+  - A failed population prediction now carries the error message and the newdata columns as attributes, so the
+    reason can be seen instead of an empty data frame.
+  - The provenance test checks the lines that must be present rather than a fixed count.
+
+# disappR 0.21.8
+
+* The diagnostics can be run from the R console as well as from a terminal: they no longer quit an interactive
+  session, and `source("tests/diagnostics/run_diagnostics.R")` defines `run_diagnostics()`. The walkthrough no
+  longer needs rlang's injection syntax.
+
+# disappR 0.21.7
+
+* **Out-of-app diagnostics** in `tests/diagnostics/`: suggested-package matrix, exported-script reproduction,
+  importer fuzzing, locale and encoding, determinism and scale, package-level checks, and a shinytest2 walkthrough
+  of the interface. `Rscript tests/diagnostics/run_diagnostics.R` runs them all, each in its own process.
+
+# disappR 0.21.6
+
+* **Packaging fix:** nine directories in the source tree (including R/, man/, inst/ and tests/) were shipped without
+  write permission, inherited from a read-only copy. R CMD build copies permissions into its temporary tree, then
+  cannot create inst/doc there, which failed as "more 'from' files than 'to' files" while creating vignettes and left
+  the cleanup unable to remove anything. All directories are now writable.
+
 # disappR 0.21.5
 
 * The mean of individual curves (population average) is off by default on the average-trajectory figure; tick it to

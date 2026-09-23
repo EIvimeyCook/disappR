@@ -110,7 +110,7 @@ model_availability <- function(dat, meta) {
   default <- ok
   afr_f <- afr[is.finite(afr)]
   if (ok[["M7"]] && length(afr_f)) {
-    mode_afr <- as.numeric(names(sort(table(afr_f), decreasing = TRUE))[[1]])
+    mode_afr <- names_num(sort(table(afr_f), decreasing = TRUE))[[1]]
     n_diff <- sum(abs(afr_f - mode_afr) > 1e-8)
     if (n_diff < max(5, 0.05 * length(afr_f))) {
       default[c("M7", "M8", "M9", "M10")] <- FALSE
@@ -147,7 +147,10 @@ fit_one_model <- function(formula_str, random_str, data, family = "gaussian", zi
         if (is.null(wts)) {
           glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, REML = FALSE, control = ctrl)
         } else {
-          glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, REML = FALSE, control = ctrl, weights = wts)
+          # a column, not a vector: with a vector, predict() on new data fails with "variable lengths differ
+          # (found for '(weights)')", because the weights of the fitting data are re-used for the new rows
+          data$.wts <- wts
+          glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, REML = FALSE, control = ctrl, weights = .wts)
         }
       }
     }, warning = function(w) {
@@ -346,6 +349,12 @@ fit_nonlinear_suite <- function(dat, meta, models = MODEL_IDS, random_slope = FA
         NULL
       })
     if (!is.null(fit)) {
+      # predict.nlme() re-evaluates the call's fixed, random, groups and start arguments; as local names they are
+      # "object 'fx' not found" outside this function, so the values themselves go into the call
+      fit$call$fixed <- fx
+      fit$call$random <- rand
+      fit$call$groups <- grp
+      fit$call$start <- start
       if (is.character(fit$apVar)) msgs <- c(msgs, "non-positive-definite approximate variance-covariance matrix (invalid Hessian)")
       if (!is.finite(tryCatch(stats::AIC(fit), error = function(e) NA_real_))) msgs <- c(msgs, "AIC not finite")
     }

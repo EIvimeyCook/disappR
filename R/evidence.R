@@ -49,8 +49,13 @@ summarise_coefficients <- function(co) {
 #' Classify the visual pattern from the trait-lifespan coefficient across age
 #'
 #' @param dat Standardised data with id, age, trait and alr.
+#' @param B Number of bootstrap draws.
+#' @param alpha Significance threshold for the bootstrap p-values.
+#' @param min_ind Minimum individuals sharing an age for that age to contribute a coefficient.
+#' @param seed Seed for the bootstrap; the session's random-number stream is restored afterwards.
+#' @param proxy The column the figure groups by: "alr", "life" (known lifespan) or "entry" (AFR, for selective appearance).
+#' @param process Which process this classifies ("disappearance" or "appearance"), carried through to the result.
 #' @return A visual evidence record; kind "unavailable" when too few individuals share ages.
-# proxy: the column the figure groups by - "alr", "life" (known lifespan) or "entry" (AFR, for selective appearance).
 classify_visual_coef <- function(dat, B = 200L, alpha = EVIDENCE_ALPHA, min_ind = 8L, seed = 11L, proxy = "alr",
                                  process = "disappearance") {
   if (is.null(dat) || !nrow(dat) || !all(c("id", "age", "trait", proxy) %in% names(dat))) return(NULL)
@@ -89,11 +94,6 @@ classify_visual_coef <- function(dat, B = 200L, alpha = EVIDENCE_ALPHA, min_ind 
        p_trend = p_trend, p_level = p_level)
 }
 
-#' Evidence from a fitted model comparison
-#'
-#' @param r A fitted suite from fit_model_suite().
-#' @param verdict The kind of process the supported set points to ("age_dependent", "age_independent", "none").
-#' @param shape_ok Whether the ageing function in use is within 2 AIC of the best at the model level.
 # What a model says about each process, read from its own structure (MODEL_MEANING): "none" when the process has no
 # term, "age_independent" for a main effect, "age_dependent" for a term interacting with age. field is "dis" or "app".
 model_process_kind <- function(label, field = "dis") {
@@ -103,6 +103,13 @@ model_process_kind <- function(label, field = "dis") {
   if (grepl("^age-dependent", v)) "age_dependent" else if (grepl("^age-independent", v)) "age_independent" else "none"
 }
 
+#' Evidence from a fitted model comparison
+#'
+#' @param r A fitted suite from fit_model_suite().
+#' @param verdict The kind of process the supported set points to ("age_dependent", "age_independent", "none").
+#' @param shape_ok Whether the ageing function in use is within 2 AIC of the best at the model level.
+#' @param shape_supported Ageing functions within 2 AIC of the best at the model level.
+#' @return A list summarising the evidence for selective disappearance and appearance.
 models_evidence <- function(r, verdict, shape_ok = NA, shape_supported = character(0)) {
   if (is.null(r) || !isTRUE(r$ok) || is.null(r$aic) || !nrow(r$aic)) return(NULL)
   a <- r$aic[is.finite(r$aic$Delta_AIC), , drop = FALSE]
@@ -567,6 +574,10 @@ KIND_TEXT_APP <- c(age_dependent = "age-dependent selective appearance",
 #' Reads the figures saved with AFR as the grouping variable and the Models 7-10 part of the latest model comparison.
 #' NULL when nothing about selective appearance was saved. The random-slope and null-model checks are run for
 #' selective disappearance only, so this summary is at most 'moderate'.
+#'
+#' @param entries Saved evidence entries (as recorded by the app's "Save to summary" buttons).
+#' @param trait Name of the trait, used in the returned notes.
+#' @return A grading table (Evidence, Status, Note, Footnote), or NULL when nothing was saved.
 grade_appearance <- function(entries, trait = "the trait") {
   vis_all <- Filter(function(x) identical(x$process %||% "", "appearance"), all_evidence(entries, "visual"))
   vis <- if (length(vis_all)) vis_all[[length(vis_all)]] else NULL
@@ -651,7 +662,7 @@ PENDING_TEXT <- c(
   visual_afr = "Save a step-2 figure with AFR as the grouping variable (step 2).",
   models_afr = "Fit Models 7\u201310 (they need individual AFR) and save the model comparison (step 5).",
   visual = "Save the trajectory figure 'Do long- and short-lived, or early- and late-entering, individuals differ in their phenotype and how it ages?' (step 2).",
-  models = "Fit models and save the model comparison 'Which models do the data support?' (step 5, Fit tab).",
+  models = "Fit models and save the model comparison 'Which selective processes best explain the data?' (step 5, Fit tab).",
   shape = "Run and save the Ageing-function check (step 5, Checks tab), to confirm the ageing function is not misspecified.",
   slopes = "Refit with random slopes (step 5, model settings, random effects), then save the model comparison again.",
   permutation = "Run and save the null-model bootstrap on the finding's model (step 5, Advanced tab). The default 39 simulated datasets leave room for a few failed refits; at least 19 must be refitted to reach p < 0.05.",

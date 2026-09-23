@@ -1,6 +1,12 @@
 # disappR engine - User-interface helpers and help text for the Shiny app ('i' help entries, info titles, save buttons).
 # Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
 
+#' @importFrom shiny actionButton actionLink column downloadButton fluidRow icon showNotification verbatimTextOutput
+#' @importFrom htmltools tags div p h5 strong tagList span
+#' @importFrom shinydashboard box
+#' @noRd
+NULL
+
 optional_packages_ui <- function(st = OPTIONAL_STATUS) {
   tags$table(class = "table table-condensed optional-pkgs", tags$tbody(lapply(seq_len(nrow(st)), function(i) {
     tags$tr(tags$td(strong(st$Package[[i]])),
@@ -21,7 +27,7 @@ subset_candidates <- function(df) {
     v <- x[!is.na(x)]
     if (!length(v)) return(FALSE)
     nu <- length(unique(v))
-    num <- suppressWarnings(as.numeric(as.character(v)))
+    num <- safe_numeric(v)
     if (mean(is.finite(num)) >= 0.95) nu >= 2 && nu <= 10 else nu >= 2 && nu <= 50
   }, logical(1))]
 }
@@ -51,7 +57,7 @@ INFO <- list(
     "Use AFR when the trait genuinely begins when the individual enters the data (a first clutch, for example). Use AFE when individuals could have been measured earlier than they were, and give the age at which the trait starts.",
     "This setting changes the missingness figures only. It affects this tab's grid, missed-occasion counts and coverage; it does not enter any model, proxy or statistic anywhere in the app, all of which use AFR. Counting from AFE usually raises the estimated missingness, sometimes substantially, and changes its age profile at young ages, so the two definitions are not comparable: say which one you used when reporting."),
   afr_alr = info_entry("Agreement between AFR and ALR",
-    "Correlation between each individual's age at first record and its age at last record, with the mean and SD of the observation window (ALR \u2212 AFR). The figure shows the dashed 1:1 line and the linear regression of ALR on AFR (solid black, with its 95% band).",
+    "Correlation between each individual's age at first observation and its age at last record, with the mean and SD of the observation window (ALR \u2212 AFR). The figure shows the dashed 1:1 line and the linear regression of ALR on AFR (solid black, with its 95% band).",
     "Under a fixed entry age, AFR does not vary and the correlation is undefined. A correlation near zero means entry and exit are independent, so ALR reflects lifespan rather than when an individual was first seen. A strong positive correlation means individuals that enter late also leave late, so the two proxies carry overlapping information and AFR terms (Models 7-10) and ALR terms (Models 2, 4) compete for the same variance.",
     "Missingness alters both AFR and ALR across individuals: a missed first occasion pushes AFR later, a missed final occasion pulls ALR earlier, so neither proxy is observed cleanly when sampling is incomplete. A high correlation can arise from biology (late starters live longer) or purely from the study design (a short study window forces late entrants to have late exits), and this diagnostic cannot separate the two. With few individuals the correlation is unstable. Mean age is affected by both ends of the window, so a variable AFR degrades it as a proxy of lifespan more than it degrades ALR."),
   among_order = info_entry("Higher-order among term",

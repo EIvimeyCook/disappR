@@ -5,7 +5,11 @@ test_that("every model comparison stores its provenance", {
   expect_true(all(c("software", "data", "model", "transformations", "settings", "warnings") %in% names(pv)))
   expect_identical(nchar(pv$data$fingerprint_md5), 32L)
   expect_equal(as.integer(pv$data$rows), nrow(r$data))
-  expect_length(provenance_lines(pv), 4)
+  pl <- provenance_lines(pv)
+  expect_gte(length(pl), 4)
+  expect_match(pl[[1]], "Analysed data", fixed = TRUE)
+  expect_true(any(grepl("Model settings", pl, fixed = TRUE)))
+  expect_true(any(grepl("Software", pl, fixed = TRUE)))
 })
 
 test_that("optional packages and versions are reported", {

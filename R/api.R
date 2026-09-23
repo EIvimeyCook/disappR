@@ -38,7 +38,8 @@
 #' @examples
 #' \dontrun{
 #' sim <- disappr_simulate(n_id = 150, seed = 1, sd_type = "both")
-#' x <- disappr_prepare(sim, disappr_mapping(id = "ID", age = "age", trait = "body_mass", life = "lifespan"))
+#' map <- disappr_mapping(id = "ID", age = "age", trait = "body_mass", life = "lifespan")
+#' x <- disappr_prepare(sim, map)
 #' fit <- disappr_fit(x, models = c("M1", "M2", "M4"))
 #' disappr_compare(fit)
 #' }

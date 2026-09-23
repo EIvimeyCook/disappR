@@ -92,8 +92,7 @@ library(disappR)
 run_app()
 ```
 
-This opens the app in your browser or the RStudio viewer. Any arguments are
-passed on to `shiny::runApp()`, for example `run_app(port = 4000)`.
+This opens the app in your browser or the RStudio viewer.
 
 If you would rather not install the package, you can run the app straight from a
 downloaded copy of the repository:

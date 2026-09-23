@@ -13,16 +13,13 @@
 disappR is an R package providing a Shiny app for **diagnosing and modelling
 selective disappearance and selective appearance** in longitudinal ageing data.
 
-Ecologists want to know the average within-individual ageing pattern, but they only
-have population-level data on individuals followed over time, and those data are
-usually incomplete. When an individual's phenotype is associated with its entry into
-or removal from the sample — selective appearance and selective disappearance —
-standard analyses can return biased ageing patterns. disappR diagnoses these
-problems in your data, visually first and then through sampling and missingness,
-then fits and compares the mixed models that account for them. It is meant as a
-first port of call for empiricists analysing longitudinal data, especially on
-ageing, covering the diagnostics and models behind a publishable analysis with
-guidance at every step.
+Most ageing studies want the average within-individual ageing pattern, but what
+they actually have is population-level data on individuals followed over time,
+and that data is almost never complete. Individuals die, emigrate or are simply
+missed, and others only enter the study part-way through life. If the
+individuals that leave early or arrive late differ in the trait being measured,
+the population-level pattern stops reflecting how individuals age. Standard
+analyses can then show senescence that isn't there, or hide senescence that is.
 
 disappR works through this in the order you would want to: it first shows
 whether selective disappearance or appearance is visible in your data, then

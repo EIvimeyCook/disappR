@@ -118,16 +118,6 @@ teaching-simulation mode:
 | Incomplete sampling | Data | The sampling grid; missingness by age and against the trait and other variables; agreement between lifespan proxies | 3 · Missingness and proxies |
 | A misspecified ageing shape | Individual and population | A function fitted to each individual; the population curve rebuilt from the individual fits; ageing functions compared | 4 · Trajectories |
 
-### The ten models
-
-Fitted with `Rscript`-free, one-click comparison in the app, from a negative
-control (Model 1, no lifespan or entry term) through models with an additive or
-interactive age-at-last-record term (age-independent and age-dependent selective
-disappearance), to models that add an age-at-first-record term as well (selective
-appearance), in every combination of additive and interactive. Every model shares
-common complete-case rows, the same error family, and the same random-effect
-structure, so their AICs are directly comparable.
-
 ### Scripted use
 
 The same analyses run from R without the app:

@@ -1,5 +1,5 @@
-# disappR 0.7.0 server test (no browser needed)
-# Run from the package root:   Rscript tests/app_test.R
+# disappR server test (no browser needed)
+# Run from the package root:   Rscript tests/scripts/app_test.R
 # Drives the real server function with shiny::testServer(): sets inputs, fits models and
 # renders every output, so runtime errors in server code surface here.
 
@@ -20,6 +20,7 @@ touch <- function(output_env, names) {
 }
 
 all_outputs <- c("package_status", "toy_status", "mapping_ui", "censor_value_ui", "data_metrics", "integrity_table",
+                 "visual_scale_advice", "a3_cap_warning", "model_rowset_warning", "coef_re_flags",
                  "integrity_extra", "dist_var_ui", "dist_plot", "data_preview",
                  "visual_proxy_ui", "a1_plot", "bin_diff_plot", "a2_plot", "toy_card_visual",
                  "sampling_metrics", "sampling_guidance", "heatmap", "missing_by_age", "coverage_table", "missing_vs_var",
@@ -27,15 +28,13 @@ all_outputs <- c("package_status", "toy_status", "mapping_ui", "censor_value_ui"
                  "a3_metrics", "a3_plot", "a3_mean_plot", "a3_compare_table", "a3_coef_table",
                  "family_hint", "structure_note", "b2_settings", "b2_table", "b2_plot",
                  "model_fit_note", "aic_plot", "aic_table", "lrt_table", "status_table", "drop_note", "pred_plot",
-                 "deviation_note", "deviation_table", "coef_model_ui", "coef_table", "definition_table",
-                 "family_table", "dharma_model_ui", "dharma_table", "code_ui", "summary_ui",
-                 "facet_ui", "a2_slope_table", "a2_trend_note", "coef_re_table", "varcomp_table",
-                 "saved_controls", "saved_ui", "function_default_note", "use_a3_function_ui", "code_data_text", "code_visual_text", "code_sampling_text", "code_individual_text",
+                 "deviation_note", "deviation_table", "coef_model_ui", "coef_table", "family_table", "dharma_model_ui", "dharma_table", "code_ui", "summary_ui",
+                 "facet_ui", "coef_re_table", "saved_controls", "saved_ui", "function_default_note", "use_a3_function_ui", "code_data_text", "code_visual_text", "code_sampling_text", "code_individual_text",
                  "subset_ui", "subset_levels_ui", "subset_status", "cov_int_ui", "sampling_caveat", "a3_support",
-                 "a4_status", "a5_plot", "a5_note", "a6_plot", "a6_note",
+                 "a5_plot", "a5_note", "a6_plot", "a6_note",
                  "a7_plot", "a7_note", "zi_ui", "random_support_note", "consistency_ui",
                  "pred_models_ui", "pred_by_ui", "scaling_table", "coef_interpretation", "performance_model_ui",
-                 "performance_table", "performance_note")
+                 "performance_table", "performance_note", "pred_summary_table")
 
 base_inputs <- list(n_bins = 4, bin_method = "equal", show_se = TRUE,
                     diff_lines = "pairs", a2_points = TRUE, trait_scale = "raw", heat_order = "alr", heat_n = 500,
@@ -64,13 +63,16 @@ shiny::testServer(app, {
   session$setInputs(visual_proxy = "ALR", model_family = "gaussian", use_M1 = TRUE, use_M2 = TRUE, use_M3 = TRUE, use_M4 = TRUE, use_M5 = TRUE, use_M6 = TRUE, use_M7 = TRUE, use_M8 = TRUE, use_M9 = FALSE, use_M10 = FALSE)
   session$setInputs(fit_models = 1)
   touch(output, all_outputs)
+  session$setInputs(pred_as_lines = TRUE)
+  touch(output, "pred_plot")
+  session$setInputs(pred_as_lines = FALSE)
   r <- current_models()
   cat("Toy (Gaussian) best model:", r$aic$Model[[1]], "\n")
   session$setInputs(facet_var = "diet", n_bins = 12)
-  touch(output, c("a1_plot", "bin_diff_plot", "a2_plot", "a2_slope_table", "a2_trend_note"))
+  touch(output, c("a1_plot", "bin_diff_plot", "a2_plot"))
   session$setInputs(visual_proxy = "AFR",
                     trait_scale = "log1p", dist_unit = "individual", dist_var = "diet", facet_var = "")
-  touch(output, c("a1_plot", "bin_diff_plot", "a2_plot", "a2_slope_table", "dist_plot"))
+  touch(output, c("a1_plot", "bin_diff_plot", "a2_plot", "dist_plot"))
   for (ho in c("afr", "trait", "random")) {
     session$setInputs(heat_order = ho)
     touch(output, "heatmap")
@@ -84,11 +86,11 @@ shiny::testServer(app, {
   # new model options: random structures, polynomial among terms, extra terms, Models 9-10, predictions by level with A3 overlay
   for (rs in c("uncorrelated", "correlated", "auto")) {
     session$setInputs(random_structure = rs, use_M1 = TRUE, use_M2 = TRUE, use_M3 = FALSE, use_M4 = TRUE, use_M5 = FALSE, use_M6 = FALSE, use_M7 = FALSE, use_M8 = FALSE, use_M9 = FALSE, use_M10 = FALSE, fit_models = 10 + match(rs, c("uncorrelated", "correlated", "auto")))
-    touch(output, c("model_fit_note", "aic_table", "varcomp_table", "random_support_note", "status_table"))
+    touch(output, c("model_fit_note", "aic_table", "random_support_note", "status_table"))
   }
   session$setInputs(random_structure = "none", among_order = "same", extra_M5 = "ALR", extra_M6 = c("ALR", "AFR_x_age"),
                     use_M1 = TRUE, use_M2 = TRUE, use_M3 = TRUE, use_M4 = TRUE, use_M5 = TRUE, use_M6 = TRUE, use_M7 = TRUE, use_M8 = TRUE, use_M9 = TRUE, use_M10 = TRUE, fit_models = 20)
-  touch(output, c("model_fit_note", "aic_plot", "aic_table", "lrt_table", "definition_table", "code_ui", "pred_models_ui"))
+  touch(output, c("model_fit_note", "aic_plot", "aic_table", "lrt_table", "code_ui", "pred_models_ui"))
   session$setInputs(pred_models = c("M1", "M4"), show_a3 = TRUE, pred_by = "cv_diet")
   session$setInputs(pred_models = character(0))
   touch(output, "pred_plot")
@@ -112,7 +114,7 @@ shiny::testServer(app, {
   }
   # A4-A7 diagnostics, subsetting, trend-line and point options
   session$setInputs(a6_compare = "contrast", diff_lines = "pooled", a2_points = FALSE)
-  touch(output, c("a4_status", "a5_plot", "a5_note", "a6_plot", "a6_note",
+  touch(output, c("a5_plot", "a5_note", "a6_plot", "a6_note",
                   "a7_plot", "a7_note", "bin_diff_plot", "a2_plot", "sampling_caveat", "a3_support"))
   session$setInputs(subset_var = "diet")
   session$setInputs(subset_levels = "Standard")
@@ -128,7 +130,7 @@ shiny::testServer(app, {
   if (!inherits(tryCatch(parse(text = code_txt), error = function(e) e), "error")) cat("Exported R code (models + figure) parses.\n") else
     problems <- c(problems, "exported R code does not parse")
   save_ids <- c("save_a5", "save_a6", "save_a7", "save_performance",
-                "save_integrity", "save_distribution", "save_a1", "save_a1_diff", "save_a2", "save_a2_table", "save_heatmap",
+                "save_integrity", "save_distribution", "save_a1", "save_a1_diff", "save_a2", "save_heatmap",
                 "save_sampling", "save_missing_age", "save_missing_var", "save_proxies", "save_a3", "save_a3_compare",
                 "save_b2", "save_models", "save_predictions", "save_coefs", "save_code", "save_overview")
   for (sid in save_ids) do.call(session$setInputs, stats::setNames(list(1), sid))
@@ -176,6 +178,27 @@ shiny::testServer(app, {
   touch(output, all_outputs)
   r <- current_models()
   print(r$aic[, c("Model", "AIC", "Delta_AIC")], row.names = FALSE)
+  if (is.data.frame(r$row_sets)) {
+    cat("Row sets (usable vs used):\n")
+    print(r$row_sets, row.names = FALSE)
+    if (any(r$row_sets$Rows_usable < r$row_sets$Rows_used)) problems <<- c(problems, "row_sets: a model is recorded as using more rows than it can")
+  }
+
+  # --- controls added in 0.20.9-0.20.19 ---
+  session$setInputs(diff_points = FALSE, a3_show_fun = FALSE, trait_scale = "log1p", a3_scale = "log")
+  touch(output, c("bin_diff_plot", "a3_plot", "a3_mean_plot", "visual_scale_advice"))
+  session$setInputs(diff_points = TRUE, a3_show_fun = TRUE, trait_scale = "raw", a3_scale = "auto")
+  session$setInputs(run_a3_compare = 1)
+  touch(output, c("a3_compare_table", "a3_metrics", "a3_coef_table"))
+  session$setInputs(dup_action = "mean")
+  touch(output, c("integrity_table", "data_metrics"))
+  session$setInputs(dup_action = "keep")
+  session$setInputs(use_M7 = TRUE, use_M8 = TRUE, use_M9 = TRUE, use_M10 = TRUE, fit_models = 4)
+  touch(output, all_outputs)
+  ev <- evidence_grade()
+  if (!is.null(ev) && is.data.frame(ev$lines) && !all(ev$lines$Status %in% c("supports", "caveat", "contradicts", "not saved"))) {
+    problems <<- c(problems, paste("evidence line status:", paste(setdiff(ev$lines$Status, c("supports", "caveat", "contradicts", "not saved")), collapse = ", ")))
+  }
 })
 
 if (length(problems)) {

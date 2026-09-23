@@ -1,5 +1,5 @@
-# disappR 0.7.0 stress test on out-of-sample data
-# Run from the package root:   Rscript tests/stress_test.R
+# disappR stress test on out-of-sample data
+# Run from the package root:   Rscript tests/scripts/stress_test.R
 # Every dataset in tests/stress_data goes through file reading, cleaning, integrity checks, the sampling
 # grid, A1-A3, the decomposition, ageing-function comparisons, Models 1-8 (Gaussian and, with glmmTMB,
 # count families), predictions and the exported R code; five uploads are also driven through the real
@@ -57,8 +57,9 @@ specs <- list(
     map = mk_map(id = "id", age = "age", trait = "trait", life = "LS", covars = c("site", "a b", "a.b", "rare_level", "temperature", "is_breeder"))),
   age_edges = list(file = "age_edge_cases.csv", family = "gaussian",
     map = mk_map(id = "ID", age = "age", trait = "y", life = "LS", entry = "AFR")),
+  # 'ls' in this file is age + 1 on every row, not a lifespan: it is not mapped (see the integrity check at the end)
   count_edges = list(file = "count_edge_cases.csv", family = "nbinom2",
-    map = mk_map(id = "id", age = "age", trait = "eggs", life = "ls")),
+    map = mk_map(id = "id", age = "age", trait = "eggs")),
   two_ages = list(file = "two_ages_only.csv", family = "gaussian", map = mk_map(id = "id", age = "age", trait = "trait", life = "LS")),
   one_age = list(file = "single_age_cross_sectional.csv", family = "gaussian", map = mk_map(id = "id", age = "age", trait = "trait", life = "LS")),
   grouping_edges = list(file = "grouping_timevarying_edge.csv", family = "gaussian", facet = "breeding",
@@ -330,11 +331,10 @@ if (requireNamespace("shiny", quietly = TRUE)) {
     }
   }
   outs <- c("mapping_ui", "data_metrics", "integrity_table", "integrity_extra", "dist_var_ui", "dist_plot", "data_preview",
-            "visual_proxy_ui", "facet_ui", "a1_plot", "bin_diff_plot", "a2_plot", "a2_slope_table", "a2_trend_note",
-            "sampling_metrics", "sampling_guidance", "heatmap", "missing_by_age", "coverage_table", "missing_vs_var", "drivers_table",
+            "visual_proxy_ui", "facet_ui", "a1_plot", "bin_diff_plot", "a2_plot", "sampling_metrics", "sampling_guidance", "heatmap", "missing_by_age", "coverage_table", "missing_vs_var", "drivers_table",
             "proxy_plots_ui", "proxy_alr_mean", "a3_metrics", "a3_plot", "a3_mean_plot", "a3_compare_table", "a3_coef_table",
-            "model_fit_note", "aic_plot", "aic_table", "lrt_table", "status_table", "varcomp_table", "pred_plot", "coef_model_ui",
-            "coef_table", "coef_re_table", "definition_table", "code_ui", "summary_ui")
+            "model_fit_note", "aic_plot", "aic_table", "lrt_table", "status_table", "pred_plot", "coef_model_ui",
+            "coef_table", "coef_re_table", "code_ui", "summary_ui")
   base_inputs <- list(n_bins = 4, bin_method = "equal", show_se = FALSE,
                       trait_scale = "raw", heat_order = "alr",
                       miss_var = "ALR", dist_unit = "row", a3_function = "Quadratic", a3_recon = "both", a3_n = 10,
@@ -372,6 +372,17 @@ if (requireNamespace("shiny", quietly = TRUE)) {
   }
 }
 
+# 0.20.2: a column that repeats each record's age is not a lifespan. Mapping count_edge_cases.csv's 'ls' as lifespan
+# must stop with a data-integrity error naming the individuals, not average it into impossible values.
+local({
+  rd <- tryCatch(read_user_csv(file.path(data_dir, "count_edge_cases.csv"), "count_edge_cases.csv"), error = function(e) NULL)
+  if (is.null(rd) || is.null(rd$data)) return(invisible(NULL))
+  err <- tryCatch(standardise_data(rd$data, mk_map(id = "id", age = "age", trait = "eggs", life = "ls")),
+                  disappr_integrity_error = function(e) e, error = function(e) NULL)
+  expect("count_edge_cases: mapping 'ls' (age + 1) as lifespan stops with a data-integrity error",
+         inherits(err, "disappr_integrity_error") && length(err$conflicts$life) > 100)
+})
+
 cat("\nDETAILS\n", paste("-", infos, collapse = "\n"), "\n", sep = "")
 cat("\nEXPECTATIONS\n", paste(notes, collapse = "\n"), "\n", sep = "")
 if (length(fails)) {
@@ -380,3 +391,4 @@ if (length(fails)) {
 } else {
   cat("\nNo errors.\n")
 }
+

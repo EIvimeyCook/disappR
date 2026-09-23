@@ -20,7 +20,9 @@ run_app <- function(...) {
     stop("Missing required package(s): ", paste(missing, collapse = ", "),
          ". Install them with install.packages() and try again.", call. = FALSE)
   }
-  optional <- c(glmmTMB = "count families", lmerTest = "Gaussian p-values", DHARMa = "residual checks")
+  optional <- c(glmmTMB = "count, proportion and binary traits", lmerTest = "Gaussian p-values", nlme = "the exponential ageing function",
+                DHARMa = "residual checks", performance = "model diagnostics", see = "diagnostic plots", codetools = "R code export",
+                callr = "running step 4 in a separate R process")
   absent <- names(optional)[!vapply(names(optional), requireNamespace, logical(1), quietly = TRUE)]
   if (length(absent)) {
     message("Optional packages not installed (", paste(paste0(absent, ": ", optional[absent]), collapse = "; "),
@@ -28,5 +30,8 @@ run_app <- function(...) {
   }
   app_dir <- system.file("app", package = "disappR")
   if (!nzchar(app_dir)) stop("Could not find the app directory. Re-install disappR and try again.", call. = FALSE)
+  # Uploads up to 20 MB (Shiny's default is 5 MB, which long-term field datasets can exceed).
+  old <- options(shiny.maxRequestSize = 20 * 1024^2)
+  on.exit(options(old), add = TRUE)
   shiny::runApp(app_dir, ...)
 }

@@ -1,5 +1,5 @@
-# disappR 0.7.0 headless smoke test
-# Run from the package root:   Rscript tests/smoke_test.R
+# disappR headless smoke test
+# Run from the package root:   Rscript tests/scripts/smoke_test.R
 # Exercises every analysis function on simulated data (all trait types, sampling schemes and
 # options) and on the bundled fruit-fly data, and checks the fly reanalysis against the
 # manuscript. Failures are collected and printed at the end rather than stopping the run.
@@ -644,6 +644,115 @@ local({
     pe <- tryCatch({ parse(text = code); TRUE }, error = function(e) conditionMessage(e))
     expect("0.9.6 exported model script parses", isTRUE(pe))
   }
+})
+
+# ---- 0.9.7: version stamp, optional packages, P type, rows before fitting ----
+local({
+  expect("0.9.7 version constant is set", is.character(DISAPPR_VERSION) && length(DISAPPR_VERSION) == 1 && nzchar(DISAPPR_VERSION))
+  st <- check("0.9.7 optional package status", optional_package_status())
+  expect("0.9.7 optional package status lists packages and what they add",
+         is.data.frame(st) && all(c("Package", "Installed", "Needed_for") %in% names(st)) && nrow(st) >= 5)
+  raw <- simulate_toy_data(list(n_id = 150, seed = 3))
+  b <- standardise_data(raw, toy_mapping(raw))
+  pv <- check("0.9.7 rows before fitting (dry run)", fit_model_suite(b$data, b$meta, c("M1", "M2", "M6"), "Quadratic", "gaussian", dry_run = TRUE))
+  expect("0.9.7 dry run reports shared rows and individuals without fitting",
+         isTRUE(pv$ok) && isTRUE(pv$dry_run) && is.null(pv$fits) && pv$n_rows_used <= pv$n_rows && pv$n_ids_used <= pv$n_ids)
+  r <- check("0.9.7 Gaussian fit", fit_model_suite(b$data, b$meta, c("M1", "M2"), "Quadratic", "gaussian"))
+  if (isTRUE(r$ok)) {
+    expect("0.9.7 coefficient table states the p-value type",
+           "P_method" %in% names(r$coefficients) && all(r$coefficients$P_method %in% c("t, Satterthwaite df", "Wald z, asymptotic")))
+    expect("0.9.7 individuals lost entirely are reported", is.numeric(r$n_ids_dropped) && r$n_ids_dropped >= 0)
+    code <- check("0.9.7 exported code", model_r_code(r, b$meta))
+    expect("0.9.7 exported code records the disappR version", is.character(code) && grepl(paste0("disappR ", DISAPPR_VERSION), code, fixed = TRUE))
+  }
+})
+
+# ---- 0.9.8: data guards, duplicate terms, row-order-free curves, analysis data, RNG, notes ----
+local({
+  set.seed(99); before <- .Random.seed
+  raw <- simulate_toy_data(list(n_id = 80, seed = 2, sd_type = "dependent"))
+  expect("0.9.8 simulating leaves R's random-number stream unchanged", identical(before, .Random.seed))
+  m <- toy_mapping(raw)
+  cst <- raw; cst[[m$trait]] <- 5
+  bc <- standardise_data(cst, toy_mapping(cst))
+  rc <- check("0.9.8 constant trait", fit_model_suite(bc$data, bc$meta, c("M1", "M2"), "Quadratic", "gaussian"))
+  expect("0.9.8 a constant trait stops with a message", is.list(rc) && !isTRUE(rc$ok) && grepl("single value", rc$message %||% ""))
+  one <- do.call(rbind, lapply(split(raw, raw$ID), function(x) x[nrow(x), , drop = FALSE]))
+  bo <- standardise_data(one, toy_mapping(one))
+  ro <- check("0.9.8 one record per individual", fit_model_suite(bo$data, bo$meta, c("M1", "M2"), "Linear", "gaussian"))
+  expect("0.9.8 one record per individual stops with a message", is.list(ro) && !isTRUE(ro$ok) && grepl("single record", ro$message %||% ""))
+  dup <- raw; dup$alr_copy <- stats::ave(dup$age, dup$ID, FUN = max)
+  md <- toy_mapping(dup); md$covars <- "alr_copy"
+  bd <- standardise_data(dup, md)
+  pv <- check("0.9.8 dry run with a covariate duplicating ALR", fit_model_suite(bd$data, bd$meta, c("M1", "M2", "M4"), "Quadratic", "gaussian", dry_run = TRUE))
+  expect("0.9.8 a covariate duplicating ALR is named before fitting", isTRUE(pv$ok) && any(grepl("ALR", pv$alias_notes)))
+  expect("0.9.8 the pre-fit summary carries formulas, family and random effects",
+         isTRUE(pv$ok) && all(c("formulas", "random", "family", "standardise") %in% names(pv)) && length(pv$formulas) == 3)
+  set.seed(7)
+  cv <- raw; cv$temp <- stats::rnorm(nrow(cv), 20, 3); cv$season <- sample(c("dry", "wet"), nrow(cv), replace = TRUE)
+  mc <- toy_mapping(cv); mc$covars <- c("temp", "season"); mc$cov_factor <- "season"
+  b1 <- standardise_data(cv, mc); sh <- cv[sample(nrow(cv)), , drop = FALSE]; b2 <- standardise_data(sh, mc)
+  r1 <- check("0.9.8 fit (original order)", fit_model_suite(b1$data, b1$meta, "M2", "Quadratic", "gaussian"))
+  r2 <- check("0.9.8 fit (shuffled rows)", fit_model_suite(b2$data, b2$meta, "M2", "Quadratic", "gaussian"))
+  if (isTRUE(r1$ok) && isTRUE(r2$ok)) {
+    ages <- seq(2, 18, length.out = 9)
+    p1 <- predict_population_curve(r1$fits$M2, r1, ages); p2 <- predict_population_curve(r2$fits$M2, r2, ages)
+    expect("0.9.8 population curves do not depend on row order (time-varying covariates)",
+           nrow(p1) == length(ages) && isTRUE(max(abs(p1$fitted - p2$fitted)) < 1e-6))
+    ad <- analysis_data_export(r1)
+    expect("0.9.8 analysis data export returns the fitted rows", is.data.frame(ad) && nrow(ad) == nrow(r1$data))
+    code <- model_r_code(r1, b1$meta)
+    expect("0.9.8 exported code can use the app's analysis data", grepl("use_app_data <- file.exists(app_data_file)", code, fixed = TRUE))
+    pe <- tryCatch({ parse(text = code); TRUE }, error = function(e) conditionMessage(e))
+    expect("0.9.8 exported code parses", isTRUE(pe))
+  }
+  bi <- standardise_data(raw, m)
+  ri <- check("0.9.8 random-intercept fit", fit_model_suite(bi$data, bi$meta, c("M2", "M4"), "Quadratic", "gaussian"))
+  if (isTRUE(ri$ok) && identical(ri$aic$Model[[1]], "Model 4")) {
+    expect("0.9.8 age-dependent terms favoured with random intercepts only prompts a random-slope check",
+           any(grepl("random intercept", consistency_notes(ri), ignore.case = TRUE)))
+  }
+  rr <- raw; rr$rowid <- as.character(seq_len(nrow(rr)))
+  mr <- toy_mapping(rr); mr$random <- "rowid"
+  br <- standardise_data(rr, mr)
+  pr <- check("0.9.8 random term with one level per record", fit_model_suite(br$data, br$meta, c("M1", "M2"), "Quadratic", "gaussian", dry_run = TRUE))
+  expect("0.9.8 a per-record random intercept is omitted in Gaussian models", isTRUE(pr$ok) && any(grepl("one level per record", pr$drop_by)))
+})
+
+# ---- 0.9.9: predictions as lines at the observed ages ----
+expect("0.9.9 prediction ages for the lines style are the distinct observed ages", identical(observed_prediction_ages(c(3, 1, 2, 2, NA)), c(1, 2, 3)))
+expect("0.9.9 smooth curves use a fine age grid", length(smooth_prediction_ages(c(5, 6, 7, 8))) == 100 && identical(range(smooth_prediction_ages(c(5, 8))), c(5, 8)))
+expect("0.9.9 continuous ages without IDs fall back to the smooth grid",
+       identical(observed_prediction_ages(seq(0, 10, length.out = 500)), prediction_ages(seq(0, 10, length.out = 500))))
+local({
+  set.seed(3)
+  ids <- rep(sprintf("i%02d", 1:40), each = 8)
+  ages <- rep(1:8, 40) + stats::runif(320, -0.3, 0.3)
+  oa <- observed_prediction_ages(ages, ids)
+  expect("0.9.9 irregular ages are drawn at the sampling occasions", length(oa) >= 6 && length(oa) <= 10 && all(diff(oa) > 0))
+})
+
+# ---- 0.9.11: provenance, exported code on the shared engine, server helpers in the engine ----
+local({
+  raw <- simulate_toy_data(list(n_id = 90, seed = 4))
+  b <- standardise_data(raw, toy_mapping(raw))
+  r <- check("0.9.11 fit with provenance", fit_model_suite(b$data, b$meta, c("M1", "M2", "M4"), "Quadratic", "gaussian"))
+  if (isTRUE(r$ok)) {
+    pv <- r$provenance
+    expect("0.9.11 every model comparison stores its provenance",
+           is.list(pv) && all(c("software", "data", "model", "transformations", "settings", "warnings") %in% names(pv)))
+    expect("0.9.11 provenance fingerprints the analysed rows", is.character(pv$data$fingerprint_md5) && nchar(pv$data$fingerprint_md5) == 32 &&
+             identical(as.integer(pv$data$rows), nrow(r$data)))
+    expect("0.9.11 provenance lines are readable", length(provenance_lines(pv)) == 4)
+    code <- model_r_code(r, b$meta, "disappR_simulated.csv", source_type = "toy")
+    expect("0.9.11 exported code runs the shared engine when the same version is installed",
+           grepl("use_engine <- requireNamespace(\"disappR\"", code, fixed = TRUE) && grepl("disappr_fit(x, models = ", code, fixed = TRUE))
+    pe <- tryCatch({ parse(text = code); TRUE }, error = function(e) conditionMessage(e))
+    expect("0.9.11 exported code parses", isTRUE(pe))
+    expect("0.9.11 the R interface returns the provenance", identical(disappr_provenance(r), pv))
+  }
+  expect("0.9.11 former server helpers live in the engine", all(vapply(c("pred_curves_for", "coef_display", "aic_display", "lrt_display", "settings_sig",
+                                                                          "extra_term_choices", "builder_tokens", "a3_min_df"), exists, logical(1))))
 })
 
 cat("\n", paste(notes, collapse = "\n"), "\n", sep = "")

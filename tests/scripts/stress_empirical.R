@@ -1,9 +1,9 @@
 # =============================================================================
-# disappR 0.7.0 - empirical and simulation stress test
+# disappR - empirical and simulation stress test
 #
 # Reruns, inside R with lme4/glmmTMB, everything that was checked outside R.
 # Run from the package root:
-#     Rscript tests/stress_empirical.R  [path/to/folder/with/the/CSV/files]
+#     Rscript tests/scripts/stress_empirical.R  [path/to/folder/with/the/CSV/files]
 # The empirical part is skipped (with a note) for any file that is not found,
 # so the simulation part always runs.
 #
@@ -105,8 +105,12 @@ df <- read_or_skip("senescence_females.csv")
 if (!is.null(df)) {
   # IDs such as "B?1" recur in families Bom/Bpi/Btr (symbols lost upstream): without nesting
   # they collapse into one fly and appear as duplicate ID x age records.
-  flat <- standardise_data(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan"))
-  check(flat$meta$n_dup > 100, "female flies: >100 duplicate ID x age records when Family is NOT mapped")
+  # 0.20.2: the merged IDs carry several lifespans, so unnested loading stops with a data-integrity error
+  flat <- tryCatch(standardise_data(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan")),
+                   disappr_integrity_error = function(e) e)
+  check(inherits(flat, "disappr_integrity_error"), "female flies: IDs shared across families stop with a data-integrity error when Family is NOT mapped")
+  flatx <- standardise_data(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan", inconsistent = "exclude"))
+  check(length(flatx$meta$inconsistent_ids) >= 10, "female flies: excluding them names the merged IDs")
   r <- run_one(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan",
                             group = "Family", nested = TRUE, covars = c("DevT", "AdultT"),
                             cov_factor = c("DevT", "AdultT"), cov_int = "DevT|||AdultT"), "female flies eggs")
@@ -120,13 +124,13 @@ if (!is.null(df)) {
     rp <- run_one(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan",
                                group = "Family", nested = TRUE), "female flies ZINB", family = "zinb")
     check(isTRUE(rp$res$ok), "female flies: zero-inflated NB suite fits")
-    rp2 <- run_one(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan"),
-                   "female flies NB", family = "nbinom2")
+    rp2 <- run_one(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan",
+                                group = "Family", nested = TRUE), "female flies NB", family = "nbinom2")
     check(isTRUE(rp2$res$ok), "female flies: negative-binomial suite fits")
   } else note("glmmTMB not installed: count families not tested")
   # averaging duplicates turns counts into non-integers and blocks every count family
   avg <- standardise_data(df, base_map(id = "ID", age = "Adult_age", trait = "Daily_Eggs",
-                                       life = "Adult_lifespan"), "mean")
+                                       life = "Adult_lifespan", inconsistent = "exclude"), "mean")
   nonint <- any(abs(avg$data$trait - round(avg$data$trait)) > 1e-8, na.rm = TRUE)
   if (nonint) note("dup_action='mean' makes non-integer counts; count families are then refused - say so in the message")
 }
@@ -148,12 +152,12 @@ if (!is.null(df)) {
 df <- read_or_skip("data_senescence_tamias.csv")
 if (!is.null(df)) {
   r <- run_one(df, base_map(id = "ID", age = "age", trait = "nb_juv", life = "lifespan", entry = "AFR",
-                            covars = c("sex", "season"), cov_factor = c("sex", "season")), "chipmunks nb_juv")
+                            covars = c("sex", "season"), cov_factor = c("sex", "season"), inconsistent = "exclude"), "chipmunks nb_juv")
   check(isTRUE(r$di$schedule$irregular), "chipmunks: irregular sampling schedule is flagged")
   check(identical(r$best, "M6"), "chipmunks: M6 (true lifespan) first")
   check(isFALSE(r$av$default[["M6"]]), "chipmunks: M6 unselected by default (LS missing for 22 individuals)")
   # binary trait in the same file
-  rb <- run_one(df, base_map(id = "ID", age = "age", trait = "weaned_juv", life = "lifespan", entry = "AFR"),
+  rb <- run_one(df, base_map(id = "ID", age = "age", trait = "weaned_juv", life = "lifespan", entry = "AFR", inconsistent = "exclude"),
                 "chipmunks binary")
   fam <- rb$di$family$family
   if (!identical(fam, "gaussian"))

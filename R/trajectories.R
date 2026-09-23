@@ -1,0 +1,472 @@
+# disappR engine - Trajectories: individual fits (A3), observed means and population predictions from fitted models.
+# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+
+# ---------------------------------------------------------------------------
+# A3: individual parametric fits
+# ---------------------------------------------------------------------------
+# Minimum records (at distinct ages) to fit a function to one individual: Linear 2, Quadratic 3, Cubic 4 (fits
+# through every point are allowed), Logarithmic and both exponential functions 3.
+A3_MIN_RECORDS <- c(Linear = 2L, Quadratic = 3L, Cubic = 4L, Logarithmic = 3L, "Asymptotic exponential" = 3L)
+
+min_records_for <- function(fun) {
+  if (identical(fun, A3_NONLINEAR)) return(3L)
+  v <- unname(A3_MIN_RECORDS[fun])
+  if (length(v) != 1 || is.na(v)) 3L else v
+}
+
+# min_resid_df is kept for compatibility; the minimum number of records depends on the function, or on
+# min_records when that is larger. link = "log" fits the function on the log scale by Poisson likelihood - the
+# scale on which count traits are modelled and simulated; "identity" fits it to the raw trait by least squares.
+poisson_individual_stats <- function(trait, mu, k, fit) {
+  n <- length(trait)
+  ll <- sum(trait * log(pmax(mu, 1e-300)) - mu - lgamma(trait + 1))   # valid for non-integer means too
+  r2 <- if (isTRUE(fit$null.deviance > 0)) 1 - fit$deviance / fit$null.deviance else NA_real_
+  df_res <- n - k
+  adj <- if (df_res > 0 && is.finite(r2)) 1 - (1 - r2) * (n - 1) / df_res else NA_real_
+  aic <- -2 * ll + 2 * k
+  aicc <- if ((n - k - 1) > 0) aic + 2 * k * (k + 1) / (n - k - 1) else NA_real_
+  # the log-likelihood, the number of coefficients and the Pearson chi-square allow a quasi-AICc (QAICc) when the
+  # counts are overdispersed or zero-inflated
+  data.frame(n = n, R2 = r2, Adjusted_R2 = adj, AICc = aicc, logLik = ll, k = k,
+             pearson = sum((trait - mu)^2 / pmax(mu, 1e-12)), df_res = df_res)
+}
+poisson_individual_fit <- function(X, trait) {
+  if (any(trait < 0)) return(NULL)
+  fit <- tryCatch(suppressWarnings(stats::glm.fit(X, trait, family = stats::poisson())), error = function(e) NULL)
+  if (is.null(fit) || !isTRUE(fit$converged) || fit$rank < ncol(X)) return(NULL)
+  cf <- fit$coefficients
+  if (any(!is.finite(cf)) || max(abs(X %*% cf)) > 50) return(NULL)
+  fit
+}
+individual_fit_one <- function(age, trait, p, min_resid_df = 1, link = "identity", min_records = NULL) {
+  b <- age_basis(age, p)
+  k <- ncol(b) + 1
+  n <- length(trait)
+  need <- max(k, min_records_for(p$fun), if (is.numeric(min_records) && length(min_records) == 1 && is.finite(min_records)) min_records else 0)
+  if (n < need || length(unique(age)) < k) return(NULL)
+  X <- cbind(`(Intercept)` = 1, as.matrix(b))
+  if (identical(link, "log")) {
+    fit <- poisson_individual_fit(X, trait)
+    if (is.null(fit)) return(NULL)
+    return(list(fit = fit, coefficients = fit$coefficients,
+                stat = poisson_individual_stats(trait, fit$fitted.values, k, fit)))
+  }
+  fit <- tryCatch(stats::lm.fit(X, trait), error = function(e) NULL)
+  if (is.null(fit) || fit$rank < k) return(NULL)
+  cf <- fit$coefficients
+  if (any(!is.finite(cf))) return(NULL)
+  rss <- sum(fit$residuals^2)
+  tss <- sum((trait - mean(trait))^2)
+  r2 <- if (tss > 0) 1 - rss / tss else NA_real_
+  df_res <- n - k
+  adj <- if (df_res > 0 && is.finite(r2)) 1 - (1 - r2) * (n - 1) / df_res else NA_real_
+  kk <- k + 1
+  aic <- if (rss > 1e-12) n * log(rss / n) + 2 * kk else NA_real_
+  aicc <- if (is.finite(aic) && (n - kk - 1) > 0) aic + 2 * kk * (kk + 1) / (n - kk - 1) else NA_real_
+  list(fit = fit, coefficients = cf, stat = data.frame(n = n, R2 = r2, Adjusted_R2 = adj, AICc = aicc))
+}
+
+# Non-linear individual function a * exp(b * age), fitted by nls with log-linear starting values.
+individual_fit_nonlinear <- function(age, trait, min_resid_df = 1, link = "identity", min_records = NULL) {
+  n <- length(trait)
+  k <- 2
+  need <- max(min_records_for(A3_NONLINEAR), if (is.numeric(min_records) && length(min_records) == 1 && is.finite(min_records)) min_records else 0)
+  if (n < need || length(unique(age)) < k) return(NULL)
+  if (identical(link, "log")) {
+    X <- cbind(1, age)
+    fit <- poisson_individual_fit(X, trait)
+    if (is.null(fit)) return(NULL)
+    cf <- fit$coefficients
+    return(list(fit = fit, coefficients = c(a = exp(cf[[1]]), b = cf[[2]]),
+                stat = poisson_individual_stats(trait, fit$fitted.values, k, fit)))
+  }
+  pos <- trait > 0
+  st <- if (sum(pos) >= 2 && length(unique(age[pos])) >= 2) {
+    c0 <- stats::coef(stats::lm(log(trait[pos]) ~ age[pos]))
+    list(a = exp(c0[[1]]), b = c0[[2]])
+  } else {
+    list(a = max(mean(trait), 1e-6), b = 0)
+  }
+  dd <- data.frame(age = age, trait = trait)
+  fit <- tryCatch(suppressWarnings(stats::nls(trait ~ a * exp(b * age), data = dd, start = st,
+                                              control = stats::nls.control(maxiter = 200, warnOnly = TRUE))),
+                  error = function(e) NULL)
+  if (is.null(fit) || !isTRUE(fit$convInfo$isConv)) return(NULL)
+  cf <- stats::coef(fit)
+  if (any(!is.finite(cf))) return(NULL)
+  rss <- sum(stats::residuals(fit)^2)
+  tss <- sum((trait - mean(trait))^2)
+  r2 <- if (tss > 0) 1 - rss / tss else NA_real_
+  df_res <- n - k
+  adj <- if (df_res > 0 && is.finite(r2)) 1 - (1 - r2) * (n - 1) / df_res else NA_real_
+  kk <- k + 1
+  aic <- if (rss > 1e-12) n * log(rss / n) + 2 * kk else NA_real_
+  aicc <- if (is.finite(aic) && (n - kk - 1) > 0) aic + 2 * kk * (kk + 1) / (n - kk - 1) else NA_real_
+  list(fit = fit, coefficients = c(a = cf[["a"]], b = cf[["b"]]), stat = data.frame(n = n, R2 = r2, Adjusted_R2 = adj, AICc = aicc))
+}
+
+# Two population-level reconstructions from individual fits f(age; theta_i), i = 1..N:
+#   mean of coefficients:  f(age; theta_bar), theta_bar = (1/N) sum_i theta_i
+#   mean of functions:     f_bar(age) = (1/N) sum_i f(age; theta_i)
+# They coincide when f is linear in its parameters (all AGE_FUNCTIONS) and differ otherwise.
+# 95% bands: delta method with S/N for the coefficient mean; SD_i[f(age; theta_i)] / sqrt(N) for the function mean.
+# exp() capped below the largest finite double, so an extreme fitted curve cannot become Inf or NaN (0.20.5)
+exp_capped <- function(x) exp(pmin(x, 700))
+
+# progress: optional function(fraction, detail), called as individuals are fitted (at most about 100 times).
+# Ages held by fewer individuals than this are left off the average trajectory (its drawn range only).
+A3_MIN_IND_PER_AGE <- 5L
+
+fit_individual_function <- function(dat, fun, min_resid_df = 1, draw_ids = character(0), link = "identity",
+                                    min_records = NULL, progress = NULL) {
+  d <- dat[is.finite(dat$trait) & is.finite(dat$age), , drop = FALSE]
+  if (identical(link, "log") && any(d$trait < 0)) link <- "identity"   # a log scale needs non-negative values
+  log_scale <- identical(link, "log")
+  empty <- list(curves = data.frame(), coefs = data.frame(), fit_stats = data.frame(), mean_curve = data.frame(),
+                n_total = length(unique(d$id)), fitted_ids = character(0), nonlinear = identical(fun, A3_NONLINEAR))
+  if (!nrow(d)) return(empty)
+  nonlin <- identical(fun, A3_NONLINEAR)
+  p <- if (nonlin) NULL else make_age_params(d$age, fun, standardise = FALSE)
+  design <- function(ages) cbind(`(Intercept)` = 1, as.matrix(age_basis(ages, p)))
+  curve_of <- function(cf, ages) {
+    if (nonlin) return(cf[["a"]] * exp_capped(cf[["b"]] * ages))
+    eta <- as.numeric(design(ages)[, names(cf), drop = FALSE] %*% cf)
+    if (log_scale) exp_capped(eta) else eta
+  }
+  sp <- split(seq_len(nrow(d)), d$id)
+  coef_rows <- list(); stat_rows <- list(); curve_rows <- list()
+  n_id <- length(sp)
+  every <- max(1L, n_id %/% 100L)
+  k_id <- 0L
+  for (z in names(sp)) {
+    k_id <- k_id + 1L
+    if (is.function(progress) && (k_id %% every == 0L || k_id == n_id)) progress(k_id / n_id, sprintf("individual %d of %d", k_id, n_id))
+    ii <- sp[[z]]
+    one <- if (nonlin) individual_fit_nonlinear(d$age[ii], d$trait[ii], min_resid_df, link, min_records)
+           else individual_fit_one(d$age[ii], d$trait[ii], p, min_resid_df, link, min_records)
+    if (is.null(one)) next
+    cr <- as.data.frame(as.list(one$coefficients), check.names = FALSE)
+    cr$id <- z
+    coef_rows[[z]] <- cr
+    st <- one$stat
+    st$id <- z
+    stat_rows[[z]] <- st
+    if (z %in% draw_ids) {
+      ag <- seq(min(d$age[ii]), max(d$age[ii]), length.out = 40)
+      curve_rows[[z]] <- data.frame(id = z, age = ag, fitted = curve_of(one$coefficients, ag))
+    }
+  }
+  if (!length(coef_rows)) return(empty)
+  coefs <- do.call(rbind, coef_rows)
+  fit_stats <- do.call(rbind, stat_rows)
+  curves <- if (length(curve_rows)) do.call(rbind, curve_rows) else data.frame()
+  cn <- setdiff(names(coefs), "id")
+  cm <- as.matrix(coefs[cn])
+  N <- nrow(cm)
+  mcf <- stats::setNames(colMeans(cm), cn)
+  # The average curves span the ages held by at least A3_MIN_IND_PER_AGE individuals, because beyond that they
+  # extrapolate few individuals' fits. The threshold sets the drawn range only: the curve is the fitted function at
+  # the mean coefficients, so the values at ages already covered do not change when it moves (0.20.22: 10 -> 5).
+  n_at_age <- table(id_age_means(d)$age)
+  ok_age <- as.numeric(names(n_at_age))[as.numeric(n_at_age) >= A3_MIN_IND_PER_AGE]
+  rng <- if (length(ok_age)) range(ok_age) else range(d$age)
+  ag <- seq(rng[1], rng[2], length.out = 120)
+  pred <- curve_of(mcf, ag)
+  if (nonlin) {
+    Fm <- outer(cm[, "a"], rep(1, length(ag))) * exp_capped(outer(cm[, "b"], ag))
+  } else {
+    Xg <- design(ag)[, cn, drop = FALSE]
+    Fm <- cm %*% t(Xg)
+    if (log_scale) Fm <- exp_capped(Fm)
+  }
+  # an individual whose curve is not finite anywhere on the grid is left out of the mean of functions
+  ok_f <- apply(Fm, 1, function(r) all(is.finite(r)))
+  Fm <- Fm[ok_f, , drop = FALSE]
+  fun_mean <- if (nrow(Fm)) colMeans(Fm) else rep(NA_real_, length(ag))
+  se <- se_fun <- rep(NA_real_, length(ag))
+  if (N >= 3) {
+    S <- stats::cov(cm)
+    G <- if (nonlin) cbind(exp_capped(mcf[["b"]] * ag), mcf[["a"]] * ag * exp_capped(mcf[["b"]] * ag)) else Xg
+    se <- sqrt(pmax(0, rowSums((G %*% (S / N)) * G)))            # on the log scale when log_scale
+    if (nrow(Fm) >= 3) se_fun <- apply(Fm, 2, stats::sd) / sqrt(nrow(Fm))
+  }
+  # the coefficient mean's band is built on the log scale and transformed, so it stays positive
+  lo <- if (log_scale && !nonlin) exp(log(pred) - 1.96 * se) else pred - 1.96 * se
+  hi <- if (log_scale && !nonlin) exp(log(pred) + 1.96 * se) else pred + 1.96 * se
+  list(curves = curves, coefs = coefs, fit_stats = fit_stats,
+       mean_curve = data.frame(age = ag, fitted = pred, lo = lo, hi = hi,
+                               fitted_fun = fun_mean, lo_fun = fun_mean - 1.96 * se_fun, hi_fun = fun_mean + 1.96 * se_fun),
+       n_total = length(sp), fitted_ids = fit_stats$id, nonlinear = nonlin, log_scale = log_scale, link = link,
+       age_params = p, n_nonfinite = sum(!ok_f))
+}
+
+#' Curves for chosen individuals from their stored coefficients
+#'
+#' Redrawing a different set of individuals needs no refitting: each curve is rebuilt from the coefficients that
+#' fit_individual_function() stored, over that individual's own age range.
+#'
+#' @param z The result of fit_individual_function().
+#' @param dat The data the fits came from.
+#' @param ids The individuals to draw.
+#' @return A data frame with id, age and fitted.
+individual_curves <- function(z, dat, ids) {
+  if (!length(ids) || !is.data.frame(z$coefs) || !nrow(z$coefs)) return(data.frame())
+  d <- dat[is.finite(dat$trait) & is.finite(dat$age), , drop = FALSE]
+  cn <- setdiff(names(z$coefs), "id")
+  out <- lapply(intersect(as.character(ids), as.character(z$coefs$id)), function(i) {
+    a <- d$age[as.character(d$id) == i]
+    if (!length(a)) return(NULL)
+    ag <- seq(min(a), max(a), length.out = 40)
+    cf <- unlist(z$coefs[as.character(z$coefs$id) == i, cn, drop = FALSE][1, , drop = TRUE])
+    fitted <- if (isTRUE(z$nonlinear)) {
+      cf[["a"]] * exp_capped(cf[["b"]] * ag)
+    } else {
+      X <- cbind(`(Intercept)` = 1, as.matrix(age_basis(ag, z$age_params)))
+      eta <- as.numeric(X[, cn, drop = FALSE] %*% cf[cn])
+      if (isTRUE(z$log_scale)) exp_capped(eta) else eta
+    }
+    data.frame(id = i, age = ag, fitted = fitted, stringsAsFactors = FALSE)
+  })
+  out <- Filter(Negate(is.null), out)
+  if (length(out)) do.call(rbind, out) else data.frame()
+}
+
+# Several functions' individual fits in one call: step 4's comparison runs this in a separate R process (0.20.12).
+# A failure for one function is returned as list(error = ...) and does not stop the others.
+fit_individual_functions <- function(dat, funs, link = "identity", min_records = NULL, progress = NULL) {
+  out <- list()
+  for (i in seq_along(funs)) {
+    pr_i <- if (is.function(progress)) function(f, detail) progress((i - 1 + f) / length(funs), paste0(funs[[i]], ": ", detail)) else NULL
+    out[[funs[[i]]]] <- tryCatch(fit_individual_function(dat, funs[[i]], 1, character(0), link = link, min_records = min_records,
+                                                         progress = pr_i),
+                                 error = function(e) list(error = conditionMessage(e)))
+  }
+  out
+}
+
+# fits: optional named list of fit_individual_function() results, by function, reused instead of refitting (0.20.5)
+compare_individual_functions <- function(dat, min_resid_df = 1, max_individuals = 2000, link = "identity",
+                                         min_records = NULL, quasi = FALSE, fits = NULL) {
+  ids <- unique(dat$id)
+  if (length(ids) > max_individuals) {
+    keep <- ids[unique(round(seq(1, length(ids), length.out = max_individuals)))]
+    dat <- dat[dat$id %in% keep, , drop = FALSE]
+  }
+  n_considered <- length(unique(dat$id))
+  kept <- unique(dat$id)
+  per <- lapply(A3_FUNCTIONS, function(fn) {
+    z <- if (!is.null(fits[[fn]])) fits[[fn]] else fit_individual_function(dat, fn, min_resid_df, link = link, min_records = min_records)
+    if (!is.null(z$error) || is.null(z$fit_stats) || !nrow(z$fit_stats)) return(NULL)
+    s <- z$fit_stats[z$fit_stats$id %in% kept, , drop = FALSE]
+    if (!nrow(s)) return(NULL)
+    s$Function <- fn
+    s
+  })
+  per <- Filter(Negate(is.null), per)
+  if (!length(per)) return(data.frame())
+  per <- do.call(rbind, per)
+  # For overdispersed or zero-inflated counts the Poisson likelihood exaggerates differences between functions and
+  # favours complex shapes. Functions are then compared by QAICc, with the dispersion estimated once, from the most
+  # flexible function: the pooled Pearson chi-square over the pooled residual degrees of freedom (Burnham and
+  # Anderson 2002). The coefficients are unaffected: Poisson estimates of the mean are consistent under overdispersion.
+  chat <- NA_real_
+  if (isTRUE(quasi) && identical(link, "log") && all(c("pearson", "df_res", "logLik", "k") %in% names(per))) {
+    glob <- per[per$Function == "Cubic" & is.finite(per$pearson) & per$df_res > 0, , drop = FALSE]
+    if (!nrow(glob)) glob <- per[is.finite(per$pearson) & per$df_res > 0, , drop = FALSE]
+    if (nrow(glob) && sum(glob$df_res) > 0) chat <- max(1, sum(glob$pearson) / sum(glob$df_res))
+    if (is.finite(chat) && chat > 1) {
+      kq <- per$k + 1
+      per$AICc <- ifelse(per$n - kq - 1 > 0, -2 * per$logLik / chat + 2 * kq + 2 * kq * (kq + 1) / (per$n - kq - 1), NA_real_)
+    }
+  }
+  funs <- unique(per$Function)
+  fin <- per[is.finite(per$AICc), , drop = FALSE]
+  common <- character(0)
+  if (nrow(fin)) {
+    nf <- tapply(fin$Function, fin$id, function(v) length(unique(v)))
+    common <- names(nf)[nf == length(funs)]
+  }
+  per$Delta_AICc <- NA_real_
+  cc <- per$id %in% common
+  if (any(cc)) per$Delta_AICc[cc] <- stats::ave(per$AICc[cc], per$id[cc], FUN = function(v) v - min(v))
+  out <- do.call(rbind, lapply(funs, function(fn) {
+    z <- per[per$Function == fn, , drop = FALSE]
+    zc <- z[z$id %in% common, , drop = FALSE]
+    data.frame(Function = fn, N_considered = n_considered, N_fitted = nrow(z),
+               Mean_R2 = mean(z$R2, na.rm = TRUE), Mean_adj_R2 = mean(z$Adjusted_R2, na.rm = TRUE),
+               Median_adj_R2 = stats::median(z$Adjusted_R2, na.rm = TRUE),
+               N_common = length(common),
+               Mean_dAICc = if (nrow(zc)) mean(zc$Delta_AICc) else NA_real_,
+               stringsAsFactors = FALSE)
+  }))
+  out <- out[order(out$Mean_dAICc, -out$Mean_adj_R2, na.last = TRUE), , drop = FALSE]
+  attr(out, "chat") <- chat
+  out
+}
+
+observed_trajectory <- function(dat) {
+  ia <- id_age_means(dat)
+  if (!nrow(ia)) return(data.frame())
+  z <- stats::aggregate(trait ~ age, data = ia, FUN = mean)
+  z$n <- as.numeric(table(ia$age)[as.character(z$age)])
+  names(z)[names(z) == "trait"] <- "fitted"
+  z
+}
+
+# Model prediction trajectory from a fitted model (see the "i" help for the Models tab):
+#   * random effects excluded (re.form = NA);
+#   * numeric covariates held at their mean across individuals;
+#   * factor covariates marginalised over the observed combinations of levels, weighted by the number of
+#     individuals with each combination (unless `by` names a factor, which is then held at each level);
+#   * ALR, LS, AFR and individual mean-age terms held at their individual-level means (or at `hold` values,
+#     given on the model's standardised scale), with polynomial proxy terms computed from the held value;
+#   * response scale (count models include the zero-inflation probability).
+predict_population_curve <- function(fit, res, ages, hold = NULL, by = NULL) {
+  d <- res$data
+  ind <- d[!duplicated(d$id), , drop = FALSE]
+  covs <- intersect(res$covars %||% character(0), names(d))
+  fac <- covs[!vapply(d[covs], is.numeric, logical(1))]
+  num <- setdiff(covs, fac)
+  by <- if (length(by) == 1 && isTRUE(by %in% fac)) by else NULL
+  other <- setdiff(fac, by)
+  if (length(other)) {
+    # weights from all records, each individual counting once in total, so row order cannot change them
+    key <- do.call(paste, c(lapply(d[other], as.character), sep = "\r"))
+    w_rec <- 1 / as.numeric(table(d$id)[as.character(d$id)])
+    w_key <- tapply(w_rec, key, sum)
+    first_key <- !duplicated(key)
+    wt <- as.numeric(w_key[key[first_key]])
+    base <- d[first_key, other, drop = FALSE]
+  } else {
+    base <- data.frame(.one = 1)
+    wt <- 1
+  }
+  if (!is.null(by)) {
+    lv <- levels(d[[by]])
+    nb0 <- nrow(base)
+    base <- base[rep(seq_len(nb0), times = length(lv)), , drop = FALSE]
+    wt <- rep(wt, times = length(lv))
+    base[[by]] <- factor(rep(lv, each = nb0), levels = lv)
+    base$.level <- rep(lv, each = nb0)
+  } else {
+    base$.level <- "All"
+  }
+  nb <- nrow(base)
+  nd <- base[rep(seq_len(nb), times = length(ages)), , drop = FALSE]
+  nd$.w <- rep(wt, times = length(ages))
+  nd$age <- rep(ages, each = nb)
+  # numeric covariates at the mean of the individuals' own means (independent of row order)
+  for (v in num) nd[[v]] <- mean(tapply(d[[v]], d$id, mean, na.rm = TRUE), na.rm = TRUE)
+  bb <- age_basis(nd$age, res$age_params)
+  for (nm in names(bb)) nd[[nm]] <- bb[[nm]]
+  for (v in c("ALR", "LS", "AFR")) {
+    val <- if (!is.null(hold[[v]])) hold[[v]] else if (v %in% names(ind)) mean(ind[[v]], na.rm = TRUE) else 0
+    if (!is.finite(val)) val <- 0
+    nd[[v]] <- val
+    nd[[paste0(v, "2")]] <- val^2
+    nd[[paste0(v, "3")]] <- val^3
+  }
+  for (nm in res$basis) {
+    hk <- paste0("mean_", nm)
+    mv <- if (!is.null(hold[[hk]])) hold[[hk]] else mean(ind[[hk]], na.rm = TRUE)
+    nd[[hk]] <- mv
+    nd[[paste0("delta_", nm)]] <- nd[[nm]] - mv
+  }
+  # 'same polynomial order' uses powers of mean age in Models 3 and 5; without them those models cannot be predicted
+  if (!is.null(nd[["mean_f1"]])) {
+    nd[["mean_f1_2"]] <- nd[["mean_f1"]]^2
+    nd[["mean_f1_3"]] <- nd[["mean_f1"]]^3
+  }
+  nd$id <- d$id[[1]]
+  if ("group" %in% names(d)) nd$group <- d$group[[1]]
+  if ("group2" %in% names(d)) nd$group2 <- d$group2[[1]]
+  for (rt in intersect(res$random_terms %||% character(0), names(d))) nd[[rt]] <- d[[rt]][[1]]
+  pr <- tryCatch({
+    if (inherits(fit, "nlme")) as.numeric(stats::predict(fit, newdata = nd, level = 0))
+    else as.numeric(stats::predict(fit, newdata = nd, re.form = NA, type = "response", allow.new.levels = TRUE))
+  }, error = function(e) rep(NA_real_, nrow(nd)))
+  ok <- is.finite(pr)
+  if (!any(ok)) return(data.frame())
+  grp <- paste(nd$.level[ok], format(nd$age[ok], digits = 15), sep = "\r")
+  first <- !duplicated(grp)
+  num_w <- tapply(pr[ok] * nd$.w[ok], grp, sum)
+  den_w <- tapply(nd$.w[ok], grp, sum)
+  out <- data.frame(level = nd$.level[ok][first], age = nd$age[ok][first],
+                    fitted = as.numeric(num_w[grp[first]] / den_w[grp[first]]), stringsAsFactors = FALSE)
+  out <- out[order(out$level, out$age), , drop = FALSE]
+  rownames(out) <- NULL
+  if (is.null(by)) out$level <- NULL
+  out
+}
+
+# Ages for smooth prediction curves in the figure: a fine grid across the observed age range.
+smooth_prediction_ages <- function(age, n = 100) {
+  a <- age[is.finite(age)]
+  if (!length(a)) return(numeric(0))
+  if (diff(range(a)) <= 0) return(unique(a))
+  seq(min(a), max(a), length.out = n)
+}
+
+# Ages at which to draw predictions as lines: the distinct observed ages; with more than 60 distinct ages (continuous or
+# irregular ages), the sampling occasions (ages rounded to the sampling step from the youngest age); otherwise the
+# standard grid.
+observed_prediction_ages <- function(age, id = NULL) {
+  a <- sort(unique(age[is.finite(age)]))
+  if (length(a) <= 60) return(a)
+  step <- if (is.null(id)) NA_real_ else tryCatch(infer_age_step(age[is.finite(age)], id[is.finite(age)]), error = function(e) NA_real_)
+  if (is.finite(step) && step > 0) {
+    occ <- sort(unique(min(a) + round((a - min(a)) / step) * step))
+    occ <- occ[occ <= max(a) + 1e-9]
+    if (length(occ) >= 2 && length(occ) <= 200) return(occ)
+  }
+  prediction_ages(age)
+}
+
+prediction_ages <- function(age) {
+  u <- sort(unique(age[is.finite(age)]))
+  if (length(u) <= 30) u else seq(min(u), max(u), length.out = 80)
+}
+
+# ---- Moved unchanged from inst/app/server.R (0.9.11): pure helpers that use no reactive state ----
+
+# ======================================================================
+# 4. A3 individual parametric fits
+# ======================================================================
+# Minimum records per function: see min_records_for() (Linear 2; Quadratic, logarithmic, exponential 3; Cubic 4).
+a3_min_df <- function() 1
+
+pred_curves_for <- function(r, models, by = NULL, ages = prediction_ages(r$data$age)) {
+  lst <- lapply(models, function(m) {
+    cv <- predict_population_curve(r$fits[[m]], r, ages, by = by)
+    if (!nrow(cv)) return(NULL)
+    cv$Method <- model_label(m)
+    cv$Fit <- r$validity[[m]] %||% "Valid"
+    cv
+  })
+  lst <- Filter(Negate(is.null), lst)
+  if (length(lst)) do.call(rbind, lst) else data.frame(age = numeric(0), fitted = numeric(0), Method = character(0), Fit = character(0))
+}
+
+# ---- Predictions before coefficients (0.9.13) ----
+
+# The trait each eligible model predicts at representative observed ages (the youngest, quartiles and oldest), on the
+# trait scale: easier to read than raw coefficients of polynomial, standardised or interaction terms.
+prediction_summary <- function(r, n_ages = 5) {
+  if (is.null(r) || !isTRUE(r$ok) || !length(r$fits)) return(data.frame())
+  a <- r$data$age[is.finite(r$data$age)]
+  if (!length(a)) return(data.frame())
+  ages <- sort(unique(stats::quantile(a, seq(0, 1, length.out = n_ages), names = FALSE, type = 1)))
+  elig <- intersect(names(r$fits), sub("^Model ", "M", r$aic$Model[r$aic$Eligible %in% TRUE]))
+  if (!length(elig)) elig <- names(r$fits)
+  rows <- lapply(elig, function(m) {
+    pc <- tryCatch(predict_population_curve(r$fits[[m]], r, ages), error = function(e) NULL)
+    if (!is.data.frame(pc) || !nrow(pc)) return(NULL)
+    vals <- rep(NA_real_, length(ages))
+    vals[match(signif(pc$age, 10), signif(ages, 10))] <- signif(pc$fitted, 4)
+    out <- as.data.frame(as.list(stats::setNames(vals, paste("Age", vapply(ages, format_num, character(1))))), check.names = FALSE)
+    cbind(Model = model_label(m), out, stringsAsFactors = FALSE)
+  })
+  rows <- Filter(Negate(is.null), rows)
+  if (length(rows)) do.call(rbind, rows) else data.frame()
+}
+

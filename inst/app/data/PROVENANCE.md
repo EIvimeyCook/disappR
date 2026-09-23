@@ -6,8 +6,7 @@ Every file below was checked cell by cell against the archived original.
 |---|---|---|---|---|
 | fly_fecundity.csv | unchanged | unchanged | unchanged | none (as supplied with the app) |
 | bichet_2022_tern_immunity.csv | 1097 / 1097 | all kept; `year of sampling` renamed `year_sampling` | identical | `age` = year_sampling - year_of_birth |
-| sanghvi_2022_beetle_male_weight.csv | 5354 / 5354 | all kept | identical | none; re-saved as UTF-8 |
-| sanghvi_2022_beetle_female_fecundity.csv | 6001 / 6001 | all kept | identical | none; re-saved as UTF-8 |
+| sanghvi_2022_beetle_female_fecundity.csv | 6001 / 6001 | all kept | identical | re-saved as UTF-8; derived column `individual` added (see below) |
 | allain_2023_chipmunk_reproduction.csv | 487 / 487 | all kept | identical | none |
 | warner_2016_turtle_reproduction.csv | 2205 / 2205 | all kept | identical | none |
 | bouwhuis_2009_great_tit_recruitment.csv | 7126 / 7126 | all kept | identical (md5 match) | none |
@@ -44,3 +43,38 @@ doi:10.5061/dryad.j9kd51cq3) and bundled byte for byte under new file names.
 | mckennaell_2023_soay_breeding_survival.csv (`fecundityoffsurv.csv`) | 3173 records of 762 females (the paper's breeding-probability sample; 2573 non-blank offspring-survival records of 714 females) | unchanged | unchanged | none |
 | mckennaell_2023_soay_offspring_weight.csv (`offspringwt.csv`) | 2317 lambs of 649 mothers (the paper's sample) | unchanged | unchanged | none |
 | szejnersigal_2025_bee_activity.csv (`Activity.csv`) | 808 records of 184 bees (414 female, 394 male records); the paper's text reports 199 bees in the activity experiment | unchanged | unchanged | none |
+| bichet_2022_marmot_immunity.csv | 173 / 173 | all kept; `age_at_last_observation` renamed `ALO`, spaces in names replaced by underscores | identical | `log_leukocyte_concentration` = natural log of `leukocyte_concentration` |
+| moullec_2023_alpine_swift_reproduction.csv | 2087 / 2087 | the `reproduction` sheet only; `CSi.day`, `CS`, `BSH`, `BSF` renamed `laying_date`, `clutch_size`, `brood_size_hatching`, `brood_size_fledging` | identical | none |
+| pasztor_2022_clouded_apollo_body_size.csv | 3888 rows merged from three archived files (mass 3132, thorax 2847, wing 2144) | mass, thorax and wing joined on individual and measurement date | identical where supplied | SEVERAL - see the note below |
+
+
+## Derived columns in pasztor_2022_clouded_apollo_body_size.csv
+
+This is the only bundled example whose analysis columns are derived rather than archived. The three archived files
+(`mass_data_2014_2020`, `thorax_data_2014_2020`, `wing_data_2014_2020`) hold measurement dates, not ages, so the
+variables the paper models had to be rebuilt from them. Each follows the definition given in the paper's Section 2.3:
+
+| Column | How it is derived |
+|---|---|
+| `age_days` | Days elapsed between a measurement and that individual's first capture. The paper uses this as a minimum estimate of true age. |
+| `first_capture` | The day of that year's flight period on which the individual was first caught, counted from the flight-period start dates in the paper's Table 1 (17 Apr 2014, 26 Apr 2015, 22 Apr 2016, 25 Apr 2017, 29 Apr 2018, 21 Apr 2019, 21 Apr 2020). |
+| `mean_age` | The individual's mean `age_days` across its measurements. |
+| `mean_age_sq` | The mean of `age_days` SQUARED across an individual's measurements - the paper's "mean (age2)". Note this is the mean of the squares, not the square of the mean; the two differ by the within-individual variance of age, and for these data the difference is immaterial (median 4.1 day-squared, and the two forms differ by 0.3 AIC when fitted). |
+| `mean_first_capture` | The annual mean of `first_capture`, which the paper uses as a year-level covariate correlated with flight-period length. |
+| `wing_length` | Mean of the two forewing measurements (`wfl`, `wfr`); one value per individual, as wing length does not change with age. |
+| `thorax_width` | Mean of the two caliper measurements per occasion (`tw1`, `tw2`). |
+| `log_body_mass` | Natural log of `body_mass`, as the paper models it. |
+
+Reconstruction checks against the paper: 1,190 individuals with body mass (paper 1,191); 70.2% measured at least
+twice (paper 69.35%); 1,313 individuals with thorax width (paper 1,312) and 57.1% repeatedly (paper 56.86%);
+once-measured butterflies averaged 0.186 g against 0.201 g for repeatedly measured ones (paper 0.187 and 0.205).
+Fitting the paper's best-supported body-mass model reproduces every coefficient to within about one published
+standard error, wing length included.
+
+
+## Derived identifier: sanghvi_2022_beetle_female_fecundity.csv (disappR 0.20.0)
+Some IDs in this file contain "?" where a character was lost when the file was re-encoded, so different beetles
+share an ID: 15 IDs each covered more than one beetle (for example "B?15" holds one beetle from family Bpi on
+treatment AH with lifespan 6, and one from family Btr on treatment AA with lifespan 12). The added column
+`individual` joins Block, Family and ID, which identifies every beetle uniquely: 637 individuals, with no
+conflicting lifespans or treatments and no two records at the same age. No original value was changed.

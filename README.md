@@ -13,18 +13,18 @@
 disappR is an R package providing a Shiny app for **diagnosing and modelling
 selective disappearance and selective appearance** in longitudinal ageing data.
 
-Most ageing studies want the average within-individual ageing pattern, but what
-they actually have is population-level data on individuals followed over time,
+Most ageing studies want the average within-individual ageing pattern, but most of the time
+there is only population-level data on individuals,
 and that data is almost never complete. Individuals die, emigrate or are simply
-missed, and others only enter the study part-way through life. If the
+missed, and others only enter the study part-way through their life. If the
 individuals that leave early or arrive late differ in the trait being measured,
 the population-level pattern stops reflecting how individuals age. Standard
-analyses can then show senescence that isn't there, or hide senescence that is.
+analyses are then at risk of bias.
 
-disappR works through this in the order you would want to: it first shows
+disappR works through this in a logical order. If first shows
 whether selective disappearance or appearance is visible in your data, then
 checks how complete your sampling is and what shape ageing takes, and only then
-fits and compares a set of ten mixed models built to separate the two. Every
+fits and compares a set of ten mixed models built to separate the two processes. Every
 panel explains what it shows and how to read it, and everything you run can be
 exported as R code.
 
@@ -34,7 +34,7 @@ exported as R code.
   age-at-entry groups, how far apart those groups are at each age, the trait
   before death, selection differentials by age and the disappearance hazard.
 - **Sampling and missingness checks.** When each individual was actually seen,
-  how much is missing and at which ages, whether missingness tracks the trait,
+  how much data is missing and at which ages, whether missingness tracks the trait,
   and which lifespan proxy to use.
 - **Individual and population trajectories.** An ageing function fitted to each
   individual, the average within-individual trajectory rebuilt from those fits,
@@ -107,7 +107,7 @@ The app is laid out as six numbered steps in the left-hand sidebar. You can move
 between them freely, but each builds on the one before.
 
 **Start here.** An overview of the problem and the workflow. The *Quick start*
-buttons load a simulated dataset where the answer is known, or open the list of
+buttons load a simulated dataset where the answer is known, or opens the list of
 published examples. This page also lists which optional packages are installed.
 
 1. **Data** — choose a data source: simulated teaching data, one of the 13
@@ -276,10 +276,6 @@ cat(disappr_code(fit, x))     # R code that reproduces the analysis
   how to read it.
 - **The video walkthrough** on [OSF](https://osf.io/kevnm/files/m6utp) shows the
   app in use.
-- **The vignettes** cover the bigger picture. Run `browseVignettes("disappR")`
-  for an overview of the package, a tab-by-tab walkthrough of the workflow, the
-  models and methods, how the app was validated against independent code and
-  the published analyses, and the test suite.
 
 ## Tips and limitations
 

@@ -6,7 +6,13 @@
 #   4 app server (reactive behaviour)              tests/scripts/app_test.R
 #   5 stress (out-of-sample data)                  tests/scripts/stress_test.R
 #   6 empirical replication and simulations        tests/scripts/stress_empirical.R
+#   7 sweep of the 0.20.9-0.20.19 changes          tests/scripts/sweep_0_20.R
+#   8 complex scenarios (0.22.7)                   tests/scripts/complex_scenarios.R
+#   9 trait-specific ALR/AFR snapshot (0.24.2)     tests/scripts/trait_ages_snapshot.R
 # Each tier runs in a fresh R process; the script exits with status 1 if any tier fails.
+# From an R console (RStudio included), with the working directory at the package root:
+#   source("tests/scripts/run_all.R")
+# In a console a failure stops with an error instead of quitting R.
 if (!file.exists("DESCRIPTION")) stop("Run from the package root (the folder containing DESCRIPTION).")
 rscript <- file.path(R.home("bin"), "Rscript")
 run <- function(label, args) {
@@ -29,5 +35,10 @@ res["app"] <- run("4 app server", "tests/scripts/app_test.R")
 res["stress"] <- run("5 stress", "tests/scripts/stress_test.R")
 res["empirical"] <- run("6 empirical and simulations", "tests/scripts/stress_empirical.R")
 res["sweep"] <- run("7 sweep of the 0.20.9-0.20.19 changes", "tests/scripts/sweep_0_20.R")
+res["complex"] <- run("8 complex scenarios", "tests/scripts/complex_scenarios.R")
+res["trait_ages"] <- run("9 trait-specific ALR/AFR snapshot", "tests/scripts/trait_ages_snapshot.R")
 cat("\nSummary:", paste(names(res), ifelse(res, "passed", "FAILED"), sep = ": ", collapse = "; "), "\n")
-if (!all(res)) quit(status = 1)
+if (!all(res)) {
+  if (interactive()) stop("Some test tiers failed: ", paste(names(res)[!res], collapse = ", "), call. = FALSE)
+  quit(status = 1)
+}

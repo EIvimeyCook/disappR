@@ -1,5 +1,5 @@
 # disappR engine - Trajectories: individual fits (A3), observed means and population predictions from fitted models.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # ---------------------------------------------------------------------------
 # A3: individual parametric fits
@@ -297,6 +297,16 @@ compare_individual_functions <- function(dat, min_resid_df = 1, max_individuals 
   per$Delta_AICc <- NA_real_
   cc <- per$id %in% common & per$Function %in% comparable
   if (any(cc)) per$Delta_AICc[cc] <- stats::ave(per$AICc[cc], per$id[cc], FUN = function(v) v - min(v))
+  # share of the common individuals for which each function has the lowest AICc; an individual whose lowest AICc is
+  # shared by k functions (identical fits, for example two two-parameter functions on two distinct ages) gives each
+  # of them 1/k, so the shares sum to 100%
+  n_common <- length(common)
+  wins <- numeric(0)
+  if (any(cc)) {
+    best <- per$Delta_AICc[cc] <= 1e-9
+    n_tied <- stats::ave(as.numeric(best), per$id[cc], FUN = sum)
+    wins <- tapply(ifelse(best, 1 / n_tied, 0), per$Function[cc], sum)
+  }
   out <- do.call(rbind, lapply(funs, function(fn) {
     z <- per[per$Function == fn, , drop = FALSE]
     zc <- z[z$id %in% common, , drop = FALSE]
@@ -305,6 +315,7 @@ compare_individual_functions <- function(dat, min_resid_df = 1, max_individuals 
                Median_adj_R2 = stats::median(z$Adjusted_R2, na.rm = TRUE),
                N_common = length(common),
                Mean_dAICc = if (nrow(zc)) mean(zc$Delta_AICc) else NA_real_,
+               Share_best = if (n_common > 0 && fn %in% names(wins)) round(100 * as.numeric(wins[[fn]]) / n_common, 1) else if (n_common > 0 && fn %in% comparable) 0 else NA_real_,
                stringsAsFactors = FALSE)
   }))
   out <- out[order(out$Mean_dAICc, -out$Mean_adj_R2, na.last = TRUE), , drop = FALSE]
@@ -356,7 +367,9 @@ glmmtmb_fixed_predict <- function(fit, nd) {
 #   * ALR, LS, AFR and individual mean-age terms held at their individual-level means (or at `hold` values,
 #     given on the model's standardised scale), with polynomial proxy terms computed from the held value;
 #   * response scale (count models include the zero-inflation probability).
-predict_population_curve <- function(fit, res, ages, hold = NULL, by = NULL) {
+# The prediction grid of predict_population_curve() (0.22.0: separated so that the same rows serve the confidence
+# draws behind the peak and onset ages): one row per age x combination of factor-covariate levels, with weights.
+population_newdata <- function(res, ages, hold = NULL, by = NULL) {
   d <- res$data
   ind <- d[!duplicated(d$id), , drop = FALSE]
   covs <- intersect(res$covars %||% character(0), names(d))
@@ -417,6 +430,13 @@ predict_population_curve <- function(fit, res, ages, hold = NULL, by = NULL) {
   if ("group" %in% names(d)) nd$group <- d$group[[1]]
   if ("group2" %in% names(d)) nd$group2 <- d$group2[[1]]
   for (rt in intersect(res$random_terms %||% character(0), names(d))) nd[[rt]] <- d[[rt]][[1]]
+  list(nd = nd, by = by)
+}
+
+predict_population_curve <- function(fit, res, ages, hold = NULL, by = NULL) {
+  pn <- population_newdata(res, ages, hold, by)
+  nd <- pn$nd
+  by <- pn$by
   err <- NULL
   pr <- tryCatch({
     if (inherits(fit, "nlme")) as.numeric(stats::predict(fit, newdata = nd, level = 0))
@@ -458,10 +478,10 @@ smooth_prediction_ages <- function(age, n = 100) {
 # Ages at which to draw predictions as lines: the distinct observed ages; with more than 60 distinct ages (continuous or
 # irregular ages), the sampling occasions (ages rounded to the sampling step from the youngest age); otherwise the
 # standard grid.
-observed_prediction_ages <- function(age, id = NULL) {
+observed_prediction_ages <- function(age, id = NULL, step = NULL) {
   a <- sort(unique(age[is.finite(age)]))
   if (length(a) <= 60) return(a)
-  step <- if (is.null(id)) NA_real_ else tryCatch(infer_age_step(age[is.finite(age)], id[is.finite(age)]), error = function(e) NA_real_)
+  step <- if (valid_age_step(step)) step else if (is.null(id)) NA_real_ else tryCatch(infer_age_step(age[is.finite(age)], id[is.finite(age)]), error = function(e) NA_real_)
   if (is.finite(step) && step > 0) {
     occ <- sort(unique(min(a) + round((a - min(a)) / step) * step))
     occ <- occ[occ <= max(a) + 1e-9]
@@ -518,3 +538,136 @@ prediction_summary <- function(r, n_ages = 5) {
   if (length(rows)) do.call(rbind, rows) else data.frame()
 }
 
+
+# ---------------------------------------------------------------------------
+# Peak age and onset of senescence (0.22.0), read from a model's predicted population trajectory: the curve of a
+# typical individual (random effects at zero, lifespan proxies at their individual-level means, covariates as in the
+# prediction figure) on a fine grid over the sampled ages. Confidence limits come from draws of the fixed effects
+# from their estimated sampling distribution, so they reflect uncertainty in the population curve only.
+# ---------------------------------------------------------------------------
+fixed_design <- function(fit, nd) {
+  # fixed-effect part of the formula; formula(fixed.only = TRUE) works for lme4 and glmmTMB fits alike, and avoids
+  # lme4::nobars(), which lme4 has moved to the reformulas package (0.24.1)
+  form <- stats::formula(fit, fixed.only = TRUE)
+  stats::model.matrix(stats::delete.response(stats::terms(form)), nd)
+}
+
+# Population curves for n_draws draws of the fixed effects: a matrix with one row per age and one column per draw.
+# NULL when the model type or its zero-inflation structure is not supported (non-linear fits; zero inflation that
+# varies with covariates).
+population_curve_draws <- function(fit, res, ages, n_draws = 1000, seed = 1L) {
+  if (!(inherits(fit, "merMod") || inherits(fit, "glmmTMB"))) return(NULL)
+  if (inherits(fit, "glmmTMB")) {
+    zf <- tryCatch(paste(deparse(fit$modelInfo$allForm$ziformula), collapse = ""), error = function(e) "~0")
+    if (!gsub(" ", "", zf) %in% c("~0", "~1")) return(NULL)   # a constant zero inflation leaves the curve's shape unchanged
+    beta <- glmmTMB::fixef(fit)$cond
+    V <- tryCatch(as.matrix(stats::vcov(fit)$cond), error = function(e) NULL)
+    linkinv <- stats::family(fit)$linkinv
+  } else {
+    beta <- lme4::fixef(fit)
+    V <- tryCatch(as.matrix(stats::vcov(fit)), error = function(e) NULL)
+    linkinv <- function(x) x
+  }
+  if (is.null(V) || !length(beta)) return(NULL)
+  beta <- beta[is.finite(beta)]
+  keep <- intersect(names(beta), intersect(rownames(V), colnames(V)))
+  if (!length(keep)) return(NULL)
+  beta <- beta[keep]
+  V <- V[keep, keep, drop = FALSE]
+  if (any(!is.finite(V))) return(NULL)
+  nd <- population_newdata(res, ages)$nd
+  X <- tryCatch(fixed_design(fit, nd), error = function(e) NULL)
+  if (is.null(X) || !all(keep %in% colnames(X))) return(NULL)
+  X <- X[, keep, drop = FALSE]
+  had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+  old_seed <- if (had_seed) get(".Random.seed", envir = globalenv(), inherits = FALSE) else NULL
+  on.exit({
+    if (had_seed) assign(".Random.seed", old_seed, envir = globalenv())
+    else if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) rm(".Random.seed", envir = globalenv())
+  }, add = TRUE)
+  set.seed(seed)
+  ev <- eigen((V + t(V)) / 2, symmetric = TRUE)
+  L <- ev$vectors %*% diag(sqrt(pmax(ev$values, 0)), nrow = length(ev$values))
+  B <- as.numeric(beta) + L %*% matrix(stats::rnorm(length(keep) * n_draws), length(keep), n_draws)
+  eta <- X %*% B
+  mu <- matrix(linkinv(as.vector(eta)), nrow = nrow(eta))
+  g <- match(nd$age, ages)
+  num <- rowsum(mu * nd$.w, g)
+  den <- rowsum(matrix(nd$.w, ncol = 1), g)
+  out <- num / as.vector(den)
+  out[order(as.integer(rownames(out))), , drop = FALSE]
+}
+
+# Turning points of one curve: the global maximum (peak), the start of the final uninterrupted decline to the oldest
+# age (onset of senescence), and the global minimum. "Interior" means within the sampled ages, not at their edge.
+curve_turning_points <- function(age, y) {
+  empty <- list(peak = NA_real_, peak_interior = FALSE, onset = NA_real_, onset_type = "none",
+                trough = NA_real_, trough_interior = FALSE)
+  ok <- is.finite(age) & is.finite(y)
+  age <- age[ok]; y <- y[ok]
+  o <- order(age); age <- age[o]; y <- y[o]
+  n <- length(y)
+  if (n < 3) return(empty)
+  tol <- 1e-10 * max(1, diff(range(y)))
+  i_max <- which.max(y)
+  i_min <- which.min(y)
+  dy <- diff(y)
+  if (dy[[n - 1]] < -tol) {
+    k <- n - 1
+    while (k > 1 && dy[[k - 1]] < -tol) k <- k - 1
+    onset <- age[[k]]
+    onset_type <- if (k == 1) "from_start" else "interior"
+  } else {
+    onset <- NA_real_
+    onset_type <- "no_final_decline"
+  }
+  list(peak = age[[i_max]], peak_interior = i_max > 1 && i_max < n, onset = onset, onset_type = onset_type,
+       trough = age[[i_min]], trough_interior = i_min > 1 && i_min < n)
+}
+
+peak_onset_summary <- function(res, m, n_draws = 1000, n_grid = 200) {
+  fit <- res$fits[[m]]
+  if (is.null(fit)) return(list(ok = FALSE, message = "This model was not fitted."))
+  ages <- smooth_prediction_ages(res$data$age, n_grid)
+  if (length(ages) < 3) return(list(ok = FALSE, message = "Too few distinct ages to locate a peak."))
+  pc <- predict_population_curve(fit, res, ages)
+  if (!is.data.frame(pc) || nrow(pc) < 3) return(list(ok = FALSE, message = "The model's population curve could not be computed."))
+  pc <- pc[order(pc$age), , drop = FALSE]
+  tp <- curve_turning_points(pc$age, pc$fitted)
+  ci <- list(peak = c(NA_real_, NA_real_), onset = c(NA_real_, NA_real_), share_peak = NA_real_, share_onset = NA_real_)
+  dr <- if (n_draws > 0) tryCatch(population_curve_draws(fit, res, pc$age, n_draws), error = function(e) NULL) else NULL
+  if (!is.null(dr) && ncol(dr) > 0) {
+    tps <- vapply(seq_len(ncol(dr)), function(j) {
+      t <- curve_turning_points(pc$age, dr[, j])
+      c(t$peak, as.numeric(t$peak_interior), t$onset, as.numeric(identical(t$onset_type, "interior")))
+    }, numeric(4))
+    pk <- tps[1, tps[2, ] == 1]
+    on <- tps[3, tps[4, ] == 1]
+    ci$share_peak <- mean(tps[2, ] == 1)
+    ci$share_onset <- mean(tps[4, ] == 1)
+    if (length(pk) >= 20) ci$peak <- stats::quantile(pk, c(0.025, 0.975), names = FALSE)
+    if (length(on) >= 20) ci$onset <- stats::quantile(on, c(0.025, 0.975), names = FALSE)
+  }
+  list(ok = TRUE, model = m, turning = tp, ci = ci, draws = !is.null(dr), age_range = range(pc$age))
+}
+
+# One sentence per model for the peak-and-onset box (features of a fitted curve, so worded as such). The CI source is
+# stated once, in the box.
+peak_onset_sentence <- function(z) {
+  if (is.null(z) || !isTRUE(z$ok)) return(if (is.list(z) && length(z$message)) z$message else "Not available for this model.")
+  tp <- z$turning
+  ci <- function(lim, share) {
+    if (!all(is.finite(lim))) return("")
+    paste0(" (95% CI ", format_num(lim[[1]]), "\u2013", format_num(lim[[2]]),
+           if (is.finite(share) && share < 0.95) sprintf("; within the sampled ages in %.0f%% of draws", 100 * share) else "", ")")
+  }
+  same <- isTRUE(tp$peak_interior) && identical(tp$onset_type, "interior") && abs(tp$onset - tp$peak) <= 1e-6 * max(1, abs(tp$peak))
+  peak <- if (isTRUE(tp$peak_interior)) paste0("peak at age ", format_num(tp$peak), ci(z$ci$peak, z$ci$share_peak))
+          else sprintf("no peak within ages %s\u2013%s (highest at %s)", format_num(z$age_range[[1]]), format_num(z$age_range[[2]]), format_num(tp$peak))
+  onset <- if (same) ", then decline to the oldest sampled age" else switch(tp$onset_type,
+    interior = paste0("; final decline from age ", format_num(tp$onset), ci(z$ci$onset, z$ci$share_onset)),
+    from_start = "; declines throughout",
+    no_final_decline = "; no final decline", "")
+  trough <- if (isTRUE(tp$trough_interior)) paste0(" Lowest at age ", format_num(tp$trough), ".") else ""
+  paste0(model_label(z$model), ": ", peak, onset, ".", trough, if (isTRUE(z$draws)) "" else " No CI for this model type.")
+}

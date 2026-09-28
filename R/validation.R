@@ -1,5 +1,5 @@
 # disappR engine - Validation: data-integrity checks, covariate and age-type messages, sampling-schedule and duplicate-term checks.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # Checks shown under the covariate boxes of the Data tab when a column seems to be in the wrong box: text in a
 # CONTINUOUS covariate (values that are not numbers become missing), or a CATEGORICAL covariate that looks
@@ -62,7 +62,7 @@ age_type_message <- function(x, col = "age") {
           if (mean(bad) > 0.5) " The column looks categorical: map a numeric age column instead (convert dates or age classes to numbers first)." else "")
 }
 
-data_integrity <- function(dat, meta) {
+data_integrity <- function(dat, meta, step = meta$age_step) {
   rows <- list()
   add <- function(check, result, status, advice) {
     rows[[length(rows) + 1]] <<- data.frame(Check = check, Result = result, Status = status, Advice = advice,
@@ -70,7 +70,7 @@ data_integrity <- function(dat, meta) {
   }
   if (!nrow(dat)) return(list(table = data.frame(), family = suggest_family(numeric(0))))
   im <- individual_metrics(dat)
-  step <- infer_age_step(dat$age, dat$id)
+  step <- resolve_age_step(dat$age, dat$id, step)
   schedule <- list(irregular = FALSE, n_schedules = 1, step = step, off_share = 0)
   add("Rows used", sprintf("%d of %d rows", meta$n_raw - meta$n_dropped, meta$n_raw),
       if (meta$n_dropped > 0) "Note" else "OK",
@@ -119,10 +119,15 @@ data_integrity <- function(dat, meta) {
   add("One ALR, lifespan and AFR per individual", if (n_cf) paste0(n_cf, " excluded: ", cf_txt) else "consistent",
       if (n_cf) "Warning" else "OK",
       if (n_cf) "These individuals had different values in different records (a column that repeats the age, or two individuals sharing an ID) and were excluded, as the mapping asked. Correct the data to include them." else "")
+  # the last record the automatic ALR would use: with a trait value when trait-specific (0.24.2), else any record
+  trait_specific <- !isFALSE(meta$trait_specific_ages)
+  last_ref <- if (trait_specific && !is.null(im$last_observed)) im$last_observed else im$last_recorded
   if (isTRUE(meta$alr_mapped)) {
-    mism <- sum(abs(im$alr - im$last_recorded) > 1e-8, na.rm = TRUE)
-    add("Mapped ALR vs last recorded age", sprintf("%d individuals differ", mism), if (mism > 0) "Warning" else "OK",
-        if (mism > 0) "ALR should equal the last recorded age; check the column or use automatic calculation." else "")
+    mism <- sum(abs(im$alr - last_ref) > 1e-8, na.rm = TRUE)
+    add(if (trait_specific) "Mapped ALR vs last age with a trait value" else "Mapped ALR vs last recorded age",
+        sprintf("%d individuals differ", mism), if (mism > 0) "Warning" else "OK",
+        if (mism > 0) paste0("ALR should equal the last ", if (trait_specific) "age with a trait value" else "recorded age",
+                             "; check the column or use automatic calculation.") else "")
   }
   if (isTRUE(meta$has_censor)) {
     add("Censored individuals", sprintf("%d individuals (%s = %s)", meta$n_censored, meta$map$censor, meta$map$censor_value),
@@ -137,12 +142,13 @@ data_integrity <- function(dat, meta) {
     add("LS earlier than last recorded age", sprintf("%d individuals", n_ls_bad), if (n_ls_bad > 0) "Warning" else "OK",
         if (n_ls_bad > 0) "Impossible values: check lifespan or age records for these IDs (listed below)." else "")
     if (is.finite(step)) {
-      gap <- (im$lifespan - im$last_recorded) / step
+      # LS minus the ALR the models use when trait-specific (0.24.2); dataset-wide, minus the last record of any kind
+      gap <- (im$lifespan - (if (trait_specific) im$alr else im$last_recorded)) / step
       gap <- gap[is.finite(gap)]
       if (length(gap)) {
         add("LS \u2212 ALR (time steps)", sprintf("median %.2f; %.0f%% \u2265 1 step", stats::median(gap), 100 * mean(gap >= 1 - 1e-8)),
             if (mean(gap >= 1 - 1e-8) > 0.1) "Note" else "OK",
-            "Gaps of \u2265 1 step mean an individual was alive at a sampling occasion without a record (terminal missingness), or that ages and LS use different day conventions. See the lifespan margin on the Sampling tab.")
+            "Gaps of \u2265 1 step mean an individual was alive at a sampling occasion without a record (terminal missingness), or that ages and LS use different day conventions. Check that ages and lifespans use the same convention (Data tab).")
       }
     }
   }
@@ -279,12 +285,12 @@ duplicate_term_notes <- function(dd, formulas) {
 
 # TRUE when more than a fifth of the records are not a whole number of sampling steps after the individual's
 # first record (the integrity table's 'Sampling schedule' rule).
-schedule_irregular <- function(dat) {
+schedule_irregular <- function(dat, step = NULL) {
   ok <- is.finite(dat$age)
   if (sum(ok) < 3) return(FALSE)
   a <- dat$age[ok]
   id <- as.character(dat$id[ok])
-  step <- infer_age_step(a, id)
+  step <- resolve_age_step(a, id, step)
   if (!is.finite(step) || step <= 0) return(FALSE)
   rel <- (a - stats::ave(a, id, FUN = min)) / step
   mean(abs(rel - round(rel)) > 0.01) > 0.2

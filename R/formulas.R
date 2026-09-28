@@ -1,5 +1,5 @@
 # disappR engine - Model formulas: Models 1-10, extra and built terms, covariate terms, random-effect structures and model equations.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # Human-readable random-effect structure using the user's column names.
 # Individual-level random-effect structures. TRUE/FALSE (older settings) map to correlated/none.
@@ -269,9 +269,7 @@ model_definition_table <- function(age_function, covars = character(0), random_s
               else paste(paste0("mean(", first, ")", pw), collapse = " + ")                                              # powers of mean age
   data.frame(
     Model = model_label(MODEL_IDS),
-    Name = c("Naive", "Additive ALR", "Mean-centring", "ALR interaction", "Centring interaction",
-             "LS interaction (positive control)", "Additive ALR + AFR", "Interactive ALR + AFR",
-             "Interactive ALR + additive AFR", "Additive ALR + interactive AFR"),
+    Name = vapply(MODEL_IDS, function(m) MODEL_MEANING[[m]]$name, character(1), USE.NAMES = FALSE),   # one source of model names
     Fixed_effects = paste0(cv_txt, c(
       raw, paste(raw, "+", px("ALR")), paste0(mean_txt, " + ", deltas), paste0("(", raw, ") \u00d7 ", px("ALR")),
       paste0(if (poly) paste0("(", mean_txt, ")") else mean_txt, " \u00d7 (", deltas, ")"), paste0("(", raw, ") \u00d7 ", px("LS")),
@@ -294,7 +292,7 @@ MODEL_MEANING <- list(
             text = "ALR-based. ALR enters as a main effect, so longer- and shorter-lived individuals may differ by the same amount at every age (van de Pol & Verhulst 2006)."),
   M3 = list(name = "Mean-age centring", proxy = "individual mean age", dis = "age-independent", app = "not accounted for",
        purpose = "Within/among-individual separation (van de Pol & Wright 2009; Fay et al. 2022).",
-            text = "Centring-based. Each individual's age is split into its mean age (among-individual term) and the deviation from that mean (\u0394age, within-individual ageing), so among-individual differences such as selective disappearance do not bias the within-individual ageing terms (van de Pol & Wright 2009; Fay et al. 2022)."),
+            text = "Centring-based. Each individual's age is split into its mean age (among-individual term) and the deviation from that mean (\u0394age, within-individual ageing; \u0394age\u00b2 is age\u00b2 minus the individual's mean of age\u00b2), so among-individual differences such as selective disappearance do not bias the within-individual ageing terms (van de Pol & Wright 2009; Fay et al. 2022)."),
   M4 = list(name = "ALR interaction", proxy = "ALR (age at last record in the data)", dis = "age-dependent (includes the age-independent ALR effect)", app = "not accounted for",
        purpose = "Age-dependent selective disappearance through ALR \u00d7 ageing terms.",
             text = "ALR-based. ALR interacts with the ageing terms, so the difference between longer- and shorter-lived individuals can change with age."),
@@ -373,7 +371,8 @@ model_info_content <- function(m, s, meta = NULL) {
        attributes = c(Purpose = mm$purpose %||% "", `Lifespan proxy` = mm$proxy,
                       `Selective disappearance` = mm$dis, `Selective appearance` = mm$app),
        spec = spec, random = if (is.null(meta)) "(1 | ID)" else random_display(meta, s$random_slope),
-       family = paste0(family_label(fam), if (fam %in% ZI_FAMILIES) paste0("; zero inflation ", s$zi %||% "~1") else ""),
+       family = paste0(family_label(fam), if (fam %in% ZI_FAMILIES) paste0("; zero inflation ", s$zi %||% "~1") else "",
+                       if (!identical(normalise_disp(s$disp), "constant") && fam %in% DISPERSION_FAMILIES) paste0("; ", disp_text(s$disp)) else ""),
        ageing = fn, extra = extra[[m]] %||% character(0), r_formula = r_formula)
 }
 
@@ -467,7 +466,8 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
   }
   # ---- error distribution and link
   resp <- switch(fam, gaussian = sb("y", "ij"), poisson = , zip = paste0("log(", sb("\u03bb", "ij"), ")"),
-                 binomial = , betabinomial = paste0("logit(", sb("p", "ij"), ")"), paste0("log(", sb("\u03bc", "ij"), ")"))
+                 binomial = , betabinomial = paste0("logit(", sb("p", "ij"), ")"), beta = paste0("logit(", sb("\u03bc", "ij"), ")"),
+                 paste0("log(", sb("\u03bc", "ij"), ")"))
   fam_dist <- switch(fam,
     gaussian = paste0(sb("\u03b5", "ij"), " ~ N(0, \u03c3<sup>2</sup>)"),
     poisson = paste0(sb("y", "ij"), " ~ Poisson(", sb("\u03bb", "ij"), ")"),
@@ -477,7 +477,19 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
     zinb = paste0(sb("y", "ij"), " = 0 with probability ", sb("\u03c0", "ij"), ", otherwise ", sb("y", "ij"), " ~ NegBin(", sb("\u03bc", "ij"), ", \u03b8)"),
     zinb1 = paste0(sb("y", "ij"), " = 0 with probability ", sb("\u03c0", "ij"), ", otherwise ", sb("y", "ij"), " ~ NegBin(", sb("\u03bc", "ij"), ", \u03c6), Var(y) = \u03bc(1 + \u03c6)"),
     binomial = paste0(sb("y", "ij"), " ~ Binomial(", sb("n", "ij"), ", ", sb("p", "ij"), "), with ", sb("n", "ij"), " = 1 for binary data and the trials column otherwise"),
-    betabinomial = paste0(sb("y", "ij"), " ~ Beta-binomial(", sb("n", "ij"), ", ", sb("p", "ij"), ", \u03c6): binomial with extra variation between observations"))
+    betabinomial = paste0(sb("y", "ij"), " ~ Beta-binomial(", sb("n", "ij"), ", ", sb("p", "ij"), ", \u03c6): binomial with extra variation between observations"),
+    gamma = paste0(sb("y", "ij"), " ~ Gamma(mean ", sb("\u03bc", "ij"), ", dispersion \u03c6): strictly positive, variance proportional to \u03bc<sup>2</sup>"),
+    lognormal = paste0(sb("y", "ij"), " ~ lognormal(mean ", sb("\u03bc", "ij"), ", dispersion \u03c6): strictly positive and right-skewed"),
+    beta = paste0(sb("y", "ij"), " ~ Beta(mean ", sb("\u03bc", "ij"), ", precision \u03c6): continuous values strictly between 0 and 1"),
+    paste0(sb("y", "ij"), " ~ ", family_label(fam)))
+  disp_on <- !identical(normalise_disp(s$disp), "constant") && fam %in% DISPERSION_FAMILIES && !identical(fn, A3_NONLINEAR)
+  disp_line <- NULL
+  if (disp_on) {
+    db <- if (identical(normalise_disp(s$disp), "age_terms")) switch(fn_math, Quadratic = c("f1", "f2"), Cubic = c("f1", "f2", "f3"), "f1") else "f1"
+    disp_line <- paste0("log(", sb("\u03c6", "ij"), ") = ", sb("\u03b4", 0),
+                        paste0(vapply(seq_along(db), function(k) paste0(" + ", sb("\u03b4", k), " \u00b7 ", math_part(db[[k]], fn_math, meta)), character(1)), collapse = ""),
+                        ": the residual variance (Gaussian) or dispersion changes with age")
+  }
   zi_line <- NULL; zi_coef <- NULL
   if (fam %in% ZI_FAMILIES) {
     zv <- tryCatch(all.vars(stats::as.formula(s$zi %||% "~1")), error = function(e) character(0))
@@ -561,16 +573,17 @@ model_equation <- function(m, s, meta = NULL, factor_levels = list(), dat = NULL
   if (!is.null(zi_coef)) coef <- rbind(coef, zi_coef)
   tl <- vapply(tt, function(z) z$term, character(1))
   r_expanded <- paste0("trait ~ 1", paste0(" + ", unique(tl), collapse = ""), " + ", random_str)
-  fam_call <- switch(fam, poisson = "poisson()", zip = "poisson()", nbinom1 = "glmmTMB::nbinom1()", zinb1 = "glmmTMB::nbinom1()",
-                     binomial = "binomial()", betabinomial = "glmmTMB::betabinomial()", "glmmTMB::nbinom2()")
-  r_call <- if (identical(fam, "gaussian")) {
+  fam_call <- family_r_call(fam)
+  r_call <- if (identical(fam, "gaussian") && !disp_on) {
     paste0("lme4::lmer(", r_expanded, ",\n           data = dat, REML = FALSE)")
   } else {
     paste0("glmmTMB::glmmTMB(", r_expanded, ",\n                 data = dat, family = ", fam_call, ", ziformula = ",
            if (fam %in% ZI_FAMILIES) (s$zi %||% "~1") else "~0",
-           if (fam %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) ", weights = .trials" else "", ", REML = FALSE)")
+           if (fam %in% BINOMIAL_FAMILIES && isTRUE(meta$has_trials)) ", weights = .trials" else "",
+           if (disp_on) paste0(", dispformula = ", disp_formula_string(s$disp, b)) else "", ", REML = FALSE)")
   }
-  list(available = TRUE, equation = c(eq, zi_line), distributions = c(if (identical(fam, "gaussian")) fam_dist else paste(fam_dist, "with the linear predictor above"),
+  if (disp_on && identical(fam, "gaussian")) fam_dist <- paste0(sb("\u03b5", "ij"), " ~ N(0, ", sb("\u03c3", "ij"), "<sup>2</sup>), with the variance changing with age")
+  list(available = TRUE, equation = c(eq, zi_line, disp_line), distributions = c(if (identical(fam, "gaussian")) fam_dist else paste(fam_dist, "with the linear predictor above"),
                                                                      id_dist, re_dist, if (nzchar(rs_note)) rs_note),
        coefficients = coef, basis = basis_note, r_compact = paste("trait ~", fixed, "+", random_str), r_expanded = r_expanded, r_call = r_call)
 }

@@ -1,6 +1,6 @@
 # disappR engine - Selective disappearance and appearance: proxy bins and slopes (A1-A2), disappearance models (A4-A7), the
 # decomposition and AFR-ALR agreement.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # ---------------------------------------------------------------------------
 # Proxies: individual-level values used in A1/A2
@@ -322,11 +322,31 @@ proxy_slopes_by_age <- function(dat, pvals, metric = "slope", max_ages = 30, min
 # individuals contributing to the first link of the chain. Where the grid breaks (occasions more than about one step
 # apart, or a link with no individual recorded at both ends) the chain cannot continue, so the curve is returned in
 # segments; each segment is anchored separately and the "segment" column keeps them from being joined when drawn.
-decomposition_trajectory <- function(dat) {
+decomposition_trajectory <- function(dat, step = NULL) {
   ia <- id_age_means(dat)
   if (nrow(ia) < 2) return(data.frame())
-  step <- infer_age_step(ia$age, ia$id)
+  inferred <- infer_age_step(ia$age, ia$id)
+  # an interval set to the inferred value changes nothing: the decomposition is then exactly the automatic one
+  manual <- valid_age_step(step) && !isTRUE(abs(step - inferred) <= 1e-8 * max(1, step))
+  step <- resolve_age_step(ia$age, ia$id, step)
   if (!is.finite(step) || step <= 0) return(data.frame())
+  n_off <- 0L
+  if (manual) {
+    # An interval set by the user (0.22.0) defines the occasions. The grid is anchored on the most common phase of the
+    # ages within the interval (so a design whose first occasion is offset, such as day 1 then weekly from day 7, keeps
+    # its occasions), records more than a quarter of an interval off that grid are left out (for example an extra
+    # mid-year record in annual sampling, which would otherwise break the chain of annual links), and each occasion is
+    # drawn at the mean of its records' real ages, so no age is moved.
+    ph <- (round(((ia$age / step) %% 1) * 20) / 20) %% 1
+    a0 <- as.numeric(names(which.max(table(ph)))) * step
+    kk <- (ia$age - a0) / step
+    on_grid <- abs(kk - round(kk)) <= 0.25
+    n_off <- sum(!on_grid)
+    ia <- ia[on_grid, , drop = FALSE]
+    ia$age_real <- ia$age
+    ia$age <- a0 + round(kk[on_grid]) * step
+    if (nrow(ia) < 2) return(data.frame())
+  }
   ia <- ia[order(ia$age), , drop = FALSE]
   # population occasions: distinct ages, merging ages closer together than a quarter of a step
   ages <- sort(unique(ia$age))
@@ -334,6 +354,7 @@ decomposition_trajectory <- function(dat) {
   occ_age <- as.numeric(tapply(ages, occ_id, mean))
   merged <- any(as.numeric(table(occ_id)) > 1)
   ia$occ <- occ_id[match(ia$age, ages)]
+  if (manual) occ_age <- as.numeric(tapply(ia$age_real, factor(ia$occ, levels = seq_along(occ_age)), mean))
   # one value per individual per occasion
   key <- paste(ia$id, ia$occ, sep = "\r")
   if (anyDuplicated(key)) {
@@ -374,6 +395,7 @@ decomposition_trajectory <- function(dat) {
   cau <- character(0)
   if (merged) cau <- c(cau, "records of different ages were merged into shared occasions, so the decomposition is approximate")
   if (seg > 1L) cau <- c(cau, sprintf("the sampling grid breaks, so the decomposition is drawn in %d separate segments that cannot be joined (a chain of within-individual changes cannot cross an occasion where no individual was recorded at both ends)", seg))
+  if (n_off > 0) cau <- c(cau, sprintf("%d record%s off the set interval's grid left out", n_off, if (n_off == 1) "" else "s"))
   if (length(cau)) attr(out, "caution") <- paste0(paste(cau, collapse = "; "), ".")
   out
 }
@@ -386,11 +408,11 @@ decomposition_trajectory <- function(dat) {
 # individuals at their last record, and last records at the oldest sampled age of the study (their fate is
 # unknown), are excluded. Trait is standardised within each age (z); change = trait minus the individual's
 # record one sampling step earlier.
-disappearance_data <- function(dat, meta, log_scale = FALSE) {
+disappearance_data <- function(dat, meta, log_scale = FALSE, step = meta$age_step) {
   ia <- id_age_means(dat)
   if (nrow(ia) < 10) return(NULL)
   if (isTRUE(log_scale)) ia$trait <- log1p(pmax(ia$trait, 0))
-  step <- infer_age_step(ia$age, ia$id)
+  step <- resolve_age_step(ia$age, ia$id, step)
   if (!is.finite(step) || step <= 0) step <- 1
   im <- individual_metrics(dat)
   mi <- match(ia$id, im$id)
@@ -426,6 +448,34 @@ disappearance_data <- function(dat, meta, log_scale = FALSE) {
 # Discrete-time hazard: logit P(disappear before next occasion) = age-specific baseline + beta * trait_z
 # (+ trait_z x age, + change). Age classes are the sampled ages (or 10 quantile classes if there are more
 # than 30); classes with no events or only events carry no information and are removed.
+# Discrete-time hazard models with an individual random intercept (frailty) when it can be estimated (0.23.2; code
+# review): person-occasions of one individual are not independent, so a plain binomial GLM gives anticonservative
+# p-values. Falls back to the GLM when lme4 is missing, the data are very large, too few individuals, the fit fails,
+# or the frailty variance is estimated at zero. Returns list(fit, type).
+hazard_glmm <- function(f, data, max_rows = 50000) {
+  glm_fit <- function() tryCatch(suppressWarnings(stats::glm(stats::as.formula(f), data = data, family = stats::binomial())), error = function(e) NULL)
+  if (!requireNamespace("lme4", quietly = TRUE) || nrow(data) > max_rows || !"id" %in% names(data) || length(unique(data$id)) < 10)
+    return(list(fit = glm_fit(), type = "GLM"))
+  g <- tryCatch(suppressWarnings(suppressMessages(
+         lme4::glmer(stats::as.formula(paste(f, "+ (1 | id)")), data = data, family = stats::binomial(),
+                     control = lme4::glmerControl(optimizer = "bobyqa")))), error = function(e) NULL)
+  if (is.null(g)) return(list(fit = glm_fit(), type = "GLM (frailty model failed)"))
+  if (isTRUE(lme4::isSingular(g))) return(list(fit = glm_fit(), type = "GLM (frailty variance at zero)"))
+  list(fit = g, type = "GLMM with individual frailty")
+}
+hazard_fixef <- function(fit) if (inherits(fit, "merMod")) lme4::fixef(fit) else stats::coef(fit)
+# Likelihood-ratio test of two nested hazard fits; both are refitted as GLMs when only one could take the frailty
+hazard_lrt <- function(f0, f1, data, df) {
+  a <- hazard_glmm(f0, data); b <- hazard_glmm(f1, data)
+  if (!identical(inherits(a$fit, "merMod"), inherits(b$fit, "merMod"))) {
+    a <- list(fit = tryCatch(suppressWarnings(stats::glm(stats::as.formula(f0), data = data, family = stats::binomial())), error = function(e) NULL), type = "GLM")
+    b <- list(fit = tryCatch(suppressWarnings(stats::glm(stats::as.formula(f1), data = data, family = stats::binomial())), error = function(e) NULL), type = "GLM")
+  }
+  if (is.null(a$fit) || is.null(b$fit)) return(list(p = NA_real_, type = a$type))
+  stat <- max(0, 2 * (as.numeric(stats::logLik(b$fit)) - as.numeric(stats::logLik(a$fit))))
+  list(p = stats::pchisq(stat, df = max(1, df), lower.tail = FALSE), type = b$type)
+}
+
 disappearance_models <- function(ia) {
   if (is.null(ia)) return(list(ok = FALSE, message = "Too few records."))
   x <- ia[is.finite(ia$event) & is.finite(ia$trait_z), , drop = FALSE]
@@ -439,14 +489,16 @@ disappearance_models <- function(ia) {
   if (nrow(x) < 30 || nlevels(x$age_class) < 1) return(list(ok = FALSE, message = "No age class has both survivors and disappearances."))
   x$age_c <- (x$age - mean(x$age)) / (if (stats::sd(x$age) > 0) stats::sd(x$age) else 1)
   base_rhs <- if (nlevels(x$age_class) > 1) "age_class" else "1"
-  glm_safe <- function(f, data) tryCatch(suppressWarnings(stats::glm(stats::as.formula(f), data = data, family = stats::binomial())), error = function(e) NULL)
+  types <- character(0)
+  glm_safe <- function(f, data) { h <- hazard_glmm(f, data); types <<- c(types, h$type); h$fit }
   row_for <- function(fit, term, label, n, ev) {
     if (is.null(fit)) return(NULL)
     cf <- summary(fit)$coefficients
     if (!term %in% rownames(cf)) return(NULL)
     est <- cf[term, 1]; se <- cf[term, 2]
     data.frame(Model = label, Term = term, Odds_ratio = exp(est), Lower_95 = exp(est - 1.96 * se), Upper_95 = exp(est + 1.96 * se),
-               P = cf[term, 4], Records = n, Disappearances = ev, stringsAsFactors = FALSE)
+               P = cf[term, 4], Records = n, Disappearances = ev,
+               Fit = if (inherits(fit, "merMod")) "GLMM, individual frailty" else "GLM", stringsAsFactors = FALSE)
   }
   m1 <- glm_safe(paste("event ~", base_rhs, "+ trait_z"), x)
   m2 <- glm_safe(paste("event ~", base_rhs, "+ trait_z + trait_z:age_c"), x)
@@ -461,11 +513,11 @@ disappearance_models <- function(ia) {
                row_for(m2, "trait_z:age_c", "Trait effect changing with age (per SD of age)", nrow(x), sum(x$event)),
                row_for(m3, "trait_z", "Trait now, adjusting for change", nrow(xc), sum(xc$event)),
                row_for(m3, "change_z", "Change since the previous occasion", nrow(xc), sum(xc$event)))
-  p_age <- if (!is.null(m1) && !is.null(m2)) stats::pchisq(max(0, m1$deviance - m2$deviance), 1, lower.tail = FALSE) else NA_real_
+  p_age <- if (!is.null(m1) && !is.null(m2)) hazard_lrt(paste("event ~", base_rhs, "+ trait_z"), paste("event ~", base_rhs, "+ trait_z + trait_z:age_c"), x, 1)$p else NA_real_
   ages <- as.numeric(stats::quantile(x$age, c(0.1, 0.5, 0.9), names = FALSE))
   or_at <- if (!is.null(m2)) {
-    cf <- stats::coef(m2)
-    vc <- stats::vcov(m2)
+    cf <- hazard_fixef(m2)
+    vc <- as.matrix(stats::vcov(m2))
     ac <- (ages - mean(x$age)) / (if (stats::sd(x$age) > 0) stats::sd(x$age) else 1)
     data.frame(Age = ages, Odds_ratio = exp(cf[["trait_z"]] + cf[["trait_z:age_c"]] * ac),
                Lower_95 = exp(cf[["trait_z"]] + cf[["trait_z:age_c"]] * ac - 1.96 * sqrt(vc["trait_z", "trait_z"] + ac^2 * vc["trait_z:age_c", "trait_z:age_c"] + 2 * ac * vc["trait_z", "trait_z:age_c"])),
@@ -477,7 +529,7 @@ disappearance_models <- function(ia) {
   emp <- stats::aggregate(cbind(event, trait_z) ~ band + tq, data = x, FUN = mean)
   emp$n <- stats::aggregate(event ~ band + tq, data = x, FUN = length)$event
   list(ok = !is.null(tab) && nrow(tab) > 0, table = tab, p_age_dependence = p_age, or_at_ages = or_at, empirical = emp,
-       lifespan_known = isTRUE(attr(ia, "lifespan_known")), message = "")
+       lifespan_known = isTRUE(attr(ia, "lifespan_known")), hazard_model = unique(types), message = "")
 }
 
 # A6: selection differentials at each age, in within-age SD units. S = mean(survivors) - mean(all at that age);
@@ -506,11 +558,11 @@ selection_differentials <- function(ia) {
 # A7: life table of disappearance. Known lifespan: at risk at age a = individuals first observed at or before a
 # with LS >= a (censored individuals stop contributing after their last record); events = LS in [a, a + step).
 # Unknown lifespan: ALR replaces LS and events at the oldest sampled age are not counted.
-life_table <- function(dat, meta) {
+life_table <- function(dat, meta, step = meta$age_step) {
   im <- individual_metrics(dat)
   im <- im[is.finite(im$first_recorded), , drop = FALSE]
   if (nrow(im) < 5) return(list(ok = FALSE, message = "Too few individuals."))
-  step <- infer_age_step(dat$age, dat$id)
+  step <- resolve_age_step(dat$age, dat$id, step)
   if (!is.finite(step) || step <= 0) step <- 1
   known <- isTRUE(meta$has_life) && !isTRUE(meta$life_auto) && sum(is.finite(im$lifespan)) >= 5
   cens <- im$id %in% (meta$censored_ids %||% character(0))
@@ -537,17 +589,36 @@ life_table <- function(dat, meta) {
     m1 <- suppressWarnings(stats::glm(cbind(Disappearances, At_risk - Disappearances) ~ factor(Age), data = lt_fit, family = stats::binomial()))
     stats::pchisq(max(0, m0$deviance - m1$deviance), df = max(1, m0$df.residual - m1$df.residual), lower.tail = FALSE)
   }, error = function(e) NA_real_)
-  list(ok = TRUE, table = lt, overall = overall, p_constant = p_const, lifespan_known = known, step = step)
+  hazard_model <- "GLM"
+  # the same test on individual person-occasions with an individual frailty (0.23.2); kept when the frailty can be
+  # estimated, otherwise the test above stands
+  po <- tryCatch({
+    rows_i <- lapply(seq_along(start), function(i) {
+      a <- ages[ages >= start[[i]] - 1e-8 & ages <= end[[i]] + 1e-8]
+      if (!length(a)) return(NULL)
+      data.frame(id = im$id[[i]], Age = a, event = as.integer(dead[[i]] & end[[i]] >= a - 1e-8 & end[[i]] < a + step - 1e-8))
+    })
+    do.call(rbind, rows_i)
+  }, error = function(e) NULL)
+  if (is.data.frame(po) && nrow(po) && length(unique(po$Age)) > 1) {
+    po$Age <- factor(po$Age)
+    lr <- tryCatch(hazard_lrt("event ~ 1", "event ~ Age", po, nlevels(po$Age) - 1), error = function(e) NULL)
+    if (!is.null(lr) && is.finite(lr$p) && identical(lr$type, "GLMM with individual frailty")) {
+      p_const <- lr$p
+      hazard_model <- lr$type
+    } else if (!is.null(lr)) hazard_model <- lr$type
+  }
+  list(ok = TRUE, table = lt, overall = overall, p_constant = p_const, lifespan_known = known, step = step, hazard_model = hazard_model)
 }
 
 # A5: trait against occasions before death (known LS) or before the last record, by lifespan tercile.
-terminal_data <- function(dat, meta, n_min = 3) {
+terminal_data <- function(dat, meta, n_min = 3, step = meta$age_step) {
   ia <- id_age_means(dat)
   if (nrow(ia) < 10) return(data.frame())
   # deviation from the mean of all individuals at the same age, so that the population age trend does not
   # masquerade as a terminal change (occasions further before death are also younger ages)
   ia$resid <- ia$trait - stats::ave(ia$trait, ia$age, FUN = mean)
-  step <- infer_age_step(ia$age, ia$id)
+  step <- resolve_age_step(ia$age, ia$id, step)
   if (!is.finite(step) || step <= 0) step <- 1
   im <- individual_metrics(dat)
   known <- isTRUE(meta$has_life) && !isTRUE(meta$life_auto) && sum(is.finite(im$lifespan)) >= 5

@@ -1,5 +1,5 @@
 # disappR engine - Interpretation: evidence summaries and cautious interpretation rules built on the fitted results.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 a2_interpretation <- function(a2, proxy, alpha = 0.05) {
   if (!nrow(a2$table)) return("Not estimable: need at least 5 individuals with trait data and proxy variation at two or more ages.")
@@ -58,6 +58,27 @@ joint_wald <- function(fit, terms) {
 # contrast is a difference; for count and binomial models it is a log ratio. Their response-scale predictions are
 # positive in principle but can round to exactly zero (an extreme extrapolation, or a degenerate zero-inflation
 # part), which would give 0, Inf or NaN: such ages are flagged as unusable rather than reported.
+# The age at which every ageing term is zero (0.22.4): where a model's main-effect coefficients are evaluated when
+# they also enter interactions with the ageing terms. Standardised: the mean age for the polynomials, and the age
+# whose log or exponential term equals its mean for the other functions. Not standardised: age 0 for the
+# polynomials, age 1 (or the youngest age) for the logarithm, and no age at all for the asymptotic exponential,
+# whose term exp(-z) is never 0.
+age_reference <- function(ap) {
+  poly <- isTRUE(ap$fun %in% c("Linear", "Quadratic", "Cubic"))
+  if (isTRUE(ap$standardise)) {
+    a <- if (poly) ap$mean_age else if (identical(ap$fun, "Logarithmic")) {
+      if (isTRUE(ap$all_positive)) exp(ap$mean_log) else exp(ap$mean_log) + ap$min_age - 1
+    } else ap$mean_age - ap$sd_age * log(ap$mean_exp)
+    lab <- if (poly) paste0("the mean age (", format_num(a), ")") else paste0("the centre of the age scale (age \u2248 ", format_num(a), ")")
+  } else {
+    a <- if (poly) 0 else if (identical(ap$fun, "Logarithmic")) { if (isTRUE(ap$all_positive)) 1 else ap$min_age } else Inf
+    lab <- if (poly) "age 0" else if (identical(ap$fun, "Logarithmic")) {
+      if (isTRUE(ap$all_positive)) "age 1, where log(age) is 0" else paste0("the youngest age (", format_num(a), "), where the log term is 0")
+    } else "the limit where exp(\u2212z_age) is 0, which no age reaches"
+  }
+  list(age = a, label = lab)
+}
+
 prediction_contrast <- function(lo, hi, ratio) {
   pr <- merge(data.frame(age = lo$age, lo = lo$fitted), data.frame(age = hi$age, hi = hi$fitted), by = "age")
   pr <- pr[order(pr$age), , drop = FALSE]
@@ -103,7 +124,8 @@ interpret_model_terms <- function(res, m) {
       sprintf("%s%s", if (hi - lo >= 0) "+" else "\u2212", format_num(abs(hi - lo)))
     }
   }
-  contrast <- function(label, var, hold_lo, hold_hi, lo_txt, hi_txt, main_terms, inter_terms, p_main_lrt, p_inter_lrt, lrt_names) {
+  contrast <- function(label, var, hold_lo, hold_hi, lo_txt, hi_txt, main_terms, inter_terms, p_main_lrt, p_inter_lrt, lrt_names,
+                       ref_mode = "age") {
     # Joint tests, not the smallest component p-value: LRT where a nested comparison exists,
     # otherwise a multi-df Wald chi-square over the whole block of coefficients.
     jw_main <- joint_wald(fit, main_terms)
@@ -115,6 +137,26 @@ interpret_model_terms <- function(res, m) {
     if (!nrow(lo) || !nrow(hi)) return(paste0(label, ": predictions could not be computed."))
     pc <- prediction_contrast(lo, hi, ratio = count)
     if (!nrow(pc)) return(paste0(label, ": predictions could not be computed."))
+    # Where the main-effect coefficient is evaluated (0.22.3): with standardised age, at the centre of the age scale
+    # (the mean age for the polynomial functions); without, at age 0, which is usually outside the sampled ages, so
+    # the main-effect test then says nothing about the sampled ages and the predicted difference at the median age is
+    # reported instead.
+    ap <- res$age_params
+    scaled_age <- isTRUE(ap$standardise)
+    ref <- age_reference(ap)
+    ref_age <- ref$label
+    ref_inside <- is.finite(ref$age) && ref$age >= min(d$age, na.rm = TRUE) && ref$age <= max(d$age, na.rm = TRUE)
+    if (identical(ref_mode, "own")) {
+      # the mean-age interactions use within-individual deviations, which are zero at each individual's own mean,
+      # whether or not age is standardised
+      scaled_age <- TRUE
+      ref_age <- "each individual's own mean age"
+    }
+    mid <- pc[which.min(abs(pc$age - stats::median(ages))), , drop = FALSE]
+    unscaled_note <- paste0(" Age is not standardised, so the main effect is the difference at ", ref_age,
+                            if (ref_inside) "" else " (outside the sampled ages; its test says nothing about them)",
+                            "; at the median age (", format_num(mid$age[[1]]), ") the ", if (count) "ratio" else "difference",
+                            " is ", fmt_diff(mid$hi[[1]], mid$lo[[1]]), ".")
     at <- paste(vapply(seq_len(nrow(pc)), function(i) paste0(fmt_diff(pc$hi[i], pc$lo[i]), " at age ", format_num(pc$age[i])), character(1)), collapse = ", ")
     eff <- pc$eff
     ok <- all(pc$usable)
@@ -146,17 +188,20 @@ interpret_model_terms <- function(res, m) {
                    if (nzchar(shape)) paste0("; ", shape) else "", ".")
     verdict <- if (length(inter_terms) && sig_int) {
       # the interaction decides the reading; the main effect says whether the difference is also there at the mean age
-      main_note <- if (!length(main_terms)) "" else if (sig_main)
-        " The term itself is also supported, so the two groups already differ at the mean age."
+      main_note <- if (!length(main_terms)) "" else if (!scaled_age) unscaled_note
+      else if (sig_main)
+        paste0(" The main effect is also supported: the groups already differ at ", ref_age, ".")
       else
-        " The term itself is not supported, so at the mean age the two groups differ little: the association appears through its change with age."
+        paste0(" The main effect is not supported: at ", ref_age, " the groups differ little, and the association appears through its change with age.")
       paste0(label, ": consistent with an age-dependent pattern \u2014 the gap between ", hi_txt, " and ", lo_txt,
              " changes with age (", evidence, ").", main_note)
     } else if (sig_main) {
       paste0(label, ": consistent with an age-independent pattern \u2014 ", hi_txt, " differ from ", lo_txt, " by a similar amount at all ages",
-             if (length(inter_terms)) " (the interaction is not clearly supported)" else "", " (", evidence, ").")
+             if (length(inter_terms)) " (the interaction is not clearly supported)" else "", " (", evidence, ").",
+             if (length(inter_terms) && !scaled_age) unscaled_note else "")
     } else {
-      paste0(label, ": no clear evidence for this term in this model (", evidence, "). With few long-lived individuals, a real effect can go undetected.")
+      paste0(label, ": no clear evidence for this term in this model (", evidence, "). With few long-lived individuals, a real effect can go undetected.",
+             if (length(inter_terms) && !scaled_age) unscaled_note else "")
     }
     c(verdict, what)
   }
@@ -204,12 +249,21 @@ interpret_model_terms <- function(res, m) {
     }
     main <- ct$Raw_term[grepl("^mean_f[1-3]$", ct$Raw_term)]
     inter <- ct$Raw_term[grepl("mean_f[1-3]", ct$Raw_term) & grepl("delta_f[1-3]", ct$Raw_term)]
-    ap <- res$age_params
-    to_age <- function(x) if (isTRUE(ap$standardise) && ap$fun %in% c("Linear", "Quadratic", "Cubic")) x * ap$sd_age + ap$mean_age else x
+    # the mean age reported is the real mean age of the individual whose mean age term is used (0.22.4): back-
+    # transforming mean_f1 was right only for the standardised polynomials and gave a log or exponential-scale value,
+    # labelled as an age, for the logarithmic and asymptotic exponential functions
+    real_mean_age <- function(target) {
+      j <- near(target)
+      mean(d$age[as.character(d$id) == as.character(ind$id[[j]])], na.rm = TRUE)
+    }
+    # the asymptotic exponential term exp(-z) falls with age, so its low percentile is the older group: order the two
+    # groups by their real mean ages so that 'younger' is younger for every function
+    if (isTRUE(real_mean_age(q[1]) > real_mean_age(q[2]))) q <- rev(q)
     out <- c(out, contrast("Mean-age term", "mean_f1", hold_for(q[1]), hold_for(q[2]),
-                           paste0("individuals whose records centre on younger ages (mean age \u2248 ", format_num(to_age(q[1])), ")"),
-                           paste0("individuals whose records centre on older ages (mean age \u2248 ", format_num(to_age(q[2])), ")"),
-                           main, inter, NA_real_, if (identical(m, "M5")) lrt_p("Model 3 vs Model 5") else NA_real_, c("", "Model 3 vs 5")))
+                           paste0("individuals whose records centre on younger ages (mean age \u2248 ", format_num(real_mean_age(q[1])), ")"),
+                           paste0("individuals whose records centre on older ages (mean age \u2248 ", format_num(real_mean_age(q[2])), ")"),
+                           main, inter, NA_real_, if (identical(m, "M5")) lrt_p("Model 3 vs Model 5") else NA_real_, c("", "Model 3 vs 5"),
+                           ref_mode = "own"))
   }
   v <- res$validity[[m]] %||% "Valid"
   c(out,

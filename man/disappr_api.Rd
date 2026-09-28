@@ -48,7 +48,8 @@ disappr_provenance(fit)
 }
 \arguments{
 \item{...}{For \code{disappr_mapping()}: column roles (\code{id}, \code{age}, \code{trait}, \code{alr}, \code{life}, \code{entry}, \code{covars},
-\code{cov_factor}, \code{cov_age}, \code{group}, \code{group2}, \code{random}, ...). For \code{disappr_fit()}: further settings passed to the
+\code{cov_factor}, \code{cov_age}, \code{group}, \code{group2}, \code{random}, ...) and \code{trait_specific_ages} (default \code{TRUE}: automatic
+ALR and AFR are the last and first ages with a trait value; \code{FALSE}: of any record). For \code{disappr_fit()}: further settings passed to the
 model suite (\code{random_slope}, \code{standardise}, \code{zi_str}, \code{among}, \code{include_invalid}, \code{extra}). For
 \code{disappr_simulate()}: simulation settings (\code{n_id}, \code{seed}, \code{sd_type}, \code{missingness}, \code{form}, ...).}
 

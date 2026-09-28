@@ -1,6 +1,6 @@
 # disappR engine - Provenance and runtime state: the disappR version, optional packages and their versions, computed when the
 # engine is loaded (disappr_runtime_init(), called by .onLoad() and by the app's global.R).
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # Optional packages: what each adds. Checked without loading them (fast), reported on the Start page and at start-up.
 OPTIONAL_PACKAGES <- c(
@@ -68,7 +68,10 @@ disappr_runtime_init <- function(env) {
 # ---- Moved unchanged from inst/app/server.R (0.9.11): pure helpers that use no reactive state ----
 
 settings_sig <- function(s) {
-  paste(s$family, s$zi, s$random_slope, s$standardise, s$among, s$include_invalid, s$trials %||% "", sep = "||")
+  sig <- paste(s$family, s$zi, s$random_slope, s$standardise, s$among, s$include_invalid, s$trials %||% "", sep = "||")
+  # the variance model joins the signature only when it is not the default, so earlier signatures are unchanged
+  if (!identical(normalise_disp(s$disp), "constant")) sig <- paste0(sig, "||disp=", normalise_disp(s$disp))
+  sig
 }
 
 # ---- Provenance of results (0.9.11) ----
@@ -108,7 +111,7 @@ analysis_provenance <- function(res, meta = NULL) {
     data = list(fingerprint_md5 = md5_of(plain), rows = nrow(plain), individuals = length(ids),
                 ids_md5 = md5_of(data.frame(id = ids))),
     model = list(family = res$family, age_function = res$age_function, formulas = res$formulas,
-                 random = res$random, zero_inflation = res$zi),
+                 random = res$random, zero_inflation = res$zi, dispersion = res$disp_formula %||% "~1"),
     transformations = list(standardise = isTRUE(res$standardise), age = res$age_params, proxies = res$proxy_params,
                            age_rounding = meta$age_round, subset = meta$subset, duplicates = meta$dup_action),
     settings = list(models = names(res$status), among = res$among, extra = res$extra,

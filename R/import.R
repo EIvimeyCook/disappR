@@ -1,5 +1,5 @@
 # disappR engine - Import: bundled empirical examples, uploaded files (separators, decimal commas, encodings) and column guessing.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 load_fly_example <- function() {
   f <- file.path("data", "fly_fecundity.csv")
@@ -12,7 +12,8 @@ FLY_MAPPING <- list(
   entry = "__AUTO_FIRST__", condition = "", covars = c("Rep", "Paternal_age", "Paternal_sperm_age"),
   cov_factor = c("Rep", "Paternal_age", "Paternal_sperm_age"), cov_int = character(0),
   group = "F0_ID", nested = TRUE, random = character(0), censor = "Censored", censor_value = "0",
-  start_mode = "same", start_age = 4, age_round = NA_real_, cov_age = character(0)
+  start_mode = "same", start_age = 4, age_round = NA_real_, cov_age = character(0),
+  trait_specific_ages = FALSE   # documented results use ALR and AFR from every record (0.24.2)
 )
 
 # ---------------------------------------------------------------------------
@@ -30,13 +31,21 @@ example_map <- function(...) {
                condition = "", covars = character(0), cov_factor = character(0), cov_int = character(0),
                group = "", nested = TRUE, random = character(0), censor = "", censor_value = "",
                start_mode = "afr", start_age = NA_real_, age_round = NA_real_, cov_age = character(0),
-               inconsistent = "error")
+               inconsistent = "error",
+               # the documented example results use ALR and AFR from every record (0.24.2)
+               trait_specific_ages = FALSE)
   utils::modifyList(base, list(...))
 }
 
 EXAMPLES <- list(
   fly = list(
     label = "Sanghvi et al. 2025, American Naturalist \u2014 Drosophila melanogaster (daily fecundity)",
+    about = list(species = "Fruit fly (Drosophila melanogaster), laboratory population",
+                 trait = "Daily fecundity of daughters: offspring counted in 14-day assays until death",
+                 model = "Quadratic age with the daughters' lifespan as the selective-disappearance term; zero-inflated negative binomial; daughters nested in fathers",
+                 covariates = "Rep: replicate population; Paternal_age: father's age treatment; Paternal_sperm_age: how long the father's sperm had been stored before fertilisation",
+                 finding = "Longer-lived daughters were more fecund throughout life (age-independent selective disappearance).",
+                 other = "None in this file"),
     file = "fly_fecundity.csv", mapping = FLY_MAPPING,
     family = "zinb", age_function = "Quadratic", models = c("M1", "M2", "M3", "M4", "M5"),
     note = paste("Lifetime fecundity of laboratory female Drosophila melanogaster, assayed every 14 days until death, with lifespan,",
@@ -44,10 +53,16 @@ EXAMPLES <- list(
                  "offspring nested in fathers, and found age-independent selective disappearance. Their model fits a quadratic age",
                  "term with the daughters' lifespan added on its own, alongside paternal age, sperm storage and replicate, so",
                  "the published selective-disappearance term is lifespan rather than ALR: tick Model 6 to use lifespan itself,",
-                 "which restricts every model to the 99% of flies with a known lifespan, because AIC comparisons need the same",
+                 "which restricts every model to the 99% of flies with a known lifespan, because models must be compared on the same",
                  "rows throughout. ")),
   bichet = list(
     label = "Bichet et al. 2022, Journal of Animal Ecology \u2014 common tern (immune parameters)",
+    about = list(species = "Common tern (Sterna hirundo), wild colony",
+                 trait = "Haemagglutination titre (HA), a measure of innate immunity",
+                 model = "Linear age with age at first and last measurement (Model 7); Gaussian; random intercepts for individual and sampling year",
+                 covariates = "sex; storage_time_HAHL: time samples were stored before the assay; initial_lysis: lysis at the start of the assay; assay_batch_HAHL: assay batch",
+                 finding = "Haemagglutination rose with age within individuals; no selective appearance or disappearance.",
+                 other = "Haptoglobin (hapto)"),
     file = "bichet_2022_tern_immunity.csv",
     mapping = example_map(id = "ID", age = "age", trait = "HA",
                           covars = c("sex", "storage_time_HAHL", "initial_lysis", "assay_batch_HAHL"),
@@ -59,11 +74,16 @@ EXAMPLES <- list(
                  "(dis)appearance in either. Alongside the centring models they fitted a second set with age, age at first",
                  "measurement and age at last measurement, which is Model 7 here, and that is where their conclusion about",
                  "selective appearance and disappearance comes from; Model 7 is therefore ticked. They also compared random",
-                 "intercepts with random intercepts and slopes, and random intercepts fitted both traits better (\u0394AIC 4.0 for",
-                 "the titre, 2.6 for haptoglobin), so the example keeps a random intercept. Switch the trait to hapto for the",
+                 "intercepts with random intercepts and slopes, and random intercepts fitted both traits better, so the example keeps a random intercept. Switch the trait to hapto for the",
                  "second measure. ")),
   bichet_marmot = list(
     label = "Bichet et al. 2022, Ecology and Evolution \u2014 Alpine marmot (immune parameters)",
+    about = list(species = "Alpine marmot (Marmota marmota), wild population",
+                 trait = "Lymphocyte count per blood sample",
+                 model = "Linear age with age at last observation and age at first observation (Model 7); Poisson",
+                 covariates = "sex; mass: body mass; capture_date: day of capture; year_of_sampling: sampling year",
+                 finding = "Marmots last observed at older ages had more lymphocytes and fewer neutrophils (selective disappearance).",
+                 other = "Neutrophil, monocyte and eosinophil counts; leukocyte concentration (log scale, Gaussian)"),
     file = "bichet_2022_marmot_immunity.csv",
     mapping = example_map(id = "id", age = "age", trait = "lymphocyte_count", alr = "ALO",
                           covars = c("sex", "mass", "capture_date", "year_of_sampling"),
@@ -79,6 +99,12 @@ EXAMPLES <- list(
                  "log_leukocyte_concentration (the last with the Gaussian family) for the other four responses. ")),
   moullec_swift = list(
     label = "Moullec et al. 2023, Frontiers in Ecology and Evolution \u2014 Alpine swift (reproduction)",
+    about = list(species = "Alpine swift (Tachymarptis melba), wild colonies",
+                 trait = "Laying date",
+                 model = "Quadratic age with age at first reproduction and lifespan (Models 6-8); Gaussian; random intercept for year",
+                 covariates = "sex; colony",
+                 finding = "Reproductive senescence in females but not males, and selective appearance in both sexes.",
+                 other = "Clutch size, brood size at hatching and at fledging (counts, Poisson)"),
     file = "moullec_2023_alpine_swift_reproduction.csv",
     mapping = example_map(id = "ring", age = "age", trait = "laying_date", life = "lifespan", entry = "AFR",
                           covars = c("sex", "colony"), cov_factor = c("sex", "colony"), random = "year", inconsistent = "exclude"),
@@ -87,7 +113,7 @@ EXAMPLES <- list(
     integrity_note = "One bird, Frontiers_000304, is excluded: its lifespan column repeats its age (2, 3 and 4), so it has no single lifespan.",
     note = paste("Twenty years of reproduction by Alpine swifts of known age, with age at first reproduction and lifespan",
                  "supplied for birds followed from first breeding to death. The paper compared no-age, linear, quadratic",
-                 "and threshold (breakpoint) models and averaged those within 2 AICc, finding reproductive senescence in",
+                 "and threshold (breakpoint) models and averaged the best-supported ones, finding reproductive senescence in",
                  "females but not males, selective appearance in both sexes and selective disappearance of long-tailed",
                  "males. The quadratic ageing function set here is the closest this app can come to their threshold",
                  "models, which fit separate slopes either side of a fitted breakpoint age: it captures the same rise-",
@@ -100,6 +126,12 @@ EXAMPLES <- list(
                  "age. ")),
   pasztor_apollo = list(
     label = "P\u00e1sztor et al. 2022, Ecology and Evolution \u2014 Clouded Apollo butterfly (body size)",
+    about = list(species = "Clouded Apollo butterfly (Parnassius mnemosyne), wild population",
+                 trait = "Body mass (log scale), from mark-recapture",
+                 model = "Quadratic age (days since first capture), including the centring models; Gaussian; correlated random intercept and slope per butterfly, random intercept for year",
+                 covariates = "sex; first_capture: day of the flight period on which the butterfly was first caught; wing_length: mean forewing length",
+                 finding = "Body mass declined non-linearly with age in both sexes; butterflies first caught later in the season were lighter.",
+                 other = "Thorax width; body mass on the raw scale"),
     file = "pasztor_2022_clouded_apollo_body_size.csv",
     mapping = example_map(id = "id", age = "age_days", trait = "log_body_mass",
                           covars = c("sex", "first_capture", "wing_length"), cov_factor = "sex",
@@ -124,6 +156,12 @@ EXAMPLES <- list(
                  "butterfly was still being recaught, and 31% of individuals were caught only once. ")),
   wynn = list(
     label = "Wynn et al. 2025, Journal of Animal Ecology \u2014 common tern (navigational efficiency)",
+    about = list(species = "Common tern (Sterna hirundo), tracked on migration",
+                 trait = "Navigational deflection: the angle between each track step and the direction of the goal (lower is more efficient)",
+                 model = "Linear age split into mean age and within-individual change (Model 3); Gaussian; tracks nested in individuals",
+                 covariates = "season: autumn or spring migration",
+                 finding = "Older birds navigated more efficiently among individuals but not within them, read as selective disappearance of poor navigators.",
+                 other = "None in this file"),
     file = "wynn_2025_tern_navigation.csv",
     mapping = example_map(id = "individual", age = "age", trait = "deflection",
                           covars = "season", cov_factor = "season", random = "track_id"),
@@ -138,6 +176,12 @@ EXAMPLES <- list(
                  "and 4 go beyond it. ")),
   sanghvi_female = list(
     label = "Sanghvi et al. 2022, Evolution \u2014 seed beetle (female fecundity)",
+    about = list(species = "Seed beetle (Callosobruchus maculatus), laboratory",
+                 trait = "Daily egg count of females",
+                 model = "Quadratic age interacting with developmental and adult temperature, with adult lifespan (Model 6); negative binomial; random slopes for females within families",
+                 covariates = "DevT: developmental temperature; AdultT: adult temperature; Block: experimental block",
+                 finding = "Hot developmental and hot adult temperatures each accelerated the decline in fecundity with age.",
+                 other = "None in this file"),
     file = "sanghvi_2022_beetle_female_fecundity.csv",
     mapping = example_map(id = "individual", age = "Adult_age", trait = "Daily_Eggs", life = "Adult_lifespan",
                           covars = c("DevT", "AdultT", "Block"), cov_factor = c("DevT", "AdultT", "Block"),
@@ -152,6 +196,12 @@ EXAMPLES <- list(
                  "accelerated the decline in fecundity with age. ")),
   allain = list(
     label = "Allain et al. 2023, Oikos \u2014 eastern chipmunk (reproduction)",
+    about = list(species = "Eastern chipmunk (Tamias striatus), wild population",
+                 trait = "Number of juveniles weaned in a breeding season",
+                 model = "Quadratic age with age at first reproduction (interacting with age) and lifespan; Poisson",
+                 covariates = "season: breeding season before or after a tree-seed mast; sex; site",
+                 finding = "Reproductive ageing depended on when individuals started breeding.",
+                 other = "weaned_juv: whether any juvenile was weaned (0/1, binomial)"),
     file = "allain_2023_chipmunk_reproduction.csv",
     mapping = example_map(id = "ID", age = "age", trait = "nb_juv", entry = "AFR", life = "lifespan",
                           covars = c("season", "sex", "site"), cov_factor = c("season", "sex", "site"),
@@ -160,17 +210,23 @@ EXAMPLES <- list(
     integrity_note = "Three chipmunks (D037, D114 and D165) are excluded: their AFR column repeats their age (7 and 10), so they have no single age at first reproduction.",
     note = paste("Reproduction of wild eastern chipmunks, with age and age at first reproduction in months and lifespan known for",
                  "individuals that died. The paper fitted generalised linear mixed models (binomial for the probability of",
-                 "weaning, Poisson for the number of juveniles), compared them by AICc, and found that age at first reproduction",
+                 "weaning, Poisson for the number of juveniles) and found that age at first reproduction",
                  "and its interaction with age improved the models substantially: reproductive ageing depended on when",
                  "individuals started breeding. weaned_juv is a binary alternative trait for the binomial family. Lifespan is",
                  "unknown for some individuals, so keeping Model 6 ticked restricts every model to records with a known",
-                 "lifespan, because AIC comparisons need the same rows throughout. Their supplementary model tables give the",
+                 "lifespan, because models must be compared on the same rows throughout. Their supplementary model tables give the",
                  "best-supported model for females as age + age\u00b2 + season + AFR + season \u00d7 age + season \u00d7 age\u00b2 +",
-                 "AFR \u00d7 age + AFR \u00d7 age\u00b2 + lifespan (AICc weight 0.88): age-dependent selective appearance through the",
+                 "AFR \u00d7 age + AFR \u00d7 age\u00b2 + lifespan: age-dependent selective appearance through the",
                  "AFR interactions, with lifespan additive, which is Model 10 here except that their disappearance term is",
                  "lifespan rather than ALR. ")),
   bouwhuis = list(
     label = "Bouwhuis et al. 2009, Proc. R. Soc. B \u2014 great tit (recruit production)",
+    about = list(species = "Great tit (Parus major), Wytham Woods",
+                 trait = "Laying date of each breeding attempt",
+                 model = "Quadratic age interacting with ALR (Model 4); Gaussian; random intercepts for year and wood sector",
+                 covariates = "YR_FL: year quality (population fledgling production); loc_density: local breeding density; f_status: female immigrant or locally born; pred: nest-box type",
+                 finding = "In the original study, selective disappearance of poorer breeders hid part of the within-individual decline, so senescence began earlier than population-level patterns suggest. Laying date was not analysed there; our paper analyses it.",
+                 other = "Recruits, clutch size (CS), brood size (BS), fledglings (FL)"),
     file = "bouwhuis_2009_great_tit_recruitment.csv",
     mapping = example_map(id = "female", age = "f_min_age", trait = "LD", alr = "f_ALR",
                           covars = c("YR_FL", "loc_density", "f_status", "pred"),
@@ -189,6 +245,12 @@ EXAMPLES <- list(
                  "effects: switch the family to Poisson if you change the trait to recruits, CS, BS or FL. ")),
   warner = list(
     label = "Warner et al. 2016, PNAS \u2014 painted turtle (reproduction)",
+    about = list(species = "Painted turtle (Chrysemys picta), wild population",
+                 trait = "Mean egg mass per clutch",
+                 model = "Quadratic reproductive age with plastron length (Model 1); Gaussian; random intercepts for female and year",
+                 covariates = "Plastron Length (mm): female body size",
+                 finding = "Egg mass increased with reproductive age; clutch size did not.",
+                 other = "Clutch size and hatching success"),
     file = "warner_2016_turtle_reproduction.csv",
     mapping = example_map(id = "Female ID", age = "Reproductive Age", trait = "Avg Egg Mass (g)",
                           covars = "Plastron Length (mm)", random = "Year"),
@@ -202,6 +264,12 @@ EXAMPLES <- list(
                  "Model 1 with a covariate and every other model here goes beyond their analysis. ")),
   mckennaell_breeding = list(
     label = "McKenna-Ell et al. 2023, Biology Letters \u2014 Soay sheep (breeding probability, offspring survival)",
+    about = list(species = "Soay sheep (Ovis aries), St Kilda",
+                 trait = "Fecundity: whether a female aged 5 or older gave birth to a live lamb (0/1)",
+                 model = "Linear age with age at last observation (Model 2); binomial; random intercepts for female, year and birth cohort",
+                 covariates = "BredYearling: whether she bred as a yearling; EarlyLifeRec: her early-life recruitment (both also interact with age)",
+                 finding = "Breeding probability declined with age, with selective disappearance, and declined faster in females that bred as yearlings.",
+                 other = "OffspringRecruitment: whether the lamb survived its first winter (0/1)"),
     file = "mckennaell_2023_soay_breeding_survival.csv",
     mapping = example_map(id = "FemaleID", age = "Age", trait = "Fecundity", alr = "AgeLastObs",
                           covars = c("BredYearling", "EarlyLifeRec"), cov_factor = "BredYearling",
@@ -219,6 +287,12 @@ EXAMPLES <- list(
                  "main effects refer to the mean age rather than age 0; untick it to compare coefficients with the paper. ")),
   mckennaell_weight = list(
     label = "McKenna-Ell et al. 2023, Biology Letters \u2014 Soay sheep (offspring birth weight)",
+    about = list(species = "Soay sheep (Ovis aries), St Kilda",
+                 trait = "Lamb birth weight, for mothers aged 5 and older",
+                 model = "Linear maternal age with age at last observation (Model 2); Gaussian; random intercepts for mother, year and birth cohort",
+                 covariates = "OffspringCaptureAge: lamb's age when weighed; OffspringSex; OffspringTwinStatus; BredYearling and EarlyLifeRec: the mother's early-life reproduction (both also interact with age)",
+                 finding = "Birth weight declined with maternal age, and mothers observed to older ages had heavier lambs (selective disappearance).",
+                 other = "None in this file"),
     file = "mckennaell_2023_soay_offspring_weight.csv",
     mapping = example_map(id = "FemaleID", age = "Age", trait = "OffspringBirthWt", alr = "AgeLastObs",
                           covars = c("OffspringCaptureAge", "OffspringSex", "OffspringTwinStatus", "BredYearling", "EarlyLifeRec"),
@@ -236,6 +310,12 @@ EXAMPLES <- list(
                  "Standardise ticked the early-life main effects refer to the mean age; untick it to match the published table. ")),
   szejnersigal_activity = list(
     label = "Szejner-Sigal et al. 2025, Proc. R. Soc. B \u2014 alfalfa leafcutting bee (locomotor activity)",
+    about = list(species = "Alfalfa leafcutting bee (Megachile rotundata), laboratory",
+                 trait = "Locomotor activity of females: beam breaks in four hours, measured weekly",
+                 model = "Quadratic age with lifespan (age at death) added; Gaussian; random intercept per bee",
+                 covariates = "None besides lifespan",
+                 finding = "Activity rose to a mid-life peak then declined, earlier and lower in males, with little link between early activity and lifespan.",
+                 other = "Males (choose sex = m in the subset)"),
     file = "szejnersigal_2025_bee_activity.csv",
     mapping = example_map(id = "id", age = "age", trait = "total.act", life = "age.death"),
     family = "gaussian", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
@@ -312,7 +392,8 @@ guess_mapping <- function(df) {
     life = life,
     entry = if (nzchar(afr)) afr else "__AUTO_FIRST__",
     condition = cond, covars = character(0), cov_factor = character(0), cov_int = character(0), group = "", nested = TRUE, random = character(0),
-    censor = "", censor_value = "", start_mode = "afr", start_age = NA_real_, age_round = NA_real_, cov_age = character(0)
+    censor = "", censor_value = "", start_mode = "afr", start_age = NA_real_, age_round = NA_real_, cov_age = character(0),
+    trait_specific_ages = TRUE
   )
 }
 

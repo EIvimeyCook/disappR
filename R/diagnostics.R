@@ -1,5 +1,5 @@
 # disappR engine - Diagnostics: starting error family, performance checks and simulation-based (DHARMa) residual checks.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # ---------------------------------------------------------------------------
 # Data integrity diagnostics (new in 0.7.0)
@@ -17,7 +17,9 @@ suggest_family <- function(trait, age = NULL) {
     return(list(family = "binomial", kind = "Proportion (0-1)", zeros = mean(v == 0), dispersion = NA_real_,
                 text = "Proportion trait (values between 0 and 1): binomial mixed models. Choose the number of trials (for example clutch size or the number of eggs laid) under 'Weights' below the error family on the Modelling tab, so that each proportion is weighted by its sample size; without it the proportions cannot be fitted as binomial and the Gaussian option is the fallback. If the proportions are more variable than binomial sampling allows, use the beta-binomial family."))
   }
-  if (!is_count) return(list(family = "gaussian", kind = "Continuous", text = "Continuous trait: Gaussian mixed models (lme4)."))
+  if (!is_count) return(list(family = "gaussian", kind = "Continuous",
+                             text = paste0("Continuous trait: Gaussian mixed models (lme4).",
+                                           if (all(v > 0)) " All values are positive: if right-skewed, compare Gamma and lognormal with the error-family check." else "")))
   # A binary (0/1) trait is not a count: the count families would be wrong, and there is no binomial
   # family here, so Gaussian is offered as a linear-probability approximation.
   if (all(v %in% c(0, 1))) {
@@ -104,7 +106,7 @@ run_performance_checks <- function(fit, family, time_limit = 60) {
       sprintf("%s (%s)", format_num(vif[[j]]), if ("Term" %in% names(coll)) as.character(coll$Term[[j]]) else "")
     } else "not estimable"
   })
-  if (!identical(family, "gaussian")) {
+  if (family %in% c(COUNT_FAMILIES, BINOMIAL_FAMILIES)) {
     run_check("Overdispersion", if (family %in% BINOMIAL_FAMILIES) "Ratios well above 1 suggest a beta-binomial family (proportions) or a missing random effect." else "Ratios well above 1 suggest a negative binomial family.", {
       od <- performance::check_overdispersion(fit)
       ratio <- num1(element(od, "dispersion_ratio"))
@@ -143,7 +145,7 @@ run_dharma <- function(fit, family) {
     Test = c("Uniformity (KS)", "Dispersion", "Zero inflation"),
     P_value = c(p_of(DHARMa::testUniformity(sim, plot = FALSE)),
                 p_of(DHARMa::testDispersion(sim, plot = FALSE)),
-                if (identical(family, "gaussian")) NA_real_ else p_of(DHARMa::testZeroInflation(sim, plot = FALSE))),
+                if (!family %in% c(COUNT_FAMILIES, BINOMIAL_FAMILIES)) NA_real_ else p_of(DHARMa::testZeroInflation(sim, plot = FALSE))),
     stringsAsFactors = FALSE)
   list(ok = TRUE, sim = sim, table = tab)
 }
@@ -173,7 +175,7 @@ random_effect_checks <- function(dd, random_structure = "none", random_terms = c
     add("Repeated records per individual",
         sprintf("%s individuals, median %s records; %.0f%% have records at 2 or more ages", sup$individuals, format_num(sup$median_obs), sup$pct_2),
         sup$pct_2 >= 50)
-    if (random_structure %in% c("correlated", "uncorrelated")) {
+    if (random_structure %in% c("correlated", "uncorrelated", "correlated_all", "uncorrelated_all")) {
       add("Support for random slopes", sprintf("%d individuals have 3 or more distinct ages (%.0f%%)", as.integer(sup$n_3), sup$pct_3),
           sup$n_3 >= 10 && sup$pct_3 >= 20)
     }
@@ -194,3 +196,51 @@ random_effect_checks <- function(dd, random_structure = "none", random_terms = c
   if (length(rows)) do.call(rbind, rows) else data.frame()
 }
 
+
+
+# Instant screen of the error family from a fitted model, without refitting (0.22.6). Returns short findings for the
+# sensitivity banner: a count or binary trait fitted as Gaussian, right-skewed residuals of a positive trait fitted as
+# Gaussian, overdispersion under a Poisson or binomial-with-trials fit, and more zeros than a count fit predicts.
+family_screen <- function(res, m) {
+  fit <- res$fits[[m]]
+  if (is.null(fit)) return(character(0))
+  fam <- res$family %||% "gaussian"
+  y <- res$data$trait[is.finite(res$data$trait)]
+  out <- character(0)
+  if (identical(fam, "gaussian")) {
+    sug <- tryCatch(suggest_family(res$data$trait, res$data$age)$family, error = function(e) "gaussian")
+    if (!identical(sug, "gaussian")) {
+      out <- c(out, sprintf("the trait looks %s but is fitted as Gaussian", if (sug %in% BINOMIAL_FAMILIES) "binary or binomial" else "like counts"))
+    } else if (length(y) && all(y > 0)) {
+      rr <- tryCatch(as.numeric(stats::residuals(fit)), error = function(e) NULL)
+      rr <- rr[is.finite(rr)]
+      if (length(rr) > 20) {
+        sk <- mean((rr - mean(rr))^3) / stats::sd(rr)^3
+        if (is.finite(sk) && sk > 1)
+          out <- c(out, sprintf("residuals are right-skewed (skewness %s) for a positive trait: try Gamma or lognormal", format_num(sk)))
+      }
+    }
+  }
+  trials <- ".trials" %in% names(res$data) && any(res$data$.trials > 1, na.rm = TRUE)
+  if (identical(fam, "poisson") || (identical(fam, "binomial") && trials)) {
+    pr <- tryCatch(stats::residuals(fit, type = "pearson"), error = function(e) NULL)
+    dfr <- tryCatch(stats::df.residual(fit), error = function(e) NA_real_)
+    if (length(pr) && is.finite(dfr) && dfr > 10) {
+      ratio <- sum(pr^2, na.rm = TRUE) / dfr
+      if (is.finite(ratio) && ratio > 1.5)
+        out <- c(out, sprintf("overdispersion (Pearson \u03c7\u00b2/df = %s): try %s", format_num(ratio),
+                              if (identical(fam, "poisson")) "a negative binomial" else "the beta-binomial"))
+    }
+  }
+  if (fam %in% c("poisson", "nbinom1", "nbinom2")) {
+    obs <- tryCatch(as.numeric(stats::model.response(stats::model.frame(fit))), error = function(e) NULL)
+    sims <- tryCatch(as.matrix(stats::simulate(fit, nsim = 50, seed = 1)), error = function(e) NULL)
+    if (length(obs) && is.matrix(sims) && nrow(sims) == length(obs)) {
+      z_obs <- mean(obs == 0)
+      z_sim <- colMeans(sims == 0)
+      if (z_obs > stats::quantile(z_sim, 0.975, names = FALSE) && z_obs - mean(z_sim) > 0.02)
+        out <- c(out, sprintf("%.0f%% zeros against %.0f%% predicted: try a zero-inflated family", 100 * z_obs, 100 * mean(z_sim)))
+    }
+  }
+  out
+}

@@ -1,5 +1,5 @@
 # disappR engine - Data preparation: standardised analysis data, individual-level metrics, age bases and model data.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 cov_name <- function(nm) paste0("cv_", make.names(nm))
 
@@ -176,9 +176,15 @@ standardise_data <- function(df, map, dup_action = "keep") {
     if (isTRUE(map$nested)) out$id <- ifelse(is.na(out$group), out$id, paste(out$group, out$id, sep = "/"))
   }
 
+  # Automatic ALR and AFR (0.24.2). Trait-specific (the default, map$trait_specific_ages = TRUE): the last and first
+  # ages at which the trait has a value (zero is a value, NA is not), the same records mean age uses. Dataset-wide
+  # (FALSE, used by the bundled examples): the last and first ages of any record, with or without a trait value.
+  # Individuals without a single trait value get NA under the trait-specific rule; they enter no model.
+  trait_specific <- !isFALSE(map$trait_specific_ages)
   if (nrow(out)) {
-    last_rec <- stats::ave(out$age, out$id, FUN = max)
-    first_rec <- stats::ave(out$age, out$id, FUN = min)
+    a_use <- if (trait_specific) ifelse(is.finite(out$trait), out$age, NA_real_) else out$age
+    last_rec <- stats::ave(a_use, out$id, FUN = function(v) if (any(is.finite(v))) max(v, na.rm = TRUE) else NA_real_)
+    first_rec <- stats::ave(a_use, out$id, FUN = function(v) if (any(is.finite(v))) min(v, na.rm = TRUE) else NA_real_)
   } else {
     last_rec <- numeric(0)
     first_rec <- numeric(0)
@@ -316,6 +322,7 @@ standardise_data <- function(df, map, dup_action = "keep") {
     n_dup_identical = length(dup$identical), n_dup_differing = length(dup$differing), dup_examples = dup$examples,
     dup_columns = dup$columns,
     alr_mapped = alr_mapped, life_auto = life_auto, has_life = life_auto || has_col(map$life),
+    trait_specific_ages = trait_specific,
     entry_mapped = entry_mapped, has_group = has_group, nested = isTRUE(map$nested),
     n_multi_group = n_multi_group, multi_group_examples = multi_group$examples, n_multi_group_gap = multi_group$n_gap,
     has_group2 = has_group2, n_multi_group2 = n_multi_group2, covars = covars, cov_labels = cov_labels,

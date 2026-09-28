@@ -1,5 +1,5 @@
 # disappR engine - Teaching simulations with known answers: simulated ageing trajectories, selection, sampling and the true curves.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # ---------------------------------------------------------------------------
 # Teaching simulator
@@ -264,11 +264,13 @@ toy_mapping <- function(df) {
   cols <- names(df)
   afr_ind <- "AFR" %in% cols
   list(id = "ID", age = "age", trait = if ("body_mass" %in% cols) "body_mass" else "fecundity",
-       alr = "__AUTO_LAST__", life = "lifespan", entry = if (afr_ind) "AFR" else "__AUTO_FIRST__",
+       # AFR is the observed one (the first observed record), like ALR (the last); the true AFR column stays in the
+       # data for comparison (0.24.2)
+       alr = "__AUTO_LAST__", life = "lifespan", entry = "__AUTO_FIRST__",
        condition = "condition", covars = intersect("diet", cols), cov_factor = intersect("diet", cols),
        group = if ("family" %in% cols) "family" else "", nested = TRUE, random = character(0),
        censor = "", censor_value = "", start_mode = if (afr_ind) "afr" else "same", start_age = 1, age_round = NA_real_,
-       cov_age = character(0), cov_int = character(0))
+       cov_age = character(0), cov_int = character(0), trait_specific_ages = TRUE)
 }
 
 toy_family <- function(type) {
@@ -329,8 +331,8 @@ toy_truth_text <- function(cfg) {
     mcar = paste0("MCAR (", if (paper) "retention 0.5, as in the Methods" else "about 75% of occasions sampled", "): with age-dependent selection, Model 4 is expected to have a lower AIC than Model 5, as ALR is the less error-prone lifespan proxy."),
     mwo = "Missing when old: late ages are thinly sampled and ALR underestimates lifespan; Model 6 (true LS) is expected to have much the lowest AIC, and Model 4 a lower AIC than Model 5.",
     mwy = "Missing when young: first records are delayed, so AFR (first record) varies; with age-dependent selection Model 4 is expected to have a lower AIC than Model 5.",
-    trait = "Trait-dependent missingness (low values more often missing): the Sampling tab is expected to flag the prior-trait association, and observed means are inflated.",
-    condition = "Condition-dependent missingness (condition covaries with lifespan): the Sampling tab is expected to flag condition and LS.")
+    trait = "Trait-dependent missingness (low values more often missing): step 3 (Missingness and proxies) should flag the prior-trait association, and observed means are inflated.",
+    condition = "Condition-dependent missingness (condition covaries with lifespan): step 3 (Missingness and proxies) should flag condition and LS.")
   expect <- c(expect, miss)
   if (individual_afr) {
     expect <- c(expect, switch(cfg$sa_type,

@@ -55,7 +55,7 @@ selection_effect_sizes <- function(res, dat = NULL) {
   }
   b1 <- if (has("M1")) age_slope(res, "M1") else NULL
   # the coefficients are on the link scale: trait units only for Gaussian models
-  scale_word <- if (identical(res$family, "gaussian")) "trait" else if (isTRUE(res$family %in% BINOMIAL_FAMILIES)) "log-odds of the trait" else "log expected trait"
+  scale_word <- if (identical(res$family, "gaussian")) "trait" else if (isTRUE(res$family %in% c(BINOMIAL_FAMILIES, "beta"))) "log-odds of the trait" else "log expected trait"
 
   # 1. How much the ageing slope moves once selective disappearance is corrected for.
   for (m in c("M2", "M4", "M6")) {
@@ -149,14 +149,17 @@ bootstrap_test <- function(dat, meta, model = "M4", against = "M1", n_boot = 39,
   stop_if(is.null(dat) || !nrow(dat), "No data to simulate from.")
   stop_if(!model %in% BOOTSTRAP_MODELS, paste0(model_label(model), " has no lifespan or mean-age term to test."))
   s <- utils::modifyList(list(family = "gaussian", age_function = "Quadratic", random_slope = "none",
-                              standardise = TRUE, zi = "~1", among = "linear", extra = NULL), settings)
+                              standardise = TRUE, zi = "~1", among = "linear", extra = NULL, disp = "constant"), settings)
+  # the residual variance (or dispersion) model of the analysis is carried by the null model and by every refit
+  # (0.22.2), so a variance that changes with age is simulated under the null as it was fitted to the data
+  s$disp <- normalise_disp(s$disp)
   stop_if(isTRUE(s$family %in% BINOMIAL_FAMILIES) && isTRUE(meta$has_trials),
           "The bootstrap is not yet available for binomial traits with a number of trials.")
   stop_if(identical(s$age_function, A3_NONLINEAR), "The bootstrap is not available for the non-linear exponential function.")
   fit_pair <- function(d) {
     r <- tryCatch(fit_model_suite(d, meta, models = unique(c(against, model)), age_function = s$age_function,
                                   family = s$family, random_slope = s$random_slope, standardise = s$standardise,
-                                  zi_str = s$zi, among = s$among, extra = s$extra),
+                                  zi_str = s$zi, among = s$among, extra = s$extra, disp = s$disp),
                   error = function(e) NULL)
     if (is.null(r) || !isTRUE(r$ok) || is.null(r$aic) || !nrow(r$aic)) return(NULL)
     a <- r$aic
@@ -181,7 +184,7 @@ bootstrap_test <- function(dat, meta, model = "M4", against = "M1", n_boot = 39,
   null_rs <- NA_character_
   for (rs in unique(c(if (identical(s$random_slope, "correlated")) "correlated", "uncorrelated", "none"))) {
     r0 <- tryCatch(fit_model_suite(dat, meta, models = against, age_function = null_fun, family = s$family,
-                                   random_slope = rs, standardise = s$standardise, zi_str = s$zi, among = "linear"),
+                                   random_slope = rs, standardise = s$standardise, zi_str = s$zi, among = "linear", disp = s$disp),
                    error = function(e) NULL)
     f0 <- if (!is.null(r0) && isTRUE(r0$ok)) r0$fits[[against]] else NULL
     if (!is.null(f0)) { null_fit <- f0; null_rs <- rs; break }
@@ -220,7 +223,8 @@ bootstrap_test <- function(dat, meta, model = "M4", against = "M1", n_boot = 39,
        null_gain = gains[ok], null_coef = coefs[is.finite(coefs)],
        p_gain = p_gain, p_coef = p_coef,
        null_gain_95 = if (any(ok)) stats::quantile(gains[ok], 0.95, names = FALSE) else NA_real_,
-       null_model = list(age_function = null_fun, random_slope = null_rs, family = s$family),
+       null_model = list(age_function = null_fun, random_slope = null_rs, family = s$family,
+                         disp = if (isTRUE(s$family %in% DISPERSION_FAMILIES)) s$disp else "constant"),
        settings_key = obs$key)
 }
 
@@ -265,7 +269,7 @@ bootstrap_reading <- function(z) {
                        if (inter) "how an individual's trait changes with age differs with how long it lives." else "an individual's trait level differs with how long it lives."),
       trust = "Yes, as evidence of a link between lifespan and the trait, which is what selective disappearance produces.",
       alternatives = c("A change in the trait just before death (terminal decline or investment) is also a link to lifespan, but not selective disappearance. Check 'Is there terminal investment?' in step 2.",
-                       "Missing records that depend on the trait itself make individuals look shorter-lived. Check the missingness drivers on the Missingness tab.")))
+                       "Missing records that depend on the trait itself make individuals look shorter-lived. Check the missingness drivers (step 3).")))
   }
   if (obs > med) {
     return(list(pattern = "partial",

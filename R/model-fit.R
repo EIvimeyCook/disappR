@@ -1,10 +1,12 @@
 # disappR engine - Model fitting: families, data support for random effects, single-model fits, fit validity and the model suites.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 family_label <- function(f) {
-  switch(f, gaussian = "Gaussian (lme4)", poisson = "Poisson", nbinom2 = "negative binomial (nbinom2)",
+  switch(f, gaussian = "Gaussian (lme4)", gamma = "Gamma (log link)", lognormal = "lognormal (log link)",
+         beta = "beta (logit link)", poisson = "Poisson", nbinom2 = "negative binomial (nbinom2)",
          nbinom1 = "negative binomial (nbinom1)", zip = "zero-inflated Poisson",
-         zinb = "zero-inflated negative binomial (nbinom2)", zinb1 = "zero-inflated negative binomial (nbinom1)", f)
+         zinb = "zero-inflated negative binomial (nbinom2)", zinb1 = "zero-inflated negative binomial (nbinom1)",
+         binomial = "binomial (logit link)", betabinomial = "beta-binomial (logit link)", f)
 }
 
 # Data support for individual ageing slopes (A3 diagnostics and random-slope advice).
@@ -35,9 +37,8 @@ data_support_warning <- function(sup) {
   if (isTRUE(sup$median_obs < 3)) msgs <- c(msgs, sprintf("a median of %s records per individual", format_num(sup$median_obs)))
   if (isTRUE(sup$distinct_ages < 4)) msgs <- c(msgs, sprintf("%s distinct ages in the data", format(sup$distinct_ages, big.mark = ",")))
   if (!length(msgs)) return("")
-  paste0("Caution (rule of thumb, not a threshold): these data carry little information about individual-level slopes (",
-         paste(msgs, collapse = "; "),
-         "). Individual fits, the function comparison and random slopes will be imprecise here, and model rankings that depend on among-individual differences in ageing rate should be treated as tentative. Nothing is blocked by this: the comparison numbers are conventions, not identifiability limits, and data above them are not thereby sufficient.")
+  paste0("Caution: these data carry little information about individual-level slopes (", paste(msgs, collapse = "; "),
+         "). Random slopes, if fitted, will be imprecise here.")
 }
 
 random_slope_advice <- function(sup) {
@@ -58,8 +59,24 @@ random_slope_advice <- function(sup) {
   }
 }
 
+# The random structure the Modelling tab starts with for simulated and uploaded data (0.24.8): random slopes only when
+# the data support them well (as judged by random_slope_advice), a slope for every age term only when most
+# individuals are also recorded at four or more ages, and otherwise a random intercept. Bundled examples keep the
+# structure of their published analysis.
+default_random_structure <- function(dat) {
+  sup <- tryCatch(individual_data_support(dat), error = function(e) NULL)
+  if (is.null(sup)) return("none")
+  adv <- random_slope_advice(sup)
+  if (!identical(adv$level, "good")) return("none")
+  n4 <- (sup$pct_4 %||% 0) / 100 * (sup$individuals %||% 0)
+  if (isTRUE(sup$pct_4 >= 50) && isTRUE(n4 >= 30) && isTRUE(sup$median_obs >= 4)) "correlated_all" else "correlated"
+}
+
 MODEL_FAMILIES <- c(
   "Gaussian (lme4::lmer)" = "gaussian",
+  "Gamma \u2014 positive continuous, log link (glmmTMB)" = "gamma",
+  "Lognormal \u2014 positive continuous, log link (glmmTMB)" = "lognormal",
+  "Beta \u2014 continuous proportions strictly between 0 and 1 (glmmTMB)" = "beta",
   "Poisson (glmmTMB)" = "poisson",
   "Negative binomial, quadratic variance (nbinom2)" = "nbinom2",
   "Negative binomial, linear variance (nbinom1)" = "nbinom1",
@@ -78,6 +95,48 @@ ZI_FAMILIES <- c("zip", "zinb", "zinb1")
 # Binomial families: the response is a binary outcome (0/1) or a proportion of successes, in which
 # case the number of trials must be mapped on the Data tab and is passed as prior weights.
 BINOMIAL_FAMILIES <- c("binomial", "betabinomial")
+
+# Continuous families other than the Gaussian (0.22.0), fitted with glmmTMB: Gamma and lognormal for strictly positive
+# traits (log link), beta for continuous proportions strictly between 0 and 1 (logit link).
+CONTINUOUS_FAMILIES <- c("gamma", "lognormal", "beta")
+
+# Families whose likelihood is a density for a continuous trait. AICs are comparable within this class (the same
+# response, the same rows), and within the discrete class (counts, binomial), but never between the two.
+DENSITY_FAMILIES <- c("gaussian", CONTINUOUS_FAMILIES)
+family_density_class <- function(f) if (isTRUE(f %in% DENSITY_FAMILIES)) "continuous" else "discrete"
+
+family_link <- function(f) {
+  if (isTRUE(f %in% "gaussian")) "identity" else if (isTRUE(f %in% c(BINOMIAL_FAMILIES, "beta"))) "logit" else "log"
+}
+
+# Families with a dispersion (or residual variance) parameter that can be modelled with glmmTMB's dispformula.
+DISPERSION_FAMILIES <- c("gaussian", "gamma", "lognormal", "beta", "nbinom2", "nbinom1", "zinb", "zinb1", "betabinomial")
+
+# How the residual variance (Gaussian) or dispersion (other families) may change with age (0.22.0).
+DISP_OPTIONS <- c("Constant (default)" = "constant",
+                  "Changes with age (log-linear)" = "age",
+                  "Changes with every ageing term" = "age_terms")
+normalise_disp <- function(x) {
+  x <- as.character(x %||% "constant")[1]
+  if (is.na(x) || !x %in% DISP_OPTIONS) "constant" else x
+}
+disp_formula_string <- function(disp, b = "f1") {
+  switch(normalise_disp(disp), age = "~ f1", age_terms = paste("~", paste(b, collapse = " + ")), "~1")
+}
+# The glmmTMB family call written into exported code and the equation panels.
+family_r_call <- function(f, pkg = TRUE) {
+  p <- if (isTRUE(pkg)) "glmmTMB::" else ""
+  switch(f, gaussian = "gaussian()", gamma = "Gamma(link = \"log\")", lognormal = paste0(p, "lognormal(link = \"log\")"),
+         beta = paste0(p, "beta_family(link = \"logit\")"), poisson = "poisson()", zip = "poisson()",
+         nbinom1 = paste0(p, "nbinom1()"), zinb1 = paste0(p, "nbinom1()"), binomial = "binomial()",
+         betabinomial = paste0(p, "betabinomial()"), paste0(p, "nbinom2()"))
+}
+
+disp_text <- function(disp) {
+  switch(normalise_disp(disp), age = "variance changing log-linearly with age",
+         age_terms = "variance changing with every ageing term",
+         "constant variance")
+}
 
 # ok: the model can be fitted at all; default: selected by default (Model 6 is left
 # unselected when LS is missing for some individuals, because the common-row AIC
@@ -124,17 +183,21 @@ model_availability <- function(dat, meta) {
   list(ok = ok, default = default, why = why)
 }
 
-fit_one_model <- function(formula_str, random_str, data, family = "gaussian", zi_str = "~1") {
+fit_one_model <- function(formula_str, random_str, data, family = "gaussian", zi_str = "~1", disp_str = "~1") {
   ff <- stats::as.formula(paste("trait ~", formula_str, "+", random_str))
   msgs <- character(0)
   fit <- tryCatch(
     withCallingHandlers({
-      if (identical(family, "gaussian")) {
+      disp_on <- !identical(gsub(" ", "", disp_str %||% "~1"), "~1") && family %in% DISPERSION_FAMILIES
+      disp_f <- if (disp_on) stats::as.formula(disp_str) else ~1
+      if (identical(family, "gaussian") && !disp_on) {
         ctrl <- lme4::lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
         if (HAS_LMERTEST) lmerTest::lmer(ff, data = data, REML = FALSE, control = ctrl)
         else lme4::lmer(ff, data = data, REML = FALSE, control = ctrl)
       } else {
-        fam <- switch(family, poisson = stats::poisson(), zip = stats::poisson(), nbinom1 = glmmTMB::nbinom1(),
+        fam <- switch(family, gaussian = stats::gaussian(), gamma = stats::Gamma(link = "log"), lognormal = glmmTMB::lognormal(link = "log"),
+                      beta = glmmTMB::beta_family(link = "logit"),
+                      poisson = stats::poisson(), zip = stats::poisson(), nbinom1 = glmmTMB::nbinom1(),
                       zinb1 = glmmTMB::nbinom1(), binomial = stats::binomial(), betabinomial = glmmTMB::betabinomial(),
                       glmmTMB::nbinom2())
         zi <- if (family %in% ZI_FAMILIES) stats::as.formula(zi_str) else ~0
@@ -145,12 +208,12 @@ fit_one_model <- function(formula_str, random_str, data, family = "gaussian", zi
         trials <- if (family %in% BINOMIAL_FAMILIES && ".trials" %in% names(data)) as.numeric(data$.trials) else NULL
         wts <- if (length(trials) && all(is.finite(trials) & trials > 0)) trials else NULL
         if (is.null(wts)) {
-          glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, REML = FALSE, control = ctrl)
+          glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, dispformula = disp_f, REML = FALSE, control = ctrl)
         } else {
           # a column, not a vector: with a vector, predict() on new data fails with "variable lengths differ
           # (found for '(weights)')", because the weights of the fitting data are re-used for the new rows
           data$.wts <- wts
-          glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, REML = FALSE, control = ctrl, weights = .wts)
+          glmmTMB::glmmTMB(ff, data = data, family = fam, ziformula = zi, dispformula = disp_f, REML = FALSE, control = ctrl, weights = .wts)
         }
       }
     }, warning = function(w) {
@@ -432,12 +495,15 @@ r2_pair <- function(fit) {
 
 fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadratic", family = "gaussian",
                             random_slope = FALSE, standardise = TRUE, zi_str = "~1", progress = NULL,
-                            among = "linear", include_invalid = FALSE, extra = NULL, dry_run = FALSE) {
+                            among = "linear", include_invalid = FALSE, extra = NULL, dry_run = FALSE, disp = "constant") {
+  disp <- normalise_disp(disp)
   fail <- function(msg, status = list()) list(ok = FALSE, message = msg, fits = list(), aic = data.frame(),
                                               coefficients = data.frame(), status = status, lrt = data.frame())
   nonlinear_note <- NULL
+  disp_note <- NULL
   if (identical(age_function, A3_NONLINEAR)) {
     if (identical(family, "gaussian")) {
+      if (!identical(disp, "constant")) return(fail("Age-dependent variance is not available with the non-linear exponential: set it to constant or choose another ageing function."))
       if (isTRUE(dry_run)) return(fail("The row check before fitting is not available for the a\u00b7exp(b\u00b7age) model."))
       return(fit_nonlinear_suite(dat, meta, models, random_slope, include_invalid, extra, progress))
     }
@@ -447,11 +513,32 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   if (!identical(family, "gaussian") && !HAS_GLMMTMB) {
     return(fail("The selected family needs the glmmTMB package: install.packages('glmmTMB'), or choose Gaussian."))
   }
+  if (!identical(disp, "constant") && !family %in% DISPERSION_FAMILIES) {
+    disp_note <- sprintf("age-dependent variance not used: the %s family has no dispersion parameter", family_label(family))
+    disp <- "constant"
+  }
+  if (!identical(disp, "constant") && !HAS_GLMMTMB) {
+    return(fail("Age-dependent variance needs glmmTMB: install.packages('glmmTMB'), or set it to constant."))
+  }
+  if (family %in% c("gamma", "lognormal")) {
+    v <- dat$trait[is.finite(dat$trait)]
+    if (any(v <= 0)) {
+      return(fail(sprintf("The %s family needs positive values; %d are zero or negative. Use Gaussian, or a count family for counts.",
+                          family_label(family), sum(v <= 0))))
+    }
+  }
+  if (identical(family, "beta")) {
+    v <- dat$trait[is.finite(dat$trait)]
+    if (any(v <= 0 | v >= 1)) {
+      return(fail(sprintf("The beta family needs values strictly between 0 and 1; %d are not. For successes out of trials, use binomial with a trials column; proportions including 0 or 1 can be rescaled as (y(n - 1) + 0.5)/n (Smithson and Verkuilen 2006).",
+                          sum(v <= 0 | v >= 1))))
+    }
+  }
   if (family %in% COUNT_FAMILIES) {
     v <- dat$trait[is.finite(dat$trait)]
     if (any(v < 0) || any(abs(v - round(v)) > 1e-8)) {
       return(fail(paste("Count families need non-negative integer trait values.",
-                        if (identical(meta$dup_action %||% "keep", "mean")) "Averaging duplicate ID x age records has made the trait non-integer: choose 'keep duplicates' on the Data tab to use a count family." else "")))
+                        "")))
     }
   }
   if (family %in% BINOMIAL_FAMILIES) {
@@ -558,6 +645,8 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
     drop_by <- c(drop_by, "AFR takes fewer than two values, so selective appearance cannot be estimated: Models 7-10 are unavailable (their AFR terms would be dropped as rank deficient, repeating Models 1-4).")
   }
   if (!is.null(nonlinear_note)) drop_by <- c(drop_by, nonlinear_note)
+  if (!is.null(disp_note)) drop_by <- c(drop_by, disp_note)
+  disp_str <- disp_formula_string(disp, b)
   # zero-inflation predictors must exist and vary in the analysed rows
   zi_vars <- if (family %in% ZI_FAMILIES) tryCatch(all.vars(stats::as.formula(zi_str)), error = function(e) character(0)) else character(0)
   zi_keep <- zi_vars[vapply(zi_vars, function(v) {
@@ -608,6 +697,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
     return(list(ok = TRUE, dry_run = TRUE, models = models, status = status, drop_by = drop_by,
                 n_rows = nrow(d), n_rows_used = nrow(dd), n_ids = length(unique(d$id)), n_ids_used = length(unique(dd$id)),
                 formulas = fs[models], random = rstr, zi = if (family %in% ZI_FAMILIES) zi_str else "", family = family,
+                disp = disp, disp_formula = disp_str,
                 standardise = isTRUE(standardise), age_function = age_function, alias_notes = alias_notes, fit_notes = fit_notes,
                 re_checks = re_checks))
   }
@@ -615,7 +705,7 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
   for (i in seq_along(models)) {
     m <- models[[i]]
     if (is.function(progress)) progress(i, length(models), model_label(m))
-    res <- fit_one_model(fs[[m]], rstr, dd, family, zi_str)
+    res <- fit_one_model(fs[[m]], rstr, dd, family, zi_str, disp_str)
     validity[[m]] <- res$validity
     diagnostics[[m]] <- res$diagnostics
     if (is.null(res$fit)) {
@@ -661,12 +751,13 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
        random_request = rs_request, random_structure = rs, random_note = random_note, random_advice = advice,
        among = if (among %in% c("same", "consistent") && length(b) > 1) among else "linear", cov_age = cov_age, extra = extra, nonlinear = FALSE,
        alias_notes = alias_notes, fit_notes = fit_notes, has_censor = isTRUE(meta$has_censor),
-       schedule_irregular = isTRUE(tryCatch(schedule_irregular(dd), error = function(e) FALSE)),
+       schedule_irregular = isTRUE(tryCatch(schedule_irregular(dd, meta$age_step), error = function(e) FALSE)),
        cov_pairs = cov_pairs[vapply(strsplit(cov_pairs, ":", fixed = TRUE), function(p) all(p %in% covars), logical(1))],
        fits = fits, aic = aic, coefficients = if (length(coef_rows)) do.call(rbind, coef_rows) else data.frame(),
        status = status, data = dd, n_dropped = sum(!ok), n_ids_dropped = length(unique(d$id)) - length(unique(dd$id)), drop_by = drop_by, formulas = fs[models], random = rstr,
        row_sets = row_sets,
        basis = b, age_params = prep$age_params, proxy_params = prep$proxy_params, family = family, zi = zi_str,
+       disp = disp, disp_formula = disp_str,
        covars = covars, random_terms = keep_re,
        varcomp = if (length(vc_rows)) do.call(rbind, vc_rows) else data.frame(),
        age_function = age_function, random_slope = rs, standardise = isTRUE(standardise),

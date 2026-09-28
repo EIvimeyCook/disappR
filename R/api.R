@@ -13,12 +13,14 @@
 #' and the reproducible code.
 #'
 #' @param ... For `disappr_mapping()`: column roles (`id`, `age`, `trait`, `alr`, `life`, `entry`, `covars`,
-#'   `cov_factor`, `cov_age`, `group`, `group2`, `random`, ...). For `disappr_fit()`: further settings passed to the
+#'   `cov_factor`, `cov_age`, `group`, `group2`, `random`, ...) and `trait_specific_ages` (default `TRUE`: automatic
+#'   ALR and AFR are the last and first ages with a trait value; `FALSE`: of any record). For `disappr_fit()`: further settings passed to the
 #'   model suite (`random_slope`, `standardise`, `zi_str`, `among`, `include_invalid`, `extra`). For
 #'   `disappr_simulate()`: simulation settings (`n_id`, `seed`, `sd_type`, `missingness`, `form`, ...).
 #' @param data A data frame with one row per record.
 #' @param mapping A column mapping from `disappr_mapping()`.
-#' @param dup_action What to do with repeated individual-by-age records: `"keep"` or `"mean"`.
+#' @param dup_action What to do with repeated individual-by-age records: `"keep"` (default) keeps every row; `"mean"` collapses
+#'   rows identical in every mapped column into one (nothing is averaged; the name is kept for compatibility).
 #' @param x Prepared data from `disappr_prepare()`.
 #' @param models Model identifiers, `"M1"` to `"M10"`.
 #' @param age_function Ageing function: `"Linear"`, `"Quadratic"`, `"Cubic"`, `"Logarithmic"` or
@@ -47,7 +49,7 @@ NULL
 
 #' @rdname disappr_api
 #' @export
-disappr_mapping <- function(...) example_map(...)
+disappr_mapping <- function(...) utils::modifyList(example_map(trait_specific_ages = TRUE), list(...))   # trait-specific ALR/AFR by default (0.24.2)
 
 #' @rdname disappr_api
 #' @export

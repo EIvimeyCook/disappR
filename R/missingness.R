@@ -1,17 +1,18 @@
 # disappR engine - Missingness: the expected sampling grid, coverage by age and missingness drivers.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 # ---------------------------------------------------------------------------
 # Expected sampling grid and missingness (B3 inputs)
 # ---------------------------------------------------------------------------
-# Each individual's expected window runs from its first observation of the trait to its ALR (the ALR the models
-# use: the last recorded age, with or without a trait value, or the mapped column). Missingness is counted ONLY
-# inside that window: the first observation is observed by definition, and nothing after the ALR is counted, with
-# or without a known lifespan (the gap between ALR and death is summarised separately, by r(ALR, LS)).
-# start_mode = "afr": the window opens at the individual's first trait record.
+# Each individual's expected window runs from its AFR to its ALR, both included (0.24.2): the AFR and ALR the models
+# use, i.e. the mapped columns, or else the first and last ages with a trait value (trait-specific, the default) or
+# of any record (dataset-wide). An occasion in the window without a trait value counts as missed, including an AFR
+# or ALR record without one. Nothing after the ALR is counted, with or without a known lifespan (the gap between
+# ALR and death is summarised separately, by r(ALR, LS)).
+# start_mode = "afr": the window opens at the individual's AFR (never after its first trait record).
 # start_mode = "same": trait expression starts at start_age for everyone, so unrecorded occasions between
 # start_age and an individual's first record count as missing.
-build_missing_grid <- function(dat, margin = 0, start_mode = "afr", start_age = NA_real_, max_cells = 300000) {
+build_missing_grid <- function(dat, margin = 0, start_mode = "afr", start_age = NA_real_, max_cells = 300000, step = NULL) {
   d <- dat[is.finite(dat$age), , drop = FALSE]
   if (!nrow(d)) return(data.frame())
   # Individuals never measured for the trait enter no model, so they are left out of the grid (and counted).
@@ -19,7 +20,7 @@ build_missing_grid <- function(dat, margin = 0, start_mode = "afr", start_age = 
   n_no_trait <- sum(!has_trait)
   d <- d[d$id %in% names(has_trait)[has_trait], , drop = FALSE]
   if (!nrow(d)) return(data.frame())
-  step0 <- infer_age_step(d$age, d$id)
+  step0 <- resolve_age_step(d$age, d$id, step)   # a sampling interval set in the app, else the inferred one
   if (!is.finite(step0) || step0 <= 0) step0 <- 1
   ids <- unique(d$id)
   f <- factor(d$id, levels = ids)
@@ -34,7 +35,12 @@ build_missing_grid <- function(dat, margin = 0, start_mode = "afr", start_age = 
   # An age at first trait expression (AFE), where supplied, opens the window earlier than entry into the
   # dataset: occasions between expression and entry then count as missed rather than as "not yet expressing".
   first_trait_age <- as.numeric(tapply(ifelse(is.finite(d$trait), d$age, NA_real_), f, function(v) min(v, na.rm = TRUE)))
-  start_ref <- if (common_start) rep(start_age, length(ids)) else first_trait_age
+  # the AFR the models use; a mapped AFR later than the first trait record (an inconsistency) cannot push observed
+  # records out of the window
+  afr_ref <- ifelse(is.finite(entry), pmin(entry, first_trait_age), first_trait_age)
+  # AFE mode opens the window at the earlier of the AFE and the AFR (0.24.4; before, at the earlier of the AFE and the
+  # first record of any kind, which ignored the trait-specific option and a mapped AFR)
+  start_ref <- if (common_start) pmin(start_age, afr_ref) else afr_ref
   build <- function(step) {
     # Each individual's schedule is anchored on its first record, so individuals sampled on schedules
     # offset from each other (staggered cohorts) are not given spurious missed occasions.
@@ -42,15 +48,19 @@ build_missing_grid <- function(dat, margin = 0, start_mode = "afr", start_age = 
     anchor <- first_age - n_before * step
     k_rec <- round((d$age - anchor[fi]) / step)
     last_k <- as.numeric(tapply(k_rec, f, max))
-    # a mapped ALR later than the last record (seen alive, not measured) keeps those occasions expected
+    # The window closes at the ALR the models use (0.24.2; before, at the last record of any kind when that was
+    # later): a mapped ALR later than the last record keeps those occasions expected, and a trait record after a
+    # mapped ALR (an inconsistency) stays inside the window
+    last_tk <- as.numeric(tapply(ifelse(is.finite(d$trait), k_rec, NA_real_), f,
+                                 function(v) if (any(is.finite(v))) max(v, na.rm = TRUE) else NA_real_))
     alr_k <- ifelse(is.finite(alr_i), round((alr_i - anchor) / step), NA_real_)
-    end_k <- pmax(last_k, alr_k, na.rm = TRUE)
+    end_k <- pmax(alr_k, last_tk, na.rm = TRUE)
     end_k <- pmin(end_k, floor((amax - anchor) / step + 1e-9))
-    end_k <- pmax(end_k, last_k)
+    end_k <- pmax(end_k, last_tk, na.rm = TRUE)
     end_k[!is.finite(end_k)] <- last_k[!is.finite(end_k)]
-    # AFR mode: the window opens at the first trait record, so a capture without a trait value before it is not
-    # counted; AFE mode: it opens at the common start age (the anchor)
-    first_k <- if (common_start) rep(0, length(ids)) else round((first_trait_age - anchor) / step)
+    # The window opens at start_ref: the AFR (AFR mode), or the earlier of the AFE and the AFR (AFE mode); a record
+    # without a trait value from there on counts as missed
+    first_k <- round((start_ref - anchor) / step)
     start_k <- pmax(0, first_k, end_k - 4999)
     list(anchor = anchor, k_rec = k_rec, start_k = start_k, end_k = end_k,
          n_cells = as.integer(pmax(1, end_k - start_k + 1)))
@@ -99,6 +109,7 @@ build_missing_grid <- function(dat, margin = 0, start_mode = "afr", start_age = 
   grid$alr <- im$alr[mm]
   grid$condition <- im$condition[mm]
   grid$condition_label <- im$condition_label[mm]
+  grid$afr <- afr_ref[gi]   # the AFR the window opens at (shown as the first-record tile)
 
   n <- nrow(grid)
   tr <- grid$trait
@@ -273,7 +284,20 @@ grid_display <- function(grid, ids, max_tiles = 60000, life_known = FALSE) {
     lo <- ifelse(is.finite(ak), ak, lo)
   }
   end_k <- as.numeric(tapply(g$k, g$id, max)[full$id])
+  # the AFR the window opens at is marked in blue (0.24.2); where it is also the ALR (a single occasion), the tile has
+  # its own colour and legend entry (0.24.7)
+  afr_outline <- rep(FALSE, nrow(full))
+  if ("afr" %in% names(g)) {
+    afr_by <- tapply(g$afr, g$id, function(v) v[[1]])
+    anc_by2 <- tapply(g$anchor, g$id, function(v) v[[1]])
+    fk <- round((as.numeric(afr_by[full$id]) - as.numeric(anc_by2[full$id])) / step)
+    at_afr <- !is.na(m) & is.finite(fk) & full$k == fk
+    status[at_afr] <- "First record (AFR)"
+    afr_outline <- at_afr & is.finite(lo) & full$k == lo
+  }
   status[!is.na(m) & is.finite(lo) & full$k == lo] <- "Last record (ALR)"
+  status[afr_outline] <- "AFR = ALR (one occasion)"
+  full$afr_outline <- afr_outline
   # the window ends at the ALR, so nothing after it is drawn as expected, with or without a known lifespan
   full$status <- status
   attr(full, "n_shown") <- length(ids)

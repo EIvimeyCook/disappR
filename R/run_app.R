@@ -32,8 +32,6 @@ run_app <- function(...) {
   }
   app_dir <- system.file("app", package = "disappR")
   if (!nzchar(app_dir)) stop("Could not find the app directory. Re-install disappR and try again.", call. = FALSE)
-  # Uploads up to 20 MB (Shiny's default is 5 MB, which long-term field datasets can exceed).
-  old <- options(shiny.maxRequestSize = 20 * 1024^2)
-  on.exit(options(old), add = TRUE)
+  # The upload limit (50 MB) is set in the app's global.R, the one place it is defined.
   shiny::runApp(app_dir, ...)
 }

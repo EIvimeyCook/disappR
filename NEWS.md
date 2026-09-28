@@ -1,3 +1,352 @@
+# disappR 0.24.9
+
+* Test fix: a unit test still expected the old wording of the random-term advice ("without random slopes"); it now
+  expects the 0.24.7 wording ("without this term"). Every other message the unit tests expect was checked against the
+  source. No change to the app or engine.
+
+# disappR 0.24.8
+
+* **Random slopes by default when the data support them well.** For simulated and uploaded data, the Modelling tab now
+  starts with a correlated random intercept and slope when the data support slopes well (at least half the
+  individuals, and at least 30, recorded at three or more ages, with more observations than individual-level random
+  effects), and with a slope for every age term when most individuals (at least 30) are also recorded at four or more
+  ages with a median of four or more records. Otherwise it starts with a random intercept. Bundled examples keep the
+  random structure of their published analysis. The note under the random-effect choice states the default for the
+  data (`default_random_structure()`, `test-0-24-8.R`).
+
+# disappR 0.24.7
+
+Interface clean-up: less text on screen, more behind info buttons and folded sections.
+
+* **Bundled examples** open with a short summary (species, trait, default model, covariates and what they mean, main
+  result, other traits); the full note is folded under "More details". AIC values and weights were removed from the notes.
+* **Data tab.** Removed the pre-filled-mapping, binomial-weights and "AFR enters the dataset" notes; the rounding
+  explanation moved to an info button, which now says that records rounded to the same age are kept, not averaged;
+  clearer exclusion label.
+* **Page 2.** Shorter trait-scale, terminal-change and hazard-test texts; the bins sentence moved to the info button.
+* **Page 3.** The proxy-choice card and the missing-cell counts are gone; the settings box is "Missingness settings".
+  The sampling grid gives an individual with a single occasion its own colour and legend entry ("AFR = ALR").
+* **Page 4.** The data-support box is gone (it is on the Modelling tab); "Suggested function" wording; the function
+  comparison is "How do different functions fit the population-level data?", with its own shorter help.
+* **Page 5.**
+  - The suggested starting analysis and its "Apply these settings" button are removed.
+  - The random-effect caution appears once, under the random-effect choice.
+  - The fitted formula of every supported model is listed.
+  - "Is the variance in the data changing across age?" replaces "Residual variance / dispersion".
+  - Shorter random-term, Hessian, caution, standardising and misspecified-shape texts; "Further" in the guide.
+  - New plot of the predicted trajectories of stored models, for the stored models you tick.
+* Audit Part M (38 checks); every earlier part re-run.
+
+# disappR 0.24.6
+
+* Test fix: the app server test listed five outputs that no longer exist (`package_status`, `coverage_table`,
+  `b2_settings`, `summary_ui`, `pred_summary_table`). Since 0.23.2 the test fails on any problem, so these stale names
+  failed it. They are removed, and audit Part H now checks that every output the test renders is defined by the
+  server. No change to the app or engine.
+
+# disappR 0.24.5
+
+* Test fix: the unit test checking that the exported script computes ALR and AFR the same way used two individuals,
+  too few to fit the models, so the script could not be generated. It now uses 16 individuals whose ALR varies under
+  either option. No change to the app or engine.
+
+# disappR 0.24.4
+
+* **AFE and the trait-specific box no longer conflict.** With an age at first expression (AFE) set on the Sampling
+  tab, the missingness window opened at the earlier of the AFE and the individual's first record of any kind, ignoring
+  the box and a mapped AFR column. It now opens at the earlier of the AFE and the AFR the models use. Unchanged when
+  unticked with automatic AFR (every bundled example).
+* **Mapped columns and the box.** A note under the box now says when a mapped ALR or AFR column means the box
+  changes only one of them, or neither. The automatic ALR, AFR and lifespan choices name the box.
+* The R snapshot tier (tier 9) counts missed occasions from AFR, as the app does by default.
+* **Audit Part L** (19 checks) and `test-0-24-4.R`: every combination of AFR automatic or mapped, ALR automatic or
+  mapped, box ticked or not, and AFE absent, early or late gives the specified AFR, ALR and window, and the models
+  use the same AFR and ALR.
+
+# disappR 0.24.3
+
+* **Data checks follow the trait-specific option.** "Mapped ALR vs last age" compares a mapped ALR with the last age
+  with a trait value when ticked (the last record of any kind when unticked), and "LS - ALR" uses the ALR the models
+  use when ticked. "LS earlier than the last record" still uses any record, since no individual is seen after death.
+* The sampling grid's ALR order breaks ties by the same AFR as the blue tile.
+* The app server test toggles the trait-specific box and redraws the grid, the proxy panels and the data checks
+  under each option, and checks the benchmark note on a ticked bundled example.
+* **Audit Part K** (17 checks): odd missingness x trait x age scenarios with known lifespan and ALR automatic, mapped
+  as the last sighting, or mapped inconsistently. Every invariant of the window and the proxies holds.
+
+# disappR 0.24.2
+
+* **Trait-specific ALR and AFR (default).** When ALR and AFR are not mapped as columns, they are the last and first
+  ages at which the trait has a value (zero is a value, NA is not), the same records mean age uses. A tick box on the
+  Data tab, with a help panel, switches to the last and first ages of any record ("dataset-wide"). Before, the
+  dataset-wide definition was the only one.
+  - Bundled examples open unticked, so their documented model results are unchanged; a note appears if it is ticked.
+  - Uploads, simulations and `disappr_mapping()` in R open ticked. Mapped ALR and AFR columns are used as supplied.
+  - "Lifespan = last recorded age" follows the same choice; the disappearance hazard and life table still use each
+    individual's last record of any kind.
+  - The choice is part of the data fingerprint, the exported R script and the methods draft.
+* **Simulations use the observed AFR** (the first observed record), like ALR; the true AFR stays in the data.
+* **Missingness window from AFR to ALR, both included.** It opened at the first trait record and closed at the later of
+  the ALR and the last record of any kind. Records without a trait value inside the window count as missed, so the
+  missingness figures of six bundled examples rise by 0.6 to 3.4 percentage points. The AFR is now a blue tile on the
+  sampling grid (an individual seen once gets the ALR tile with a blue outline), and "order by AFR" sorts on it.
+* **Audit Part J** (33 checks) and R tier 9 (`trait_ages_snapshot.R`) compare the two options on every example, on
+  files with several traits and on simulations; `j_snapshot_before_after.md` and a code diff record 0.24.1 against
+  0.24.2.
+
+# disappR 0.24.1
+
+From the first R run of 0.24.0 (R CMD check: 0 errors, 0 warnings, 0 notes; unit tests 1896 passed, 1 failed).
+
+* **The app server unit test** failed to find `tests/scripts/app_test.R`: its path was relative to the tests folder
+  but the script was started from the package root. Both paths are now absolute.
+* **Peak and onset intervals** no longer call `lme4::nobars()`, which lme4 has moved to the reformulas package and
+  now warns about; the fixed-effect formula is taken with `formula(fit, fixed.only = TRUE)` for lme4 and glmmTMB fits
+  alike. Results are unchanged.
+
+# disappR 0.24.0
+
+A release of everything up to 0.23.2 except the GAMM layer, to be tested on its own before the GAMMs return.
+
+* **GAMM layer held back.** Step 7 (GAMMs), its engine (`R/gamm.R`), help panels, methods paragraph, saved-result
+  types, unit tests (`test-gamm.R`), the R tier comparing GAMMs with GLMMs (`gamm_vs_glmm.R`) and the mgcv and gamm4
+  suggestions are removed. Everything else, including every fix in 0.23.1 and 0.23.2, is unchanged.
+* **Audit Part I** checks the removal against 0.23.2: nothing of the GAMM layer is left, every removed block was GAMM
+  code, and every other engine file is byte-identical. Part G keeps only its checks of the code review's fixes.
+
+# disappR 0.23.2
+
+* **Continuous integration.** GitHub Actions runs:
+  - R CMD check on macOS, Windows and Linux for every push and pull request;
+  - the app server test and the unit tests from the source tree, on the same triggers;
+  - test coverage;
+  - every script tier, weekly and on demand.
+
+  The app server test now fails with an error when an output fails (before, it only printed the failure), covers the
+  GAMM outputs, and runs inside the unit tests.
+* **Individual frailty in the disappearance hazard.** The trait-hazard models and the life-table test of a constant
+  hazard now include a random intercept for individual when it can be estimated, and otherwise fall back to the
+  previous model; the app says which was fitted. Audit Part H found the previous model was already well calibrated for
+  one-event-per-individual data, so results change little.
+* **Models 3 and 5 wording.** The help now states that age² is centred on each individual's own mean of age²,
+  matching the revised manuscript. It also explains how this differs from Fay et al.'s (2022) equations 3 and 4.
+* Audit Part H: continuous integration, the frailty models, and the preprint's, the revised manuscript's and the
+  app's Models 3 and 5 compared on the preprint's simulation design.
+
+# disappR 0.23.1
+
+Fixes from the external code review of 0.21.16, with Part G of the audit.
+
+* **Guidance that users act on.**
+  - The random-slope warning read the requested random structure, so it vanished when 'Automatic' resolved to an
+    intercept only (the false-positive case); it now reads the fitted structure.
+  - The suggested starting analysis offered Model 6 when lifespan was only the last-record proxy; it now requires a
+    known lifespan.
+* **Messages and records.**
+  - The bootstrap caution printed the number of datasets requested instead of the number that refitted.
+  - The reproducibility checksum hashed the installed copy of an example rather than the file the app loaded.
+  - There were two upload limits (20 and 200 MB); there is now one, 50 MB, set in global.R.
+  - The model script was written in the native encoding; it is now UTF-8.
+* **Smaller fixes.**
+  - The random-slope support check now covers the "every age term" structures.
+  - Messages no longer say duplicates were averaged: `dup_action = "mean"` only collapses identical rows.
+  - The mean-age note no longer fires for Model 6.
+  - A layout test no longer errors outside a source checkout.
+* **Housekeeping.**
+  - Unused server code removed, including a latent error.
+  - Automatic ageing-function and error-family checks are cached by data and settings, so refitting the same models
+    no longer repeats them.
+  - Exported scripts read uploads through the public `disappr_read()`.
+  - Model names come from one source (Model 3 was "Mean-centring" in one table).
+  - Stale "moved verbatim" headers and `.Rhistory` removed.
+* **Audit Part G: GAMMs against GLMMs** on 880 simulated datasets and 8 examples. With no selective disappearance,
+  a quadratic GLMM declared age-dependent selection in 67% of datasets, a GLMM with the function chosen by AIC in
+  25%, and the GAMM in 3%. All three detected real age-dependent selection every time, and the GAMM recovered the
+  trajectory shape best on average. The same comparison through the real engines is the new R tier 9,
+  `tests/scripts/gamm_vs_glmm.R`.
+
+# disappR 0.23.0
+
+* **GAMM layer (step 7, optional).** Generalized additive mixed models of ageing, fitted with mgcv (or gamm4), on
+  simulated, example or uploaded data. It is an independent layer: it reads the current data and changes nothing in
+  steps 1-6 (Part F of the audit checks this line by line).
+  - **Model:** error family (Gaussian, Gaussian with a variance smooth in age, Gamma, beta, Poisson, negative
+    binomial, zero-inflated Poisson, Tweedie, binomial); basis (tp, ts, cr, cs, ps, bs, ad); k; penalty order;
+    hand-placed knots (cr, cs); shrinkage selection; REML or ML; engine gam, bam or gamm4.
+  - **Individual variation:** random intercept, intercept and slope, or a random smooth per individual (fs); mapped
+    random intercepts and covariates.
+  - **Selective disappearance and appearance:** ALR or lifespan, and AFR, each linear, smooth or age-dependent
+    through ti(age, proxy); compared by ML.
+  - **Groups:** models G, GS, GI, S and I (Pedersen et al. 2019) compared by ML AIC; ordered-factor difference
+    smooths with tests; pairwise difference curves with pointwise and simultaneous intervals; a likelihood-ratio test
+    of one smooth against one per group.
+  - **Ageing:** the first derivative of the population curve with pointwise and simultaneous 95% intervals, periods
+    of significant decline and increase, and peak and onset with limits from 1,000 draws.
+  - **Checks:** smooth and parametric tables, basis-dimension (k) check, concurvity, residual plots, random-effect
+    SDs, individual fitted curves, a comparison with linear, quadratic and cubic age, automatic cautions and the R
+    code of the fit.
+  - Results save to the summary, and the methods draft describes them.
+
+# disappR 0.22.8
+
+* `inst/app/data/PROVENANCE.md` lists each bundled dataset's paper DOI, data DOI and licence. Ten of the 13 files come
+  from Dryad (CC0). Still open: the fly data (licence and DOI), the great tit data (no public archive found;
+  permission from the authors needed) and the source of the swift file (the article's supplement, CC BY 4.0, to
+  confirm).
+
+# disappR 0.22.7
+
+* **Wording audit** (Part D of `inst/validation/audit_0_22_0/`). Every help panel now says what the result is, how
+  to read it and what to watch for, in sentences under 45 words.
+  - Corrected: the population-level function comparison uses maximum likelihood, not restricted maximum likelihood;
+    binomial families are fitted with glmmTMB, not lme4; effect sizes are on the link scale.
+  - Removed: outdated statements about random slopes and the random-term flag, an option name that no longer exists,
+    and references to tabs and settings that do not exist. The trait-scale caution now appears once, instead of in
+    five panels.
+  - Most "not available" messages now say what to do.
+  - The glossary adds AIC/ΔAIC, random slope, error family, sampling interval, SD/SE/CI and MCAR.
+* **Complex-scenario audit** (Part E) and a new R test tier, `tests/scripts/complex_scenarios.R` (tier 8 of
+  `run_all.R`): monthly ages, staggered cohorts, mixed sampling frequency, study windows with calendar trends,
+  AFR-lifespan confounding, unstandardised cubics on days, tiny data, the family screen, and beta proportions. Two
+  traps are now named in the model-support help: a calendar-year trend within a study window mimics selective
+  disappearance (add year as a random intercept); and with AFR correlated with lifespan, Model 10 can report false
+  selective appearance (compare with Model 8).
+* An empty decomposition (for example with cohorts sampled in alternate years) is now explained under the prediction
+  figure instead of silently not drawn.
+
+# disappR 0.22.6
+
+* **Error-family warning without running the check.** After each fit, the best-supported model is refitted with each
+  family of the trait's kind (zero-inflated families only when at least 10% of values are zero; skipped above 40,000
+  rows), and an instant screen of the fitted model flags overdispersion, excess zeros, right-skewed residuals of a
+  positive trait, or a count or binary trait fitted as Gaussian. Both report in the sensitivity banner, which names
+  its source; the manual check is used instead when it matches the current fit.
+* **Shorter wording.** The banner, the help panels and messages added since 0.21.16, the peak sentences, the store,
+  random-effect and sampling-interval notes, and the methods draft and its conflicts were tightened and checked for
+  accuracy. The methods draft describes peak ages only when the peak table is saved.
+
+# disappR 0.22.5
+
+* `tests/testthat/test-consistency.R`: the mean-age test read the two quoted ages by position, but the text names the
+  older group first ("the gap between individuals ... older ages and individuals ... younger ages"), so it failed for
+  every function although the ages were right. Each age is now read from its own label. No change to the app.
+
+# disappR 0.22.4
+
+A consistency audit (Part C of `inst/validation/audit_0_22_0/`, and the test tier `tests/testthat/test-consistency.R`)
+checks every number and description the app reports against an independent truth, for all five ageing functions, with
+and without standardisation. It found and fixed:
+
+* **The mean-age term quoted ages that were not ages.** For the logarithmic and asymptotic exponential functions the
+  text back-transformed the mean ageing term with the polynomial formula, printing a log- or exponential-scale value as
+  "mean age" (6-9 years off), and for the asymptotic exponential, whose term falls with age, the "younger" group was
+  the older one. The text now quotes the real mean ages of the individuals used, younger group first.
+* **The reference of main effects named for each function.** When age is not standardised, main effects apply at age 0
+  for the polynomials, at age 1 (or the youngest age) for the logarithm, and at no age for the asymptotic exponential;
+  0.22.3 said age 0 for all. Standardised non-polynomial functions now name the centre with its age, and the
+  mean-age interactions name each individual's own mean age.
+* **Every table rounded small values to 0.00**, not only the coefficients: all tables now pass through a guard that
+  shows values below 0.005 with three significant digits and leaves other columns as they were.
+* The logarithmic term is described as log(age - youngest age + 1) when ages include 0.
+
+# disappR 0.22.3
+
+Model output when age is not standardised (reported on a cubic Model 10 with 'Standardise' off). The estimates and the
+predicted ratios were correct, but the table and the text could not be read against each other:
+
+* **Coefficients shown as 0.00.** The tables rounded every number to two decimals, so the age^2 and age^3 interactions
+  of an unstandardised cubic (for example 0.0063 and -0.00023) appeared as 0.01 and -0.00. Coefficient and
+  random-effect tables now show three significant digits.
+* **Wrong term descriptions.** Without standardisation the age terms are age, age^2 and age^3 themselves, but they were
+  described as "(age - centre)^2", and the intercept as "the value at the centre of every scaled variable". They now
+  read "age^2", "age^3" and "value at age = 0 with every proxy at 0".
+* **Wrong reading of the main effect.** With interactions, the main-effect coefficient is the difference at the
+  reference point of age. Unstandardised, that is age 0, outside the sampled ages, yet the text said "at the mean age
+  the two groups differ little" (in the reported fit the ratio at age 0 was x1.30 while at the median age it was x0.48).
+  The text now says the main effect sits at age 0, that its test says nothing about the sampled ages, and gives the
+  predicted difference at the median age. With standardised age the reference is named as the mean age (polynomial
+  functions) or the centre of the age scale (the others).
+* **Random slopes flagged as "explains no variance" by their scale.** A slope's variance is per unit of its covariate,
+  so slopes on unstandardised age^2 and age^3 looked negligible however much they varied. Slopes are now judged by the
+  variation they add across the records (variance x mean of the covariate squared).
+* The random-effects table names the slope groups by individual rather than "id.1", "id.2", and the second and third
+  ageing terms as age^2 and age^3.
+
+# disappR 0.22.2
+
+* **The null-model bootstrap carries the variance model.** When 'Residual variance / dispersion' is set to change with
+  age, the null model is fitted with the same dispersion formula, its simulated data vary with age in the same way,
+  and every refit uses it too. The 0.22.0 audit found that a variance rising with age, left unmodelled, triples the rate
+  at which Model 4 is wrongly preferred (7% to 21%); a null simulated with a constant variance could not reproduce that.
+  The result note, the help panel and the methods draft state the variance model used. With a constant variance
+  (the default) the bootstrap is unchanged.
+* **Family labels.** The binomial and beta-binomial families are labelled "binomial (logit link)" and "beta-binomial
+  (logit link)" in tables, the stored-model list and the error-family check; the methods draft names families without
+  the link, which it states separately.
+* `tests/scripts/run_all.R` can be sourced from an R console: a failed tier stops with an error instead of quitting R.
+
+# disappR 0.22.1
+
+Fixes from the 0.22.0 audit (`inst/validation/audit_0_22_0/`).
+
+* **Sampling interval and the decomposition.** Setting the interval to the value the app infers now gives exactly the
+  automatic decomposition; before, the set-interval path re-gridded the records, which dropped 175 records of the
+  chipmunk example. A set interval that differs from the inferred one now anchors its grid on the most common phase of
+  the ages rather than on the youngest age, and draws each occasion at the mean of its records' real ages: a design
+  with an offset first occasion (the bee example: day 1, then weekly from day 7) was drawn one day late (8, 15, 22...).
+* **Share of wins.** An individual whose lowest AICc is shared by several functions (identical fits, for example two
+  two-parameter functions on two distinct ages) now gives each tied function an equal fraction, so the shares sum to
+  100%; before, each tied function counted a full win and the shares could sum to 160%.
+* The 0.22.0 audit itself: `inst/validation/audit_0_22_0/` (README, captured output and the Python used). Unit tests
+  added for both fixes.
+
+# disappR 0.22.0
+
+* **Sampling interval: inferred or set.** A tick box on the Missingness tab ('Infer the sampling interval
+  automatically') can be unticked to enter the interval between occasions. The interval is used throughout the app: the
+  sampling grid and missingness, the decomposition, the disappearance diagnostics (A4-A7), the integrity table, the
+  bins and the prediction ages. With a set interval the decomposition places records on that grid and leaves out
+  records more than a quarter of an interval off it, so an extra mid-year record in annual sampling no longer breaks the
+  chain of annual links (before, such data were read as half-yearly sampling: missingness roughly doubled and the
+  decomposition kept a handful of individuals per link). Exported scripts carry the interval.
+* **Current data** box in the sidebar: for simulations, the sample size, average number of time steps (mean lifespan),
+  functional form, selective disappearance and appearance, strength, sampling design and seed; for examples and
+  uploads, the dataset and its size; always the sampling interval and whether it was inferred or set.
+* **Compare models across fits.** A box beside the model comparison stores any fitted model, so models fitted with
+  different ageing functions, random-effect structures, families, variance models or extra terms can be compared by
+  AIC (for example a quadratic Model 4 with random slopes against a logarithmic Model 10). Stored models are grouped into
+  comparison sets that share the data, the analysed records and the kind of likelihood (continuous density or discrete
+  probability mass); ΔAIC is computed within a set only, and the reason sets differ is stated. No Akaike weights.
+* **Gamma, lognormal and beta families** (glmmTMB): Gamma and lognormal (log link) for strictly positive traits, beta
+  (logit link) for continuous proportions strictly between 0 and 1. Unsuitable values are refused with a message. The
+  error-family check now compares the continuous families with each other (Gaussian, Gamma, lognormal, beta), as it
+  compares the count families; a continuous family is never compared with a count family.
+* **Residual variance or dispersion that changes with age** (Advanced options): constant (default), log-linear in age,
+  or in every term of the ageing function, through glmmTMB's dispersion formula. Gaussian models with a changing
+  variance are fitted with glmmTMB (Wald z-tests). Families without a dispersion parameter (Poisson, binomial,
+  zero-inflated Poisson) ignore the option and say so. The equation panels, exported code, provenance and the
+  random-effects table (log-dispersion coefficients) follow. The null-model bootstrap is unchanged and always fits a
+  homogeneous variance; its help panel says so.
+* **Share of wins** in the individual-level function comparison (step 4): Share_best is the percentage of the common
+  individuals for which each function has the lowest AICc.
+* **Peak age and onset of senescence for every fitted model** (Model output tab): read from each model's predicted
+  population trajectory on a fine age grid, with 95% confidence limits from 1,000 draws of the fixed effects; a table
+  and one sentence per model, saved to the summary on request.
+* **Random effects against lifespan proxies** (Model output tab): each individual's predicted level and, with random
+  slopes, ageing rate and curvature, correlated with its ALR, AFR and known lifespan (covariance, r with 95% CI, and a
+  faceted figure). With Model 1 this reads Cov(LS, β₀) and Cov(LS, β₁) directly; the help panel states the
+  BLUP caveats (Hadfield et al. 2010).
+* **Auto-written methods** (Summary tab): a draft methods section, with references, built from the saved results the
+  user ticks, using the data and settings stored with each result when it was saved. Conflicts are flagged: results
+  from different data or sampling intervals, model results saved with different families, ageing functions, random
+  effects, among-individual terms, variance models or standardisation, step-2 figures with different bins, and
+  disagreements with the individual-level function comparison or the error-family check.
+* Layout: the sensitivity banner sits above the AIC plot and table, which are side by side again; the prediction
+  toggles are in two rows.
+* Documentation: REPLICATION.md revised (the removed male-weight example dropped, the 0.21.0 audit's findings added
+  to the tern, turtle, beetle and fly rows, and rows for the marmot, swift and Apollo examples); VALIDATION.md marked as
+  the historical 0.9.7 study with pointers to the later checks. New unit tests in `tests/testthat/test-0-22.R`.
+
 # disappR 0.21.16
 
 * `individual_metrics()` guards its character summaries (condition label, group) as it already guarded the numeric

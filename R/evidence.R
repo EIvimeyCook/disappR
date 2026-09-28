@@ -225,7 +225,7 @@ evidence_direction <- function(r, m) {
   fam <- r$family %||% "gaussian"
   to_link <- function(x) {
     if (identical(fam, "gaussian")) x
-    else if (fam %in% BINOMIAL_FAMILIES) stats::qlogis(pmin(pmax(x, 1e-9), 1 - 1e-9))
+    else if (fam %in% c(BINOMIAL_FAMILIES, "beta")) stats::qlogis(pmin(pmax(x, 1e-9), 1 - 1e-9))
     else log(pmax(x, 1e-300))
   }
   summ <- function(hold) {

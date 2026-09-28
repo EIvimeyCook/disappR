@@ -47,7 +47,7 @@ test_that("every engine file is loaded in both source and installed mode", {
   # because many handlers return NULL on error, the failure shows as an empty panel rather than a message.
   # effects.R was missing from both in 0.13.0 to 0.15.4.
   pkg_root <- testthat::test_path("..", "..")
-  skip_if_not(dir.exists(file.path(pkg_root, "R")), "package source not available")
+  skip_if_not(dir.exists(file.path(pkg_root, "R")) && file.exists(file.path(pkg_root, "inst", "app", "global.R")), "package source not available")
   r_files <- basename(list.files(file.path(pkg_root, "R"), pattern = "[.]R$"))
   g <- paste(readLines(file.path(pkg_root, "inst", "app", "global.R"), warn = FALSE), collapse = "\n")
   listed <- regmatches(g, gregexpr('"[^"]+[.]R"', g))[[1]]

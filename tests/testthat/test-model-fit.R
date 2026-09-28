@@ -60,7 +60,7 @@ test_that("random terms that explain no variance are flagged, with advice that f
   expect_identical(negligible_random_terms(glmm)$flag, c(FALSE, TRUE))    # link scale: SD 0.03 < 0.05
   expect_match(random_term_flag_text("year", "(Intercept)", FALSE, share = 0.002), "try refitting without that term")
   expect_match(random_term_flag_text("ID", "(Intercept)", TRUE, share = 0.002), "stays in the models")
-  expect_match(random_term_flag_text("ID", "age (first ageing term)", TRUE, share = 0), "without random slopes")
+  expect_match(random_term_flag_text("ID", "age (first ageing term)", TRUE, share = 0), "without this term")   # 0.24.7 wording
 })
 
 test_that("the fixed-effect fallback reproduces glmmTMB's own population prediction", {

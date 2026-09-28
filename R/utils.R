@@ -1,5 +1,5 @@
 # disappR engine - Shared helpers and constants: operators, formatting, labels, colours and small numerical utilities.
-# Moved verbatim from inst/app/global.R (0.9.9); do not edit here without the golden tests (tests/golden/).
+# Engine code shared by the app and the R interface; changes that alter results must pass the golden tests.
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
@@ -175,6 +175,43 @@ infer_age_step <- function(age, id = NULL) {
   dom <- vals[which.max(share)]
   if (max(share) >= 0.6 && step / dom >= 0.75 && abs(dom / step - round(dom / step)) > 0.01) step <- dom
   step
+}
+
+# Numbers for display tables with a fixed number of significant digits (0.22.3). shiny::renderTable rounds numeric
+# columns to two decimals, which shows small coefficients (for example those of age^2 and age^3 when age is not
+# standardised) as 0.00; formatting them as text first keeps them readable.
+sig_text <- function(v, digits = 3) {
+  vapply(as.numeric(v), function(x) {
+    if (!is.finite(x)) return("NA")
+    if (x == 0) return("0")
+    if (abs(x) >= 1e6 || abs(x) < 1e-4) return(formatC(x, digits = digits - 1, format = "e"))
+    formatC(signif(x, digits), digits = digits, format = "fg")
+  }, character(1))
+}
+
+# Tables drawn by shiny::renderTable show numeric columns with two decimals, so a value smaller than 0.005 in absolute
+# value appears as 0.00 (0.22.4). A numeric column holding such a value is converted to text: values of 0.005 or more
+# keep the two decimals, smaller ones get three significant digits. Columns without small values, whole-number columns
+# and anything that is not a data frame are returned unchanged, so ordinary tables look as before.
+display_numbers <- function(x) {
+  if (!is.data.frame(x) || !ncol(x)) return(x)
+  for (j in seq_along(x)) {
+    v <- x[[j]]
+    if (!is.double(v)) next
+    fin <- is.finite(v)
+    if (!any(fin & v != 0 & abs(v) < 0.005)) next
+    x[[j]] <- ifelse(!fin, "NA", ifelse(v == 0 | abs(v) >= 0.005, sprintf("%.2f", v), sig_text(v, 3)))
+  }
+  x
+}
+
+# The sampling interval used throughout the app (0.22.0): a number set by the user (the 'Sampling interval' control on
+# the Missingness tab) or, when none is set, the interval inferred from the ages by infer_age_step(). Only a single
+# finite positive number counts as set; anything else falls back to the inferred interval.
+valid_age_step <- function(step) is.numeric(step) && length(step) == 1L && is.finite(step) && step > 0
+resolve_age_step <- function(age, id = NULL, step = NULL) {
+  if (valid_age_step(step)) return(as.numeric(step))
+  infer_age_step(age, id)
 }
 
 # Values clamped to a window widened by `pad` times its width on each side (0.20.13). coord_cartesian() hides what lies

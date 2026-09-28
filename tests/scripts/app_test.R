@@ -19,22 +19,23 @@ touch <- function(output_env, names) {
   }
 }
 
-all_outputs <- c("package_status", "toy_status", "mapping_ui", "censor_value_ui", "data_metrics", "integrity_table",
+# outputs the server defines (0.24.6: five names of removed outputs dropped; audit Part H checks this list)
+all_outputs <- c("store_plot_pick_ui", "store_pred_plot", "trait_ages_note", "toy_status", "mapping_ui", "censor_value_ui", "data_metrics", "integrity_table",
                  "visual_scale_advice", "a3_cap_warning", "model_rowset_warning", "coef_re_flags",
                  "integrity_extra", "dist_var_ui", "dist_plot", "data_preview",
                  "visual_proxy_ui", "a1_plot", "bin_diff_plot", "a2_plot", "toy_card_visual",
-                 "sampling_metrics", "sampling_guidance", "heatmap", "missing_by_age", "coverage_table", "missing_vs_var",
+                 "sampling_metrics", "heatmap", "missing_by_age", "missing_vs_var",
                  "drivers_table", "proxy_plots_ui", "proxy_alr_mean", "proxy_alr_ls", "proxy_mean_ls",
                  "a3_metrics", "a3_plot", "a3_mean_plot", "a3_compare_table", "a3_coef_table",
-                 "family_hint", "structure_note", "b2_settings", "b2_table", "b2_plot",
+                 "family_hint", "structure_note", "b2_table", "b2_plot",
                  "model_fit_note", "aic_plot", "aic_table", "lrt_table", "status_table", "drop_note", "pred_plot",
-                 "deviation_note", "deviation_table", "coef_model_ui", "coef_table", "family_table", "dharma_model_ui", "dharma_table", "code_ui", "summary_ui",
+                 "deviation_note", "deviation_table", "coef_model_ui", "coef_table", "family_table", "dharma_model_ui", "dharma_table", "code_ui",
                  "facet_ui", "coef_re_table", "saved_controls", "saved_ui", "function_default_note", "use_a3_function_ui", "code_data_text", "code_visual_text", "code_sampling_text", "code_individual_text",
-                 "subset_ui", "subset_levels_ui", "subset_status", "cov_int_ui", "sampling_caveat", "a3_support",
+                 "subset_ui", "subset_levels_ui", "subset_status", "cov_int_ui", "sampling_caveat",
                  "a5_plot", "a5_note", "a6_plot", "a6_note",
                  "a7_plot", "a7_note", "zi_ui", "random_support_note", "consistency_ui",
                  "pred_models_ui", "pred_by_ui", "scaling_table", "coef_interpretation", "performance_model_ui",
-                 "performance_table", "performance_note", "pred_summary_table")
+                 "performance_table", "performance_note")
 
 base_inputs <- list(n_bins = 4, bin_method = "equal", show_se = TRUE,
                     diff_lines = "pairs", a2_points = TRUE, trait_scale = "raw", heat_order = "alr", heat_n = 500,
@@ -63,6 +64,13 @@ shiny::testServer(app, {
   session$setInputs(visual_proxy = "ALR", model_family = "gaussian", use_M1 = TRUE, use_M2 = TRUE, use_M3 = TRUE, use_M4 = TRUE, use_M5 = TRUE, use_M6 = TRUE, use_M7 = TRUE, use_M8 = TRUE, use_M9 = FALSE, use_M10 = FALSE)
   session$setInputs(fit_models = 1)
   touch(output, all_outputs)
+  # 0.24.2: dataset-wide and trait-specific ALR/AFR, with the grid and the proxy panels redrawn under each
+  session$setInputs(trait_ages = FALSE)
+  touch(output, c("mapping_ui", "trait_ages_note", "heatmap", "missing_by_age", "sampling_metrics", "proxy_plots_ui", "integrity_table"))
+  session$setInputs(heat_order = "afr")
+  touch(output, "heatmap")
+  session$setInputs(trait_ages = TRUE, heat_order = "alr")
+  touch(output, c("trait_ages_note", "heatmap", "missing_by_age", "sampling_metrics", "integrity_table"))
   session$setInputs(pred_as_lines = TRUE)
   touch(output, "pred_plot")
   session$setInputs(pred_as_lines = FALSE)
@@ -115,7 +123,7 @@ shiny::testServer(app, {
   # A4-A7 diagnostics, subsetting, trend-line and point options
   session$setInputs(a6_compare = "contrast", diff_lines = "pooled", a2_points = FALSE)
   touch(output, c("a5_plot", "a5_note", "a6_plot", "a6_note",
-                  "a7_plot", "a7_note", "bin_diff_plot", "a2_plot", "sampling_caveat", "a3_support"))
+                  "a7_plot", "a7_note", "bin_diff_plot", "a2_plot", "sampling_caveat"))
   session$setInputs(subset_var = "diet")
   session$setInputs(subset_levels = "Standard")
   touch(output, c("subset_status", "data_metrics", "integrity_table", "a1_plot"))
@@ -170,6 +178,12 @@ shiny::testServer(app, {
                     zi_vars = NULL, use_M1 = TRUE, use_M2 = TRUE, use_M3 = TRUE, use_M4 = TRUE, use_M5 = TRUE, use_M6 = FALSE, use_M7 = FALSE, use_M8 = FALSE, use_M9 = FALSE, use_M10 = FALSE)
   cat("Fly rows:", nrow(dat()), " individuals:", length(unique(dat()$id)), " censored:", meta()$n_censored, "\n")
   cat(sprintf("Fly missing expected occasions: %.1f%%\n", msum()$percent))
+  # a bundled example ticked shows the benchmark note; unticked again for the rest of the test (0.24.2)
+  session$setInputs(trait_ages = TRUE)
+  touch(output, c("trait_ages_note", "heatmap", "integrity_table"))
+  if (!grepl("documented", paste(capture.output(print(output$trait_ages_note)), collapse = " ")))
+    problems <<- c(problems, "trait_ages_note: no benchmark note for a ticked bundled example")
+  session$setInputs(trait_ages = FALSE)
   # the same data without LS: only the ALR vs mean age panel is drawn
   session$setInputs(col_life = "")
   touch(output, c("proxy_plots_ui", "proxy_alr_mean", "a2_plot"))
@@ -203,6 +217,8 @@ shiny::testServer(app, {
 
 if (length(problems)) {
   cat("\nOutput problems:\n", paste("-", problems, collapse = "\n"), "\n")
+  # a non-zero exit status, so that run_all.R and the unit test report the failure (0.23.2)
+  if (!interactive()) quit(status = 1)
 } else {
   cat("\nAll outputs rendered without errors.\n")
 }

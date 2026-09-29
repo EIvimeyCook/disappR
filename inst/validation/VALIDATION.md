@@ -1,5 +1,12 @@
 # Independent simulation verification and validation (disappR 0.9.7)
 
+> **Historical study.** This is the 0.9.7 validation, kept unchanged so its numbers can be reproduced. It covers random
+> intercepts, Models 1-6 and Gaussian and Poisson traits only. Later checks: the null-model bootstrap calibration
+> (`v0_20/python/bootstrap_calibration_summary.md`), the held-out scenarios below, and the 0.21.0 pre-submission audit
+> (`audit_0_21_0/README.md`), which covers random slopes for every age term and the binomial traits. The families and
+> age-dependent variance added in 0.22.0 are covered by the unit tests (`tests/testthat/test-0-22.R`), not by a
+> simulation study.
+
 **Evidence type: independent implementation.** The study re-implements, in Python (numpy/scipy), the app's
 simulation design (`simulate_toy_data`), its Models 1–6 (quadratic ageing, standardised age, linear among-individual
 terms, random intercept for individual, maximum likelihood), its population-trajectory predictions (proxies held at

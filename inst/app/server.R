@@ -1,6 +1,12 @@
 server <- function(input, output, session) {
 
-  HEAT_COLOURS <- c("Observed" = "#7C8060", "Missed" = "#C0392B", "Last record (ALR)" = "#E67E22", "Not expected" = "#FFFFFF")
+  # Every table passes through display_numbers() (0.22.4), so no value smaller than 0.005 is shown as 0.00.
+  renderTable <- function(expr, ..., env = parent.frame(), quoted = FALSE) {
+    if (!quoted) expr <- substitute(expr)
+    shiny::renderTable(bquote(display_numbers(.(expr))), ..., env = env, quoted = TRUE)
+  }
+
+  HEAT_COLOURS <- c("Observed" = "#7C8060", "Missed" = "#C0392B", "First record (AFR)" = "#2C6FAC", "Last record (ALR)" = "#E67E22", "AFR = ALR (one occasion)" = "#7B4F9E", "Not expected" = "#FFFFFF")
 
   # "i" help modals for every section
   lapply(names(INFO), function(key) {
@@ -53,7 +59,7 @@ server <- function(input, output, session) {
   toy_cfg <- reactiveVal(TOY_DEFAULTS)
   observeEvent(input$toy_commit, disappr_guard("input$toy_commit", {
     toy_cfg(read_toy_inputs())
-    notify("Simulated dataset ready. All tabs now use it; refit models on the Models tab.", duration = 4)
+    notify("Simulated dataset ready and used by every tab; refit the models (Modelling tab).", duration = 4)
   }))
   # Shapes offered within each simulated ageing form (biological scenarios); "default" is the form's original shape.
   observeEvent(input$toy_form, disappr_guard("input$toy_form", {
@@ -101,9 +107,18 @@ server <- function(input, output, session) {
     if (!id %in% names(EXAMPLES)) id <- names(EXAMPLES)[[1]]
     EXAMPLES[[id]]
   })
+  # 0.24.7: a short summary of each study, with the full note folded under 'More details'
   output$example_note <- renderUI({
     ex <- current_example()
-    div(class = "truth-card", strong("Empirical example. "), ex$note)
+    a <- ex$about
+    if (is.null(a)) return(div(class = "truth-card", strong("Empirical example. "), ex$note))
+    item <- function(k, v) if (!is.null(v) && nzchar(v)) tags$li(strong(paste0(k, ": ")), v) else NULL
+    div(class = "truth-card",
+        tags$ul(style = "margin: 0; padding-left: 18px;",
+                item("Species", a$species), item("Trait", a$trait), item("Default model", a$model),
+                item("Covariates", a$covariates), item("Main result", a$finding), item("Other traits", a$other)),
+        tags$details(style = "margin-top: 6px;", tags$summary(style = "cursor: pointer;", "More details"),
+                     p(class = "small-note", style = "margin-top: 4px;", ex$note)))
   })
   is_toy <- reactive(identical(input$data_source %||% "toy", "toy"))
   truth <- reactive(if (is_toy()) attr(raw_data(), "truth") else NULL)
@@ -155,12 +170,18 @@ server <- function(input, output, session) {
         selectInput("col_trait", "Trait *", choices = cols, selected = pick(pm$trait, cols[[min(3, length(cols))]]))
       ),
       column(4,
-        selectInput("col_alr", "ALR (age at last record)", choices = c("Automatic: last recorded age" = "__AUTO_LAST__", cols),
+        selectInput("col_alr", "ALR (age at last record)", choices = c("Automatic: last age (see 'Trait-specific ALR/AFR')" = "__AUTO_LAST__", cols),
                     selected = pick(pm$alr, "__AUTO_LAST__")),
-        selectInput("col_life", "Known lifespan (LS)", choices = c("(not available)" = "", "Automatic: last recorded age (proxy only)" = "__AUTO_LAST__", cols),
+        selectInput("col_life", "Known lifespan (LS)", choices = c("(not available)" = "", "Automatic: the automatic ALR (proxy only)" = "__AUTO_LAST__", cols),
                     selected = if (identical(pm$life, "__AUTO_LAST__")) "__AUTO_LAST__" else pick(pm$life, "")),
-        checkboxInput("exclude_inconsistent", "Exclude individuals whose ALR, lifespan or AFR differs between their records (otherwise loading stops and names them)",
-                      value = identical(pm$inconsistent, "exclude"))
+        checkboxInput("exclude_inconsistent", "Exclude individuals who have more than one ALR, lifespan or AFR value. If not excluded, loading stops (see the data integrity check below)",
+                      value = identical(pm$inconsistent, "exclude")),
+        # 0.24.2: automatic ALR and AFR from the ages with a trait value (ticked) or from every record (unticked);
+        # bundled examples open unticked, uploads and simulations ticked
+        div(style = "display:flex; align-items:flex-start; gap:6px;",
+            checkboxInput("trait_ages", "Trait-specific ALR/AFR (default)", value = !isFALSE(pm$trait_specific_ages)),
+            actionLink("info_trait_ages", icon("circle-info"), class = "info-link", style = "margin-top:10px;")),
+        uiOutput("trait_ages_note")
       ),
       column(4,
         selectizeInput("col_cov_num", tags$span(tags$b("CONTINUOUS"), " fixed-effect covariates (linear effects)"), choices = cols, selected = pm_num,
@@ -187,25 +208,22 @@ server <- function(input, output, session) {
       if (!is.null(read_note)) p(class = "small-note", icon("file-csv"), " ", read_note) else NULL,
       map_row,
       conditionalPanel("input.data_source != 'toy'",
-        fluidRow(column(4, numericInput("age_round", "Round ages to multiples of (optional)",
-                                        value = if (isTRUE(is.finite(pm$age_round))) pm$age_round else NA, min = 0)),
-                 column(8, p(class = "small-note", style = "margin-top:26px;",
-                             "Leave blank for scheduled sampling. For irregular ages (e.g. from dates) enter the sampling resolution, such as 1 (year) or 7 (days), to place records on a common schedule.")))),
+        fluidRow(column(5, numericInput("age_round", info_title("Round ages to multiples of (optional)", "age_round"),
+                                        value = if (isTRUE(is.finite(pm$age_round))) pm$age_round else NA, min = 0)))),
       tags$hr(),
       conditionalPanel("input.data_source != 'toy'",
         fluidRow(
           column(7,
             radioButtons("afr_mode", "Age at first record (AFR): when the individual enters the data",
-                         choices = c("Automatic: each individual's first record (default)" = "auto",
+                         choices = c("Automatic: first age (default; see 'Trait-specific ALR/AFR')" = "auto",
                                      "Choose a column" = "column"),
                          selected = if (isTRUE(nzchar(pick(pm$entry, ""))) && !identical(pm$entry, "__AUTO_FIRST__")) "column" else "auto"),
             conditionalPanel("input.afr_mode == 'column'",
               selectInput("col_entry", "Column holding each individual's AFR", choices = cols,
                           selected = pick(pm$entry, cols[[1]]))),
-            box_note("AFR is the age when the individual enters the dataset. This defines the start of each individual's observed window. If AFR is not the age when the trait is first expressed (AFE), this can be set on the '3 \u00b7 Missingness and proxies' tab, where it only changes the missingness calculation.")
+            box_note("If AFR is not the age when the trait is first expressed (AFE), this can be set on the '3 \u00b7 Missingness and proxies' tab, where it only changes the missingness calculation.")
           ),
           column(5,
-            box_note("Binomial weights (the number of trials behind each proportion) are chosen on the Modelling tab, below the error family, when a binomial family is selected."),
             selectInput("col_censor", "Censoring indicator (optional)", choices = c("(none)" = "", cols), selected = pick(pm$censor, "")),
             uiOutput("censor_value_ui")
           )
@@ -216,6 +234,19 @@ server <- function(input, output, session) {
     )
   })
   try(outputOptions(output, "mapping_ui", suspendWhenHidden = FALSE), silent = TRUE)
+  # a bundled example analysed with trait-specific ALR/AFR no longer matches its documented results (0.24.2)
+  output$trait_ages_note <- renderUI({
+    alr_col <- !identical(input$col_alr %||% "__AUTO_LAST__", "__AUTO_LAST__")
+    afr_col <- identical(input$afr_mode %||% "auto", "column") && !identical(input$data_source, "toy")
+    msgs <- c(
+      if (alr_col && afr_col) "ALR and AFR both come from columns, so this box changes neither (only an automatic lifespan)."
+      else if (alr_col) "ALR comes from a column, so this box changes only AFR."
+      else if (afr_col) "AFR comes from a column, so this box changes only ALR.",
+      if (identical(input$data_source, "example") && isTRUE(input$trait_ages))
+        "Ticked for a bundled example: automatic ALR and AFR now use only ages with a trait value, so results can differ from the documented ones, which use every record.")
+    if (!length(msgs)) return(NULL)
+    div(class = "small-note", style = "border-left: 3px solid #9a6b1e; padding-left: 7px; margin: 0 0 8px;", lapply(msgs, function(m) div(m)))
+  })
   # Immediate checks under the column menus: age must be numeric, and covariates should sit in the right box.
   output$age_type_note <- renderUI({
     df <- safe_get(raw_data())
@@ -362,7 +393,7 @@ server <- function(input, output, session) {
     x <- dist_values()
     v <- input$dist_var
     present <- !is.na(x) & nzchar(as.character(x))
-    shiny::validate(shiny::need(any(present), "No non-missing values."))
+    shiny::validate(shiny::need(any(present), "No non-missing values: check the column mapping on the Data tab."))
     xn <- safe_numeric(x)
     unit <- if (identical(input$dist_unit, "individual")) "individuals" else "rows"
     if (sum(is.finite(xn)) >= 0.8 * sum(present)) {
@@ -401,6 +432,7 @@ server <- function(input, output, session) {
          censor = input$col_censor %||% "", censor_value = input$censor_value %||% "",
          cov_age = character(0),
          inconsistent = if (isTRUE(input$exclude_inconsistent)) "exclude" else "error",
+         trait_specific_ages = if (is.null(input$trait_ages)) !isFALSE(safe_get(preset_map())$trait_specific_ages) else isTRUE(input$trait_ages),
          age_round = if (identical(input$data_source, "toy")) NA_real_ else num_input(input$age_round, NA_real_))
     # a second grouping level chosen without the first is used as the first level
     if (!nzchar(mp$group) && nzchar(mp$group2)) {
@@ -428,7 +460,11 @@ server <- function(input, output, session) {
     b$meta$source_md5 <- if (identical(src, "upload") && !is.null(input$data_file$datapath))
       tryCatch(unname(tools::md5sum(input$data_file$datapath)), error = function(e) NA_character_)
       else if (identical(src, "example"))
-        tryCatch(unname(tools::md5sum(system.file("app", "data", current_example()$file, package = "disappR"))), error = function(e) NA_character_)
+        tryCatch({
+          f_loaded <- file.path("data", current_example()$file)   # the copy this app read (review finding 4)
+          if (!file.exists(f_loaded)) f_loaded <- system.file("app", "data", current_example()$file, package = "disappR")
+          unname(tools::md5sum(f_loaded))
+        }, error = function(e) NA_character_)
       else NA_character_
     b$meta$n_rows_raw <- nrow(df)
     b$meta$map <- mp
@@ -445,7 +481,18 @@ server <- function(input, output, session) {
     b
   })
   dat <- reactive(bundle()$data)
-  meta <- reactive(bundle()$meta)
+  # The sampling interval (0.22.0): inferred from the ages unless the user sets it on the Missingness tab. It travels
+  # in meta, so every engine function that takes meta uses it; the others receive it as their 'step' argument.
+  age_step_manual <- reactive({
+    if (!identical(input$age_step_auto, FALSE)) return(NULL)
+    v <- num_input(input$age_step_value, NA_real_)
+    if (valid_age_step(v)) v else NULL
+  })
+  meta <- reactive({
+    m <- bundle()$meta
+    m$age_step <- age_step_manual()
+    m
+  })
   imet <- reactive(individual_metrics(dat()))
   integrity <- reactive(data_integrity(dat(), meta()))
   life_known <- reactive(isTRUE(meta()$has_life) && !isTRUE(meta()$life_auto))
@@ -456,7 +503,7 @@ server <- function(input, output, session) {
     paste(input$data_source, input$example_id %||% "", nrow(d), length(unique(d$id)), signif(sum(d$age), 12), signif(sum(d$trait, na.rm = TRUE), 12),
           signif(sum(d$alr, na.rm = TRUE), 12), signif(sum(d$life, na.rm = TRUE), 12), signif(sum(d$entry, na.rm = TRUE), 12),
           paste(m$covars, collapse = ","), paste(m$random_terms, collapse = ","), m$has_group, m$nested, m$life_auto,
-          m$dup_action, m$n_censored, isTRUE(m$has_group2), if (isTRUE(m$has_group2)) m$map$group2 else "", input$afr_mode %||% "auto", paste(m$cov_age, collapse = ","), paste(m$cov_types, collapse = ","),
+          m$dup_action, m$n_censored, isTRUE(m$has_group2), !isFALSE(m$trait_specific_ages), if (isTRUE(m$has_group2)) m$map$group2 else "", input$afr_mode %||% "auto", paste(m$cov_age, collapse = ","), paste(m$cov_types, collapse = ","),
           paste(m$cov_pairs, collapse = ","), input$subset_var %||% "",
           paste(input$subset_levels %||% character(0), collapse = ","), sep = "|")
   })
@@ -481,8 +528,10 @@ server <- function(input, output, session) {
     updateSelectInput(session, "model_family", selected = fam)
     if (!is.null(ex$age_function)) updateSelectInput(session, "model_age_function", selected = ex$age_function)
     if (!is.null(ex$among)) updateRadioButtons(session, "among_order", selected = ex$among)
-    # the random structure the source paper used (0.20.25); examples without one go back to a random intercept
-    updateSelectInput(session, "random_structure", selected = normalise_slope(ex$random_structure %||% "none"))
+    # the random structure the source paper used (0.20.25); examples without one go back to a random intercept. Other
+    # data start with random slopes when the data support them well, otherwise a random intercept (0.24.8)
+    updateSelectInput(session, "random_structure",
+                      selected = if (!is.null(ex)) normalise_slope(ex$random_structure %||% "none") else default_random_structure(safe_get(dat())))
     av <- model_availability(dat(), meta())
     for (mid in MODEL_IDS) {
       on <- if (!is.null(ex$models)) (mid %in% ex$models && isTRUE(av$ok[[mid]])) else isTRUE(av$default[[mid]])
@@ -498,13 +547,14 @@ server <- function(input, output, session) {
   output$data_metrics <- renderUI({
     d <- dat()
     im <- imet()
-    st <- infer_age_step(d$age, d$id)
+    st <- resolve_age_step(d$age, d$id, age_step_manual())
     fam <- integrity()$family
     tagList(
       metric_card("Rows / individuals", paste0(format(nrow(d), big.mark = ","), " / ", format(nrow(im), big.mark = ",")),
                   paste0(sum(is.finite(d$trait)), " trait values")),
       metric_card("Ages", paste0(format_num(min(d$age)), "\u2013", format_num(max(d$age))),
-                  paste0(length(unique(d$age)), " distinct; step ", if (is.finite(st)) format_num(st) else "NA")),
+                  paste0(length(unique(d$age)), " distinct; step ", if (is.finite(st)) format_num(st) else "NA",
+                         if (!is.null(age_step_manual())) " (set)" else "")),
       metric_card("Records per individual", format_num(stats::median(im$n_trait)), "median"),
       metric_card("Trait type", fam$kind %||% (if (identical(fam$family, "gaussian")) "Continuous" else "Count"),
                   paste("Suggested:", family_label(fam$family)))
@@ -619,7 +669,7 @@ server <- function(input, output, session) {
     px <- safe_get(a1_px())
     if (is.null(d) || is.null(im) || is.null(px)) return(invisible(NULL))
     nmin <- 3
-    step <- infer_age_step(d$age, d$id)
+    step <- resolve_age_step(d$age, d$id, age_step_manual())
     mx1 <- max_bins_for(proxy_values(im, px), nmin, step)
     mx2 <- max_bins_for(id_age_means(d)$age, nmin, step)
     mx <- max(mx1, mx2)
@@ -654,21 +704,22 @@ server <- function(input, output, session) {
     }
     div(style = paste0("margin: 4px 0 10px; padding: 8px 12px; border-radius: 4px; border-left: 6px solid ",
                        if (ok) "#2f6b34" else "#A50026", "; background: ", if (ok) "#eef5ee" else "#fbeaea", ";"),
-        strong(if (ok) "Trait scale: suitable. " else "Trait scale: change it. "),
-        sprintf("The trait looks like %s. ", what), advice)
+        sprintf("Trait looks like %s data. Suggested visualisation is on the %s scale, which can be changed in the 'Trait scale' option.",
+                if (count) "count" else if (fam %in% BINOMIAL_FAMILIES) "proportion or 0/1" else "continuous",
+                if (count) "log(trait + 1)" else "raw"))
   })
 
   visual_dat <- reactive({
     d <- dat()
     if (identical(input$trait_scale, "log1p")) {
-      shiny::validate(shiny::need(all(d$trait[is.finite(d$trait)] > -1), "log(trait + 1) needs trait values above -1."))
+      shiny::validate(shiny::need(all(d$trait[is.finite(d$trait)] > -1), "log(trait + 1) needs trait values above -1: choose the raw scale."))
       d$trait <- log1p(d$trait)
     }
     d
   })
   pick_proxy <- function(value, fallback_order) {
     ch <- proxy_choices(imet(), meta(), "all")
-    shiny::validate(shiny::need(length(ch) > 0, "No usable grouping variable."))
+    shiny::validate(shiny::need(length(ch) > 0, "No usable grouping variable: map a categorical covariate on the Data tab."))
     if (isTRUE(value %in% ch)) return(value)
     hit <- intersect(fallback_order, ch)
     if (length(hit)) hit[[1]] else ch[[1]]
@@ -707,7 +758,7 @@ server <- function(input, output, session) {
   a1_plot_obj <- reactive({
     px <- a1_px()
     s <- a1_bins()
-    shiny::validate(shiny::need(nrow(s) > 0, "Not enough variation in the proxy, or too few individuals per bin \u00d7 age point."))
+    shiny::validate(shiny::need(nrow(s) > 0, "Not enough variation in the proxy, or too few individuals per bin \u00d7 age point: use fewer bins."))
     cols <- ordered_colours(length(levels(s$bin)))
     p <- ggplot(s, aes(age, mean, colour = bin, group = bin))
     obs <- if (isTRUE(input$show_a1_obs %||% TRUE)) safe_get(a1_observed()) else NULL
@@ -728,10 +779,10 @@ server <- function(input, output, session) {
 
   a2_data <- reactive({
     z <- trait_by_age_bins(visual_dat(), proxy_values(imet(), a2_px()), input$n_bins %||% 4, facet = facet_map())
-    shiny::validate(shiny::need(nrow(z) > 0, "No individuals with both trait records and this variable."))
+    shiny::validate(shiny::need(nrow(z) > 0, "No individuals with both trait records and this variable: choose another variable."))
     n_ind <- stats::ave(rep(1, nrow(z)), z$facet, z$age_bin, FUN = length)
     z <- z[n_ind >= 3, , drop = FALSE]
-    shiny::validate(shiny::need(nrow(z) > 0, "No age bin has at least 3 individuals."))
+    shiny::validate(shiny::need(nrow(z) > 0, "No age bin has at least 3 individuals: use fewer bins."))
     z
   })
   a2_slopes <- reactive(a2_bin_slopes(a2_data()))
@@ -798,9 +849,9 @@ server <- function(input, output, session) {
 
   bin_diff_data <- reactive({
     s <- a1_bins()
-    shiny::validate(shiny::need(nrow(s) > 0, "No bins to compare (see the trajectory plot)."))
+    shiny::validate(shiny::need(nrow(s) > 0, "No bins to compare: use fewer bins (see the trajectory figure)."))
     dz <- bin_differences(s, "successive")
-    shiny::validate(shiny::need(nrow(dz) > 0, "No age at which two bins both meet the minimum number of individuals."))
+    shiny::validate(shiny::need(nrow(dz) > 0, "No age at which two bins both have 3 individuals: use fewer bins."))
     dz
   })
   bin_diff_trends <- reactive(bin_difference_trends(bin_diff_data(), weighted = isTRUE(input$weight_diff)))
@@ -902,7 +953,7 @@ server <- function(input, output, session) {
     }
     build_missing_grid(dat(), margin = 0,
                        start_mode = if (isTRUE(is.finite(afe))) "same" else "afr",
-                       start_age = afe)
+                       start_age = afe, step = age_step_manual())
   })
   msum <- reactive(missingness_summary(dat(), grid_r(), 0.05, life_known()))
 
@@ -921,13 +972,6 @@ server <- function(input, output, session) {
     )
   })
 
-  output$sampling_guidance <- renderUI({
-    ms <- msum()
-    tagList(
-      div(class = "diagnosis-card", div(class = "diagnosis-title", "Proxy choice (ALR or mean age)"), div(class = "diagnosis-detail", ms$guidance)),
-      div(class = "diagnosis-detail small-note", strong("Missing cells: "), ms$pattern)
-    )
-  })
 
   heat_n <- reactive(min(500, max(20, round(num_input(input$heat_n, 150)))))
   output$heatmap <- renderPlot(heatmap_obj(), height = function() {
@@ -963,26 +1007,29 @@ server <- function(input, output, session) {
   })
   heatmap_obj <- reactive({
     g <- grid_r()
-    shiny::validate(shiny::need(nrow(g) > 0, "Could not build the sampling grid."))
+    shiny::validate(shiny::need(nrow(g) > 0, "Could not build the sampling grid: check the ages on the Data tab, or set the sampling interval."))
     im <- imet()
     ids <- unique(g$id)
     mi <- match(ids, im$id)
     # ALR and AFR for ordering are the values the models use (after missingness for simulated data, whose
     # missed records are removed); individuals with no ALR value are placed at the top
+    # AFR order uses the AFR the grid's window opens at, i.e. the blue tile (0.24.2)
+    afr_g <- if ("afr" %in% names(g)) as.numeric(tapply(g$afr, g$id, function(v) v[[1]])[ids]) else im$entry[mi]
     ord <- switch(input$heat_order %||% "alr",
-                  alr = ids[order(im$alr[mi], im$first_recorded[mi], na.last = FALSE)],
-                  afr = ids[order(im$entry[mi], im$alr[mi], na.last = FALSE)],
+                  alr = ids[order(im$alr[mi], afr_g, na.last = FALSE)],
+                  afr = ids[order(afr_g, im$alr[mi], na.last = FALSE)],
                   trait = ids[order(im$trait_mean[mi], im$alr[mi])],
                   id = sort(ids),
                   random = ids[order(stats::runif(length(ids)))])
     n_show <- heat_n()
     if (length(ord) > n_show) ord <- ord[unique(round(seq(1, length(ord), length.out = n_show)))]
     x <- grid_display(g, ord, life_known = isTRUE(life_known()))
-    shiny::validate(shiny::need(nrow(x) > 0, "Could not build the sampling grid."))
+    shiny::validate(shiny::need(nrow(x) > 0, "Could not build the sampling grid: check the ages on the Data tab, or set the sampling interval."))
     n_shown <- attr(x, "n_shown") %||% length(ord)
-    labs_map <- c("Observed" = "Observed", "Missed" = "Missed (between the first observation and the ALR)",
-                  "Last record (ALR)" = "Last record (ALR)",
-                  "Not expected" = "Outside the window (before the first observation or after the ALR)")
+    labs_map <- c("Observed" = "Observed", "Missed" = "Missed (between AFR and ALR, both included)",
+                  "First record (AFR)" = "First record (AFR)", "Last record (ALR)" = "Last record (ALR)",
+                  "AFR = ALR (one occasion)" = "AFR = ALR (one occasion)",
+                  "Not expected" = "Outside the window (before the AFR or after the ALR)")
     x$id_f <- factor(x$id, levels = rev(ord))
     x$status <- factor(x$status, levels = names(HEAT_COLOURS))
     ggplot(x, aes(age, id_f, fill = status)) +
@@ -1000,7 +1047,7 @@ server <- function(input, output, session) {
   output$missing_by_age <- renderPlot(missing_by_age_obj())
   missing_by_age_obj <- reactive({
     g <- grid_r()
-    shiny::validate(shiny::need(nrow(g) > 0, "No sampling grid."))
+    shiny::validate(shiny::need(nrow(g) > 0, "No sampling grid: check the ages on the Data tab, or set the sampling interval."))
     cv <- coverage_by_age(g)
     sc <- max(cv$Expected) / 100
     ggplot(cv, aes(Age)) +
@@ -1015,9 +1062,9 @@ server <- function(input, output, session) {
   output$missing_vs_var <- renderPlot(missing_vs_var_obj())
   missing_vs_var_obj <- reactive({
     g <- grid_r()
-    shiny::validate(shiny::need(nrow(g) > 0, "No sampling grid."))
+    shiny::validate(shiny::need(nrow(g) > 0, "No sampling grid: check the ages on the Data tab, or set the sampling interval."))
     x <- missingness_by_variable(dat(), g, input$miss_var %||% "ALR")
-    shiny::validate(shiny::need(nrow(x) > 0, "This variable is not available for these data."))
+    shiny::validate(shiny::need(nrow(x) > 0, "This variable is not available for these data: choose another."))
     if (identical(x$type[[1]], "categorical")) {
       ggplot(x, aes(stats::reorder(group, missing_rate), 100 * missing_rate)) + geom_col(fill = warm_palette[[1]], width = 0.65) +
         coord_flip() + labs(x = NULL, y = "% missing") + theme_disappR(12)
@@ -1062,8 +1109,8 @@ server <- function(input, output, session) {
     im <- im[im$n_trait > 0, , drop = FALSE]
     df <- data.frame(AFR = ifelse(is.finite(im$entry), im$entry, im$first_recorded), ALR = im$alr)
     df <- df[is.finite(df$AFR) & is.finite(df$ALR), , drop = FALSE]
-    shiny::validate(shiny::need(nrow(df) >= 5, "Fewer than 5 individuals with both AFR and ALR."))
-    shiny::validate(shiny::need(stats::sd(df$AFR) > 0, "AFR is the same for every individual, so it cannot be correlated with ALR."))
+    shiny::validate(shiny::need(nrow(df) >= 5, "Fewer than 5 individuals with both AFR and ALR: this check needs more individuals."))
+    shiny::validate(shiny::need(stats::sd(df$AFR) > 0, "AFR is the same for every individual, so it cannot be correlated with ALR (no selective appearance can be tested)."))
     r <- stats::cor(df$AFR, df$ALR)
     ggplot(df, aes(AFR, ALR)) +
       geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey55") +
@@ -1097,12 +1144,12 @@ server <- function(input, output, session) {
     proxy_pair_plot(im$mean_age, im$alr, "Mean age", "ALR")
   })
   proxy_alr_ls_obj <- reactive({
-    shiny::validate(shiny::need(life_known(), "LS unknown."))
+    shiny::validate(shiny::need(life_known(), "Known lifespan is not mapped: map an LS column on the Data tab."))
     im <- proxy_im()
     proxy_pair_plot(im$lifespan, im$alr, "LS", "ALR")
   })
   proxy_mean_ls_obj <- reactive({
-    shiny::validate(shiny::need(life_known(), "LS unknown."))
+    shiny::validate(shiny::need(life_known(), "Known lifespan is not mapped: map an LS column on the Data tab."))
     im <- proxy_im()
     proxy_pair_plot(im$lifespan, im$mean_age, "LS", "Mean age")
   })
@@ -1337,7 +1384,7 @@ server <- function(input, output, session) {
     a3_validate(z)
     step4_log("drawing the fits of %d individuals", length(ids))
     raw <- d[d$id %in% ids & is.finite(d$trait), , drop = FALSE]
-    shiny::validate(shiny::need(nrow(raw) > 0, "No trait records for the selected individuals."))
+    shiny::validate(shiny::need(nrow(raw) > 0, "No trait records for the selected individuals: change the selection."))
     ids <- ids[ids %in% raw$id]
     stat <- z$fit_stats
     lab <- stats::setNames(paste0(ids, "\n", "not estimable"), ids)
@@ -1495,7 +1542,8 @@ server <- function(input, output, session) {
          standardise = isTRUE(input$standardise),
          among = if (input$among_order %in% c("same", "consistent")) input$among_order else "linear",
          include_invalid = isTRUE(input$include_invalid),
-         extra = if (length(ex)) ex else NULL)
+         extra = if (length(ex)) ex else NULL,
+         disp = normalise_disp(input$disp_model))
   })
   model_sig <- reactive({
     s <- model_settings()
@@ -1548,10 +1596,7 @@ server <- function(input, output, session) {
                                              if (!is.null(b)) sprintf(" Lowest mean \u0394AICc across individuals: %s.", b) else "")))
     }
     ex_fn <- if (identical(input$data_source %||% "toy", "example")) current_example()$age_function else NULL
-    if (!is.null(ex_fn)) {
-      return(p(class = "small-note", sprintf("Set by the example to the ageing function of the published model (%s).%s You can still change it here.", ex_fn,
-                                             if (!is.null(b)) sprintf(" Lowest mean \u0394AICc across individual fits: %s.", b) else "")))
-    }
+    if (!is.null(ex_fn)) return(NULL)   # 0.24.7: no note for examples
     if (is.null(b)) {
       return(p(class = "small-note", "Default: Quadratic. To let the individual fits suggest a function, press 'Compare ageing functions across individuals' on tab 4."))
     }
@@ -1596,8 +1641,10 @@ server <- function(input, output, session) {
     adv <- random_slope_advice(sup)
     col <- switch(adv$level, good = "#1B7837", limited = "#B35806", "#A50026")
     warn <- data_support_warning(sup)
+    rs_def <- if (!identical(input$data_source %||% "toy", "example")) default_random_structure(d) else NULL
     tagList(
-      div(class = "small-note", style = paste0("border-left: 3px solid ", col, "; padding-left: 7px; margin-bottom: 8px;"), adv$text),
+      div(class = "small-note", style = paste0("border-left: 3px solid ", col, "; padding-left: 7px; margin-bottom: 8px;"), adv$text,
+          if (!is.null(rs_def)) paste0(" Default for these data: ", names(RANDOM_STRUCTURES)[match(rs_def, RANDOM_STRUCTURES)], ".") else NULL),
       if (nzchar(warn)) div(class = "small-note", style = "border-left: 3px solid #A50026; padding-left: 7px; margin-bottom: 8px;", strong(warn))
     )
   })
@@ -1755,12 +1802,12 @@ server <- function(input, output, session) {
         msgs <- c(msgs, list(div(class = "diagnosis-card", div(class = "diagnosis-detail",
           strong("Integer data treated as Gaussian. "), "Check that the trait is continuous rather than a count, to avoid a misfit family."))))
       }
-      if (identical(fam$family, "gaussian") && !identical(s$family, "gaussian")) {
+      if (identical(fam$family, "gaussian") && !s$family %in% DENSITY_FAMILIES) {
         msgs <- c(msgs, list(div(class = "diagnosis-card", div(class = "diagnosis-detail", "The trait is not a non-negative integer count: use the Gaussian family."))))
       }
     }
     if (!identical(s$family, "gaussian") && !HAS_GLMMTMB) {
-      msgs <- c(msgs, list(div(class = "diagnosis-card", div(class = "diagnosis-detail", "Install glmmTMB to fit count families."))))
+      msgs <- c(msgs, list(div(class = "diagnosis-card", div(class = "diagnosis-detail", "Install glmmTMB to fit this family."))))
     }
     tagList(msgs)
   })
@@ -1805,7 +1852,7 @@ server <- function(input, output, session) {
     }
     res <- run_with_progress("Comparing ageing functions", function(pr) {
       compare_population_functions(d, meta(), s$family, s$random_slope, s$standardise, s$zi, progress = pr,
-                                   functions = fns, model = "M1", among = s$among, include_invalid = s$include_invalid)
+                                   functions = fns, model = "M1", among = s$among, include_invalid = s$include_invalid, disp = s$disp)
     })
     res$signature <- paste(data_sig(), settings_sig(s))
     b2_res(res)
@@ -1837,7 +1884,7 @@ server <- function(input, output, session) {
   output$b2_plot <- renderPlot(b2_plot_obj())
   b2_plot_obj <- reactive({
     r <- b2_shown()
-    shiny::validate(shiny::need(nrow(r$curves) > 0, "No function could be fitted."))
+    shiny::validate(shiny::need(nrow(r$curves) > 0, "No function could be fitted: lower the minimum records or choose a simpler function."))
     obs <- observed_trajectory(dat())
     ggplot() +
       geom_point(data = obs, aes(age, fitted, size = n), shape = 21, fill = "grey55", colour = "black", stroke = 0.6, alpha = 0.85) +
@@ -1856,11 +1903,11 @@ server <- function(input, output, session) {
     s <- safe_get(model_settings())
     if (is.null(d) || is.null(s) || !length(s$models)) return(NULL)
     pv <- tryCatch(fit_model_suite(d, meta(), s$models, s$age_function, s$family, s$random_slope, s$standardise, s$zi,
-                                   among = s$among, include_invalid = s$include_invalid, extra = s$extra, dry_run = TRUE),
+                                   among = s$among, include_invalid = s$include_invalid, extra = s$extra, dry_run = TRUE, disp = s$disp),
                    error = function(e) NULL)
     if (is.null(pv)) return(NULL)
     if (!isTRUE(pv$ok)) return(div(class = "prefit-box", strong("Before fitting: "), pv$message))
-    link <- if (identical(pv$family, "gaussian")) "identity" else if (pv$family %in% BINOMIAL_FAMILIES) "logit" else "log"
+    link <- family_link(pv$family)
     div(class = "prefit-box",
         p(strong("Before fitting. "),
           sprintf("The selected models share %d of %d records with a trait value, from %d of %d individuals.",
@@ -1869,15 +1916,13 @@ server <- function(input, output, session) {
         p(strong("Settings. "),
           sprintf("%s with a %s link, %s ageing function, %s, random effects %s%s.", family_label(pv$family), link, pv$age_function,
                   if (isTRUE(pv$standardise)) "age and proxies standardised" else "raw scales", display_term(pv$random),
-                  if (nzchar(pv$zi %||% "") && !identical(pv$zi, "~1")) paste0(", zero-inflation ", display_term(pv$zi)) else "")),
+                  paste0(if (nzchar(pv$zi %||% "") && !identical(pv$zi, "~1")) paste0(", zero-inflation ", display_term(pv$zi)) else "",
+                         if (!identical(pv$disp %||% "constant", "constant")) paste0("; ", disp_text(pv$disp)) else ""))),
         tags$ul(lapply(names(pv$formulas), function(m) tags$li(paste0(model_label(m), ": trait ~ ", display_term(pv$formulas[[m]]))))),
         p(class = "small-note", "The formulae above are general: they do not expand the terms of the ageing function you have chosen. For the exact formula of a model under the current settings, click the 'i' beside that model."),
         if (length(pv$alias_notes)) p(strong("Redundant terms (dropped when fitting): "), paste(pv$alias_notes, collapse = "; "), ".") else NULL,
         if (length(pv$fit_notes)) p(paste(pv$fit_notes, collapse = " ")) else NULL,
-        if (is.data.frame(pv$re_checks) && any(pv$re_checks$Status == "Caution")) {
-          p(strong("Random effects: "), paste(paste0(pv$re_checks$Check, " (", pv$re_checks$Result, ")")[pv$re_checks$Status == "Caution"], collapse = "; "),
-            ". These settings often end in singular fits; a simpler random-effect structure may be more stable.")
-        } else NULL)
+        NULL)   # 0.24.7: the random-effect caution is shown once, under the random-effect choice
   })
 
   observeEvent(input$fit_models, disappr_guard("input$fit_models", {
@@ -1893,7 +1938,7 @@ server <- function(input, output, session) {
     }
     res <- run_with_progress("Fitting models", function(pr) {
       fit_model_suite(d, meta(), s$models, s$age_function, s$family, s$random_slope, s$standardise, s$zi, progress = pr,
-                      among = s$among, include_invalid = s$include_invalid, extra = s$extra)
+                      among = s$among, include_invalid = s$include_invalid, extra = s$extra, disp = s$disp)
     })
     res$signature <- model_sig()
     model_res(res)
@@ -1922,9 +1967,6 @@ server <- function(input, output, session) {
     best <- aic$Model[[1]]
     best_id <- sub("^Model ", "M", best)
     elig <- aic[aic$Eligible, , drop = FALSE]
-    d45 <- if (all(c("Model 4", "Model 5") %in% elig$Model)) {
-      elig$AIC[elig$Model == "Model 5"] - elig$AIC[elig$Model == "Model 4"]
-    } else NA_real_
     warn <- sum(unlist(r$validity) != "Valid")
     div(class = "diagnosis-card",
         div(class = "diagnosis-title", {
@@ -1946,12 +1988,20 @@ server <- function(input, output, session) {
         div(class = "diagnosis-detail", paste0(family_label(r$family), "; ", r$age_function, " ageing; random effects ",
                                                if (isTRUE(r$nonlinear)) r$random else random_display(meta(), r$random_slope),
                                                "; N = ", aic$N[[1]], " observations from ", length(unique(r$data$id)), " individuals.")),
-        div(class = "diagnosis-detail small-note", if (isTRUE(r$nonlinear)) paste0("Fitted model: ", r$formulas[[best_id]]) else
-          paste0("Fitted formula of this model: trait ~ ", display_term(r$formulas[[best_id]]), " + ", display_term(r$random))),
+        {
+          # the fitted formula of every model in the supported set (0.24.7)
+          sup_ids <- sub("^Model ", "M", aic$Model[is.finite(aic$Delta_AIC) & aic$Delta_AIC < 2])
+          sup_ids <- intersect(if (length(sup_ids)) sup_ids else best_id, names(r$formulas))
+          div(class = "diagnosis-detail small-note",
+              if (length(sup_ids) > 1) "Fitted formulas of the supported models:" else "Fitted formula:",
+              tags$ul(style = "margin: 2px 0 0; padding-left: 18px;",
+                      lapply(sup_ids, function(m) tags$li(if (isTRUE(r$nonlinear)) paste0(model_label(m), ": ", r$formulas[[m]]) else
+                        paste0(model_label(m), ": trait ~ ", display_term(r$formulas[[m]]), " + ", display_term(r$random))))))
+        },
         if (nzchar(r$random_note %||% "")) div(class = "diagnosis-detail small-note", r$random_note) else NULL,
         if (length(r$alias_notes)) div(class = "diagnosis-detail small-note", paste0("Redundant terms dropped: ", paste(r$alias_notes, collapse = "; "), ".")) else NULL,
         if (length(r$fit_notes)) div(class = "diagnosis-detail small-note", paste(r$fit_notes, collapse = " ")) else NULL,
-        if (isTRUE(r$n_excluded > 0)) div(class = "diagnosis-detail", strong(sprintf("%d fit(s) with an invalid Hessian are excluded from the ranking and from automated interpretation.", r$n_excluded))) else NULL,
+        if (isTRUE(r$n_excluded > 0)) div(class = "diagnosis-detail", strong(sprintf("%d fit(s) with an invalid Hessian are excluded from the ranking and interpretation.", r$n_excluded))) else NULL,
         if (r$n_dropped > 0) div(class = "diagnosis-detail", paste0(r$n_dropped, " rows with missing values in model variables were dropped from all models (", paste(r$drop_by, collapse = "; "), ").")) else NULL,
         if (warn > 0) div(class = "diagnosis-detail", strong(paste0(warn, " model(s) are classified Caution or Failed: see the fitting status below."))) else NULL)
   })
@@ -1959,7 +2009,7 @@ server <- function(input, output, session) {
   output$aic_plot <- renderPlot({
     all_aic <- fitted_models()$aic
     aic <- all_aic[all_aic$Eligible, , drop = FALSE]
-    shiny::validate(shiny::need(nrow(aic) > 0, "No eligible AIC values."))
+    shiny::validate(shiny::need(nrow(aic) > 0, "No eligible AIC values: check the fitting status and refit."))
     aic$Model <- factor(aic$Model, levels = rev(aic$Model))
     aic$lab <- paste0(sprintf("%.1f", aic$Delta_AIC), ifelse(aic$Fit == "Valid", "", paste0(" (", tolower(aic$Fit), ")")))
     excl <- all_aic$Model[!all_aic$Eligible]
@@ -1999,7 +2049,7 @@ server <- function(input, output, session) {
         sprintf("%s carry terms the others do not, so the models no longer differ only in their selective-disappearance and appearance terms: AIC differences between them mix the two changes. Compare models with the same extra terms, or add the terms to all of them.",
                 paste(vapply(intersect(names(r$formulas), names(r$extra)), model_label, character(1)), collapse = ", ")))))
     }
-    if (any(vapply(c("M3", "M5", "M6"), function(m) m %in% names(r$formulas), logical(1))) && isTRUE(r$n_dropped > 0)) {
+    if (any(vapply(c("M3", "M5"), function(m) m %in% names(r$formulas), logical(1))) && isTRUE(r$n_dropped > 0)) {
       msgs <- c(msgs, list(tagList(
         strong("Mean age and the within/between split. "),
         "Each individual's mean age, and the deviations from it, are computed from every row that individual has, not only from the shared rows, so that they describe the individual rather than the filter. Within the fitted rows the deviations therefore no longer average to exactly zero.")))
@@ -2036,11 +2086,13 @@ server <- function(input, output, session) {
   varcomp_display <- reactive({
     r <- fitted_models()
     vc <- r$varcomp
-    shiny::validate(shiny::need(is.data.frame(vc) && nrow(vc) > 0, "No random-effect variances available."))
+    shiny::validate(shiny::need(is.data.frame(vc) && nrow(vc) > 0, "No random-effect variances: this model has none to report."))
     m <- meta()
     grp_lab <- function(g) {
       out <- g
       glab <- if (isTRUE(m$has_group2) && isTRUE(m$nested)) paste0(m$map$group2, ":", m$map$group) else (m$map$group %||% "group")
+      # uncorrelated slopes appear as separate terms "id.1", "id.2"...: they are still grouped by individual
+      g <- sub("^id\\.[0-9]+$", "id", g)
       out[g == "id"] <- if (isTRUE(m$has_group) && isTRUE(m$nested)) paste0(glab, ":", m$map$id) else m$map$id
       out[g == "group"] <- glab
       out[g == "group2"] <- m$map$group2 %||% "group2"
@@ -2048,7 +2100,11 @@ server <- function(input, output, session) {
       out[rt] <- unname(m$random_labels[g[rt]])
       out
     }
-    term_lab <- function(t) gsub("f1", "age (first ageing term)", t, fixed = TRUE)
+    term_lab <- function(t) {
+      t <- gsub("f1", "age (first ageing term)", t, fixed = TRUE)
+      t <- gsub("f2", "age\u00b2 (second ageing term)", t, fixed = TRUE)
+      gsub("f3", "age\u00b3 (third ageing term)", t, fixed = TRUE)
+    }
     data.frame(Model = vc$Model, Group = grp_lab(vc$Group), Term = term_lab(vc$Term), Type = vc$Type,
                Variance = signif(vc$Variance %||% rep(NA_real_, nrow(vc)), 4),
                `SD / correlation / dispersion` = signif(vc$Estimate, 4), check.names = FALSE, stringsAsFactors = FALSE)
@@ -2077,7 +2133,7 @@ server <- function(input, output, session) {
     sel <- if (is.null(chosen)) el else intersect(chosen, el)
     by <- input$pred_by %||% ""
     # smooth curves on a fine age grid, or (tick box) predictions at the observed ages joined by straight lines
-    ages <- if (isTRUE(input$pred_as_lines)) observed_prediction_ages(r$data$age, r$data$id) else smooth_prediction_ages(r$data$age)
+    ages <- if (isTRUE(input$pred_as_lines)) observed_prediction_ages(r$data$age, r$data$id, step = age_step_manual()) else smooth_prediction_ages(r$data$age)
     pred_curves_for(r, sel, if (nzchar(by)) by else NULL, ages = ages)
   })
   output$pred_models_ui <- renderUI({
@@ -2102,11 +2158,14 @@ server <- function(input, output, session) {
                 selected = if (cur %in% fac) cur else "")
   })
   obs_traj <- reactive(observed_trajectory(dat()))
-  decomp_traj <- reactive(decomposition_trajectory(dat()))
+  decomp_traj <- reactive(decomposition_trajectory(dat(), step = age_step_manual()))
   output$decomp_note <- renderUI({
     if (!isTRUE(input$show_decomp)) return(NULL)
     de <- safe_get(decomp_traj())
     cau <- if (is.data.frame(de)) attr(de, "caution") else NULL
+    # an empty decomposition used to vanish without a word (0.22.7): say why
+    if (is.data.frame(de) && !nrow(de))
+      cau <- "not drawn: no individual is recorded at two consecutive occasions (for example cohorts sampled in alternate years). Setting the sampling interval does not change this."
     if (!length(cau) || !nzchar(cau[[1]])) return(NULL)
     div(class = "small-note", style = "border-left: 3px solid #B35806; padding-left: 7px; margin: 4px 0 8px;", strong("Decomposition: "), cau[[1]])
   })
@@ -2127,7 +2186,7 @@ server <- function(input, output, session) {
         rp$level <- as.character(rp[[byv]])
       }
       if (nrow(rp)) {
-        st <- infer_age_step(rp$age, rp$id)
+        st <- resolve_age_step(rp$age, rp$id, age_step_manual())
         if (!is.finite(st) || st <= 0) st <- max(diff(range(rp$age)), 1) / 50
         p <- p + geom_point(data = rp, aes(age, trait), colour = "grey25", alpha = 0.15, size = 0.8,
                             position = position_jitter(width = 0.12 * st, height = 0, seed = 1))
@@ -2295,9 +2354,10 @@ server <- function(input, output, session) {
     x <- vd[vd$Model == model_label(input$coef_model), setdiff(names(vd), "Model"), drop = FALSE]
     if (!nrow(x)) return(data.frame(Note = "No random-effect estimates."))
     rownames(x) <- NULL
+    for (cl in intersect(c("Variance", "SD / correlation / dispersion"), names(x))) x[[cl]] <- sig_text(x[[cl]], 3)
     # terms that explain (next to) no variance are flagged, with advice below the table
     vc <- r$varcomp[r$varcomp$Model == model_label(input$coef_model), , drop = FALSE]
-    fl <- negligible_random_terms(vc)
+    fl <- negligible_random_terms(vc, data = r$data)
     if (nrow(fl) == nrow(x) && any(fl$flag)) x$Flag <- ifelse(fl$flag, "\u26a0 explains no variance", "")
     x
   })
@@ -2307,7 +2367,7 @@ server <- function(input, output, session) {
     m <- input$coef_model
     if (is.null(r) || is.null(m) || !is.data.frame(r$varcomp)) return(NULL)
     vc <- r$varcomp[r$varcomp$Model == model_label(m), , drop = FALSE]
-    fl <- negligible_random_terms(vc)
+    fl <- negligible_random_terms(vc, data = r$data)
     if (!any(fl$flag)) return(NULL)
     vd <- safe_get(varcomp_display())
     if (is.null(vd)) return(NULL)
@@ -2327,21 +2387,22 @@ server <- function(input, output, session) {
     d <- safe_get(dat())
     if (is.null(d)) return(invisible(NULL))
     s <- model_settings()
-    res <- run_with_progress("Comparing count families", function(pr) {
-      fams <- if ((s$family %||% "gaussian") %in% BINOMIAL_FAMILIES) BINOMIAL_FAMILIES else COUNT_FAMILIES
+    res <- run_with_progress("Comparing error families", function(pr) {
+      fams <- if ((s$family %||% "gaussian") %in% BINOMIAL_FAMILIES) BINOMIAL_FAMILIES
+              else if ((s$family %||% "gaussian") %in% DENSITY_FAMILIES) DENSITY_FAMILIES else COUNT_FAMILIES
       compare_families(d, meta(), model = input$family_check_model %||% "M4", age_function = s$age_function,
                        random_slope = s$random_slope, standardise = s$standardise, zi_str = s$zi, progress = pr,
-                       among = s$among, include_invalid = s$include_invalid, families = fams)
+                       among = s$among, include_invalid = s$include_invalid, families = fams, disp = s$disp)
     })
     res$signature <- paste(data_sig(), input$family_check_model, s$age_function, settings_sig(s))
     family_res(res)
   }))
   output$family_table <- renderTable({
     r <- family_res()
-    shiny::validate(shiny::need(!is.null(r), "Press 'Compare count families'."))
+    shiny::validate(shiny::need(!is.null(r), "Press 'Compare error families'."))
     s_now <- model_settings()
     shiny::validate(shiny::need(identical(r$signature, paste(data_sig(), input$family_check_model, s_now$age_function, settings_sig(s_now))),
-                  "Data or settings changed since the comparison: press 'Compare count families' again."))
+                  "Data or settings changed since the comparison: press 'Compare error families' again."))
     shiny::validate(shiny::need(isTRUE(r$ok), r$message))
     tab <- r$table
     tab$AIC <- round(tab$AIC, 1)
@@ -2356,7 +2417,7 @@ server <- function(input, output, session) {
   a5_data <- reactive(terminal_data(dat(), meta(), 3))
   a5_plot_obj <- reactive({
     z <- a5_data()
-    shiny::validate(shiny::need(is.data.frame(z) && nrow(z) > 0, "Too few individuals with a known end (death or last record) at each occasion before death."))
+    shiny::validate(shiny::need(is.data.frame(z) && nrow(z) > 0, "Too few individuals at each occasion before death: this figure needs more individuals with a known end."))
     known <- isTRUE(attr(z, "lifespan_known"))
     u <- sort(unique(z$before))
     ggplot(z, aes(before, trait, colour = end_bin, group = end_bin)) +
@@ -2382,9 +2443,9 @@ server <- function(input, output, session) {
     })
     parts <- unlist(Filter(Negate(is.null), parts))
     if (!length(parts)) return("Too few occasions before death to compare the final occasion with earlier ones.")
-    paste0("Change at the last occasion relative to occasions two or more before death, using values relative to the mean at the same age (so the normal age trend is removed): ", paste(parts, collapse = "; "),
-           ". Similar changes in every lifespan group suggest terminal effects of similar strength at all ages; clearly different changes suggest age-dependent selective disappearance.",
-           if (!isTRUE(attr(z, "lifespan_known"))) " Lifespan is unknown, so the last record may not be close to death." else "")
+    paste0("Change at the last occasion relative to occasions two or more before death (relative to the mean at the same age): ", paste(parts, collapse = "; "),
+           ". Look for the same direction in every lifespan group: a rise at the last occasion may indicate terminal investment, a drop a terminal decline.",
+           if (!isTRUE(attr(z, "lifespan_known"))) " Lifespan is unknown, so the last record may not be the last occasion before death." else "")
   })
   output$a5_note <- renderUI({
     txt <- safe_get(a5_lines())
@@ -2415,7 +2476,7 @@ server <- function(input, output, session) {
   })
   a6_plot_obj <- reactive({
     s <- a6_values()
-    shiny::validate(shiny::need(nrow(s) > 0, "No age with at least three survivors and three disappearing individuals."))
+    shiny::validate(shiny::need(nrow(s) > 0, "No age with at least three survivors and three disappearing individuals: this figure needs more data at each age."))
     contrast <- identical(input$a6_compare, "contrast")
     s$w <- 1 / pmax(s$se, 1e-9)^2
     ggplot(s, aes(Age, y)) + geom_hline(yintercept = 0, linetype = 2, colour = "grey50") +
@@ -2464,8 +2525,8 @@ server <- function(input, output, session) {
     if (!isTRUE(z$ok)) return(z$message %||% "")
     c(sprintf("Overall (age-independent) hazard: %.1f%% per occasion (%s disappearances in %s individual-occasions at risk).",
               100 * z$overall, format(sum(z$table$Disappearances), big.mark = ","), format(sum(z$table$At_risk), big.mark = ",")),
-      sprintf("Test of a constant hazard against age-specific hazards: p = %s%s", format_p(z$p_constant),
-              if (is.finite(z$p_constant) && z$p_constant < 0.05) ": the hazard changes with age." else ": no clear change with age."),
+      sprintf("Test of a constant hazard against age-specific hazards: p = %s%s.", format_p(z$p_constant),
+              if (is.finite(z$p_constant) && z$p_constant < 0.05) ": the hazard changes with age" else ": no clear change with age"),
       if (!isTRUE(z$lifespan_known)) "Lifespan is unknown: disappearance is the last record, which includes emigration and missed detections." else NULL)
   })
   output$a7_note <- renderUI({
@@ -2488,16 +2549,7 @@ server <- function(input, output, session) {
       p(class = "small-note", "The missingness grid assumes regular, scheduled sampling occasions, which these data appear to follow.")
     }
   })
-  output$a3_support <- renderUI({
-    sup <- safe_get(individual_data_support(dat()))
-    if (is.null(sup)) return(NULL)
-    div(class = "truth-card small-note",
-        strong("Data support for individual slopes"), br(),
-        sprintf("Individuals: %s; trait observations: %s", format(sup$individuals, big.mark = ","), format(sup$observations, big.mark = ",")), br(),
-        sprintf("Observations per individual: median %s (IQR %s\u2013%s)", format_num(sup$median_obs), format_num(sup$iqr_low), format_num(sup$iqr_high)), br(),
-        sprintf("Time points: \u2265 2 in %.0f%%, \u2265 3 in %.0f%%, \u2265 4 in %.0f%% of individuals", sup$pct_2, sup$pct_3, sup$pct_4), br(),
-        sprintf("Distinct ages: %d; median age span per individual: %s", sup$distinct_ages, format_num(sup$median_span)))
-  })
+
 
   # ---- performance diagnostics
   perf_res <- reactiveVal(NULL)
@@ -2562,6 +2614,7 @@ server <- function(input, output, session) {
       paste0("prepared <- standardise_data(raw, map, ", dput_text(input$dup_action %||% "keep"), ")"),
       "dat <- prepared$data   # one row per individual x age",
       "meta <- prepared$meta",
+      if (!is.null(age_step_manual())) paste0("meta$age_step <- ", format(age_step_manual(), digits = 10), "   # sampling interval set in the app (leave out to infer it from the ages)") else NULL,
       "im <- individual_metrics(dat)   # one row per individual: ALR, AFR, mean age, lifespan",
       "")
   }
@@ -2667,7 +2720,7 @@ server <- function(input, output, session) {
         "life_known <- isTRUE(meta$has_life) && !isTRUE(meta$life_auto)",
         "",
         "# ---- Expected occasions and missingness ----",
-        "grid <- build_missing_grid(dat, margin = 0, start_mode = start_mode, start_age = start_age)",
+        "grid <- build_missing_grid(dat, margin = 0, start_mode = start_mode, start_age = start_age, step = meta$age_step)",
         "ms <- missingness_summary(dat, grid, 0.05, life_known)",
         "cat(sprintf(\"Missing expected occasions: %.1f%%\\n\", ms$percent))",
         "print(ms$drivers)",
@@ -2680,7 +2733,7 @@ server <- function(input, output, session) {
         "cells <- grid_display(grid, ids, life_known = any(is.finite(dat$life)))",
         "cells$id <- factor(cells$id, levels = rev(ids))",
         "print(ggplot(cells, aes(age, id, fill = status)) + geom_tile() +",
-        "        scale_fill_manual(values = c(\"Observed\" = \"#7C8060\", \"Missed\" = \"#C0392B\", \"Last record (ALR)\" = \"#E67E22\", \"Not expected\" = \"#FFFFFF\")) +",
+        "        scale_fill_manual(values = c(\"Observed\" = \"#7C8060\", \"Missed\" = \"#C0392B\", \"First record (AFR)\" = \"#2C6FAC\", \"Last record (ALR)\" = \"#E67E22\", \"AFR = ALR (one occasion)\" = \"#7B4F9E\", \"Not expected\" = \"#FFFFFF\")) +",
         "        labs(x = \"Age\", y = NULL, fill = NULL) + theme_minimal() + theme(axis.text.y = element_blank()))",
         "",
         "# ---- Missingness by age ----",
@@ -2734,7 +2787,8 @@ server <- function(input, output, session) {
           "",
           "# ---- Ageing functions compared at the population level (Model 1) ----",
           paste0("population <- compare_population_functions(dat, meta, family = family, random_slope = random_slope, standardise = ",
-                 dput_text(isTRUE(s$standardise)), ", zi_str = zero_inflation, functions = functions, model = \"M1\", among = ", dput_text(s$among), ")"),
+                 dput_text(isTRUE(s$standardise)), ", zi_str = zero_inflation, functions = functions, model = \"M1\", among = ", dput_text(s$among),
+                 if (!identical(normalise_disp(s$disp), "constant")) paste0(", disp = ", dput_text(normalise_disp(s$disp))) else "", ")"),
           "print(population$table)",
           "if (nrow(population$curves)) print(ggplot() + geom_point(data = obs, aes(age, fitted, size = n), shape = 21, fill = \"grey55\") +",
           "        geom_line(data = population$curves, aes(age, fitted, colour = Function), linewidth = 1.1) + labs(x = \"Age\", y = \"Trait\") + theme_minimal())")
@@ -2760,67 +2814,7 @@ server <- function(input, output, session) {
     })
   }
 
-  # ---- suggested starting analysis (a recommendation, never an automatic decision) ----
-  suggested_settings <- reactive({
-    d <- safe_get(dat()); m <- safe_get(meta())
-    if (is.null(d)) return(NULL)
-    fam <- tryCatch(suggest_family(d$trait, d$age), error = function(e) NULL)
-    sup <- tryCatch(individual_data_support(d), error = function(e) NULL)
-    adv <- tryCatch(random_slope_advice(sup), error = function(e) NULL)
-    im <- tryCatch(individual_metrics(d), error = function(e) NULL)
-    afr_varies <- !is.null(im) && length(unique(im$entry[is.finite(im$entry)])) >= 2
-    list(family = fam$family %||% "gaussian", family_kind = fam$kind %||% "",
-         age_function = input$model_age_function %||% "Quadratic",
-         slope = adv$recommended %||% "none", slope_text = adv$text %||% "",
-         has_life = isTRUE(m$has_life), afr_varies = afr_varies,
-         models = c("M1", "M2", "M4", if (isTRUE(m$has_life)) "M6", if (afr_varies) "M7"))
-  })
-  output$suggested_analysis <- renderUI({
-    sg <- suggested_settings()
-    if (is.null(sg)) return(NULL)
-    adv <- tryCatch(random_slope_advice(individual_data_support(safe_get(dat()))), error = function(e) NULL)
-    rs <- c(none = "random intercept only", uncorrelated = "random intercept and an uncorrelated age slope",
-            correlated = "random intercept and a correlated age slope",
-            uncorrelated_all = "random intercept and uncorrelated slopes for every age term",
-            correlated_all = "random intercept and correlated slopes for every age term")[[sg$slope]] %||% "random intercept only"
-    div(class = "guide-box",
-        div(class = "guide-head", "Suggested starting analysis"),
-        div(class = "guide-goal", "Read off your data and the earlier tabs. These are starting points, not scientific decisions: every setting below remains editable, and nothing is applied until you press the button."),
-        tags$ul(
-          tags$li(strong("Error family: "), family_label(sg$family), if (nzchar(sg$family_kind)) sprintf(" (the trait looks like: %s)", sg$family_kind) else "",
-                  " \u2014 if you think this is not the right error distribution, choose your own below."),
-          tags$li(strong("Ageing function: "), sg$age_function, " \u2014 from the individual fits in step 4. Confirm it with the Ageing-function check on the Checks tab, which compares functions within the same model."),
-          tags$li(strong("Random effects: "), rs, "."),
-          tags$li(strong("Lifespan proxy: "), if (sg$has_life) "known lifespan (LS), with age at last record (ALR) for comparison." else "age at last record (ALR)."),
-          tags$li(strong("Models worth starting with: "), paste(model_label(sg$models), collapse = ", "),
-                  if (sg$afr_varies) " \u2014 age at first observation varies, so the appearance models are available too" else "")),
-        tags$details(class = "advanced-block",
-          tags$summary("Why these settings?"),
-          tags$ul(class = "small-note",
-            tags$li(strong("Family. "), sprintf("The trait's distribution was read as %s. ", if (nzchar(sg$family_kind)) sg$family_kind else "continuous"),
-                    "Counts suit Poisson or negative binomial, proportions and 0/1 outcomes the binomial, and overdispersed or zero-heavy counts the negative binomial or zero-inflated families. Use the family check to compare them."),
-            tags$li(strong("Ageing function. "), sprintf("%s, taken from the individual-level comparison in step 4. ", sg$age_function),
-                    "A misspecified shape leaves curvature that the lifespan interaction terms can absorb, which can look like age-dependent selective disappearance. If this disagrees with the Ageing-function check on the Checks tab, rely on that check: it compares functions within the same model, while individual fits rest on few records per individual."),
-            tags$li(strong("Random effects. "), if (nzchar(sg$slope_text)) paste0(sg$slope_text, ". ") else "",
-                    if (!is.null(adv) && nzchar(adv$facts %||% "")) adv$facts else ""),
-            tags$li(strong("Lifespan proxy. "),
-                    if (sg$has_life) "Known lifespan (LS) is the most direct measure, so Model 6 serves as a benchmark for the proxy-based models. "
-                    else "Without a lifespan column, age at last record (ALR) stands in for lifespan. ",
-                    "ALR tracks lifespan well when sampling is complete; with missing records it underestimates lifespan, and mean age degrades faster still, especially when entry age varies."),
-            tags$li(strong("Models. "), "Models 1, 2 and 4 answer the main question: no correction, an age-independent correction, and an age-dependent one.",
-                    if (sg$afr_varies) " Age at first record varies here, so the selective-appearance models (7 to 10) are available too; they matter when individuals entering later differ from those entering early." else " Age at first record does not vary here, so the selective-appearance models cannot be estimated."))),
-        actionButton("apply_suggested", "Apply these settings", class = "btn-primary", icon = icon("wand-magic-sparkles")),
-        div(class = "small-note", style = "margin-top:8px;",
-            strong("Caution: "), "this recommendation rests on the function selection in the previous steps, on the missingness, and on the structure of your data."))
-  })
-  observeEvent(input$apply_suggested, disappr_guard("input$apply_suggested", {
-    sg <- suggested_settings()
-    if (is.null(sg)) return(invisible(NULL))
-    updateSelectInput(session, "model_family", selected = sg$family)
-    updateSelectInput(session, "random_structure", selected = sg$slope)
-    for (mid in MODEL_IDS) updateCheckboxInput(session, paste0("use_", mid), value = mid %in% sg$models)
-    showNotification("Suggested settings applied. Review them, then press 'Fit models'.", type = "message")
-  }))
+  # 0.24.7: the suggested starting analysis and its "Apply these settings" button were removed
 
   # ---- guidance layer: progress strip and step navigation (display only) ----
   lapply(WORKFLOW_STEPS$tab, function(tb) {
@@ -2873,12 +2867,13 @@ server <- function(input, output, session) {
     thin <- is.finite(nc) && is.finite(nt) && nt > 0 && (nt - nc) / nt >= 0.2
     div(class = "shape-lead",
         div(
-            strong(t$Function[[1]]),
+            "Suggested function: ", strong(t$Function[[1]]),
             if (length(sup) > 1) sprintf(" \u2014 within 2 AICc: %s.", paste(sup, collapse = ", "))
             else " \u2014 no other function is within 2 AICc.",
-            if (thin) sprintf(" Based on %d of %d individuals, so read it as suggestive only.", as.integer(nc), as.integer(nt)) else ""),
+            # the caution box below gives the numbers when many individuals could not be fitted (0.24.7)
+            if (!thin && is.finite(nc) && is.finite(nt)) sprintf(" Based on %d of %d fitted individuals.", as.integer(nc), as.integer(nt)) else ""),
         div(class = "small-note", style = "margin-top:4px;",
-            "A starting point: confirm it with the Ageing-function check in step 5, which compares functions within the same model."))
+            "Also confirm it with the Ageing-function check in step 5, which compares different functions within the same model."))
   })
 
   # ---- summary of the workflow ------------------------------------------------------
@@ -2998,7 +2993,7 @@ server <- function(input, output, session) {
       out <- tryCatch(bootstrap_test(d, m, model = input$perm_model %||% "M4", against = "M1", n_boot = n,
                                        settings = list(family = ms$family, age_function = ms$age_function,
                                                        random_slope = ms$random_slope, standardise = ms$standardise,
-                                                       zi = ms$zi, among = ms$among, extra = ms$extra),
+                                                       zi = ms$zi, among = ms$among, extra = ms$extra, disp = ms$disp),
                                        progress = function(f, msg) setProgress(value = f, detail = msg)),
                       error = function(e) list(error = conditionMessage(e)))
       if (is.null(out$error)) {
@@ -3024,13 +3019,14 @@ server <- function(input, output, session) {
         if (length(rd$alternatives)) div(class = "perm-row", span(class = "perm-label", "Other explanations to rule out"),
                                          tags$ul(lapply(rd$alternatives, tags$li))) else NULL,
         div(class = "small-note", style = "margin-top:8px;",
-            sprintf("%s versus %s; %d of %d simulated datasets fitted; p = %s. Null model: %s ageing, %s random effects, no lifespan term.",
+            sprintf("%s versus %s; %d of %d simulated datasets fitted; p = %s. Null model: %s ageing, %s random effects, %s, no lifespan term.",
                     model_label(z$model), model_label(z$against), z$n_ok, z$n_perm,
                     if (is.finite(z$p_gain)) format_p(z$p_gain) else "not available",
                     z$null_model$age_function %||% "", switch(z$null_model$random_slope %||% "none",
-                      correlated = "correlated intercept and slope", uncorrelated = "intercept and slope", "intercept-only")),
-            if (isTRUE((z$n_ok %||% 0L) < BOOTSTRAP_MIN_OK)) sprintf(" With %d refitted datasets the smallest possible p-value is %.3f, so this run cannot reach p < 0.05; use 39 or more.",
-                                       z$n_perm, 1 / (z$n_perm + 1)) else ""))
+                      correlated = "correlated intercept and slope", uncorrelated = "intercept and slope", "intercept-only"),
+                    disp_text(z$null_model$disp %||% "constant")),
+            if (isTRUE((z$n_ok %||% 0L) < BOOTSTRAP_MIN_OK)) sprintf(" With %d refitted datasets the smallest possible p-value is %.3f, so this run cannot reach p < 0.05; run more draws so that at least 39 refit.",
+                                       as.integer(z$n_ok %||% 0L), 1 / ((z$n_ok %||% 0L) + 1)) else ""))
   })
   perm_plot_obj <- reactive({
     z <- perm_store()
@@ -3066,6 +3062,7 @@ server <- function(input, output, session) {
   # simulated replicates with no selection, median gap 1167 AIC) and omitted random slopes (60%).
   # Both are therefore checked automatically once models are fitted, and shown with the results
   # rather than behind a button.
+  auto_check_cache <- new.env(parent = emptyenv())   # automatic checks already computed, by signature (0.23.1)
   auto_function_check <- reactive({
     r <- safe_get(fitted_models())
     d <- safe_get(dat())
@@ -3078,50 +3075,101 @@ server <- function(input, output, session) {
     a <- r$aic[is.finite(r$aic$Delta_AIC), , drop = FALSE]
     mid <- if (nrow(a)) sub("^Model ", "M", a$Model[[1]]) else "M1"
     if (!mid %in% MODEL_IDS) mid <- "M1"
-    res <- tryCatch(compare_population_functions(d, meta(), family = ms$family, random_slope = ms$random_slope,
-                                                 standardise = ms$standardise, zi_str = ms$zi, model = mid,
-                                                 among = ms$among, include_invalid = FALSE),
-                    error = function(e) NULL)
+    # cached by data, settings and model (0.23.1): refitting the same models again returns the stored comparison
+    key <- paste("fun", safe_get(data_sig()), settings_sig(ms), mid)
+    res <- auto_check_cache[[key]]
+    if (is.null(res)) {
+      res <- tryCatch(compare_population_functions(d, meta(), family = ms$family, random_slope = ms$random_slope,
+                                                   standardise = ms$standardise, zi_str = ms$zi, model = mid,
+                                                   among = ms$among, include_invalid = FALSE, disp = ms$disp),
+                      error = function(e) NULL)
+      if (!is.null(res)) assign(key, res, envir = auto_check_cache)
+    }
     if (is.null(res) || !nrow(res$table)) return(NULL)
     t <- res$table[is.finite(res$table$AIC), , drop = FALSE]
     if (!nrow(t)) return(NULL)
     list(skipped = FALSE, supported = t$Function[t$Delta_AIC < 2], table = t, model = mid)
   })
+  # Automatic error-family check (0.22.6): the best-supported model refitted with each family of the trait's kind, as
+  # the ageing-function check does for functions. Zero-inflated families only when zeros are common; skipped for very
+  # large data and for the non-linear exponential.
+  auto_family_check <- reactive({
+    r <- safe_get(fitted_models())
+    d <- safe_get(dat())
+    if (is.null(r) || !isTRUE(r$ok) || is.null(d) || !HAS_GLMMTMB) return(NULL)
+    if (nrow(d) > 40000) return(list(skipped = TRUE))
+    ms <- model_settings()
+    if (identical(ms$age_function, A3_NONLINEAR)) return(NULL)
+    a <- r$aic[is.finite(r$aic$Delta_AIC), , drop = FALSE]
+    mid <- if (nrow(a)) sub("^Model ", "M", a$Model[[1]]) else "M1"
+    if (!mid %in% MODEL_IDS) mid <- "M1"
+    fam <- ms$family %||% "gaussian"
+    y <- d$trait[is.finite(d$trait)]
+    fams <- if (fam %in% BINOMIAL_FAMILIES) BINOMIAL_FAMILIES else if (fam %in% DENSITY_FAMILIES) DENSITY_FAMILIES else
+      c("poisson", "nbinom1", "nbinom2", if (length(y) && mean(y == 0) >= 0.1) c("zip", "zinb", "zinb1"))
+    key <- paste("fam", safe_get(data_sig()), settings_sig(ms), ms$age_function, mid, paste(unique(c(fam, fams)), collapse = ","))
+    res <- auto_check_cache[[key]]
+    if (is.null(res)) {
+      res <- tryCatch(compare_families(d, meta(), model = mid, age_function = ms$age_function, random_slope = ms$random_slope,
+                                       standardise = ms$standardise, zi_str = ms$zi, families = unique(c(fam, fams)),
+                                       among = ms$among, include_invalid = FALSE, disp = ms$disp),
+                      error = function(e) NULL)
+      if (!is.null(res)) assign(key, res, envir = auto_check_cache)
+    }
+    if (is.null(res) || !isTRUE(res$ok)) return(NULL)
+    res$model <- mid
+    res
+  })
   sensitivity_flags <- reactive({
     r <- safe_get(fitted_models())
     if (is.null(r) || !isTRUE(r$ok)) return(list())
     out <- list()
-    # error family: if the family check has been run and another family fits the same model better, say so
+    best_id <- {
+      a <- r$aic[is.finite(r$aic$Delta_AIC), , drop = FALSE]
+      m0 <- if (nrow(a)) sub("^Model ", "M", a$Model[[1]]) else "M1"
+      if (m0 %in% names(r$fits)) m0 else names(r$fits)[[1]]
+    }
+    # error family: the AIC comparison from the manual check when it matches the current fit, otherwise from the
+    # automatic check; if neither finds a better family, the instant screen of the fitted model
     fr <- safe_get(family_res())
     s_fam <- safe_get(model_settings())
-    fresh <- !is.null(fr) && !is.null(s_fam) &&
+    fresh <- !is.null(fr) && !is.null(s_fam) && isTRUE(fr$ok) &&
       identical(fr$signature %||% "", paste(safe_get(data_sig()), input$family_check_model, s_fam$age_function, settings_sig(s_fam)))
-    if (isTRUE(fresh) && isTRUE(fr$ok) && is.data.frame(fr$table) && nrow(fr$table) > 1) {
-      ft <- fr$table[is.finite(fr$table$AIC), , drop = FALSE]
+    fc_fam <- if (fresh) fr else safe_get(auto_family_check())
+    compared <- is.list(fc_fam) && isTRUE(fc_fam$ok) && is.data.frame(fc_fam$table) && nrow(fc_fam$table) > 1
+    if (compared) {
+      ft <- fc_fam$table[is.finite(fc_fam$table$AIC), , drop = FALSE]
       ft <- ft[order(ft$AIC), , drop = FALSE]
       here <- family_label(r$family)
-      mlab <- if (length(fr$model) && nzchar(fr$model[[1]])) model_label(fr$model[[1]]) else "the checked model"
-      if (nrow(ft) > 1 && length(here) == 1 && nzchar(here) && !identical(ft$Family[[1]], here) && here %in% ft$Family) {
+      mlab <- if (length(fc_fam$model) && nzchar(fc_fam$model[[1]])) model_label(fc_fam$model[[1]]) else "the checked model"
+      if (nrow(ft) > 1 && here %in% ft$Family && !identical(ft$Family[[1]], here)) {
         gap <- ft$AIC[ft$Family == here][[1]] - ft$AIC[[1]]
-        if (length(gap) == 1 && is.finite(gap) && gap > 2)
-          out$error_family <- sprintf("%s fits %s better than the family used here (%s), by %s AIC. Refit with it: the wrong error distribution inflates interaction terms.",
-                                      ft$Family[[1]], mlab, here, format_num(gap))
+        if (is.finite(gap) && gap > 2)
+          out$error_family <- sprintf("Error family (%s): %s fits %s better than %s (\u0394AIC %s). Refit with it: a wrong family can inflate interaction terms.",
+                                      if (fresh) "error-family check" else "automatic check", ft$Family[[1]], mlab, here, format_num(gap))
       }
+    }
+    if (is.null(out$error_family)) {
+      scr <- tryCatch(family_screen(r, best_id), error = function(e) character(0))
+      if (length(scr))
+        out$error_family <- paste0("Error family: ", paste(scr, collapse = "; "), ". ",
+                                   if (compared) "The AIC comparison found no better family: check the residuals." else "Run the error-family check (Checks tab).")
     }
     cur <- input$model_age_function %||% "Quadratic"
     fc <- safe_get(auto_function_check())
     if (!is.null(fc) && !isTRUE(fc$skipped) && length(fc$supported) && !cur %in% fc$supported) {
       gap <- fc$table$Delta_AIC[fc$table$Function == cur]
       out$function_form <- sprintf(
-        "When the best-supported model is refitted with each ageing function under the same settings, the one used here (%s) has less support than %s (within 2 AIC%s). This model-level comparison is more reliable than the individual fits in step 4, which rest on few records per individual. Use the Ageing-function check on the Checks tab to compare functional forms for your models, so that the ageing function is not misspecified: a misspecified shape can make Models 4 and 5 look supported without any selective disappearance.",
-        cur, paste(fc$supported, collapse = ", "),
-        if (length(gap) && is.finite(gap[[1]])) sprintf("; %s is %s AIC behind", cur, format_num(gap[[1]])) else "")
+        "Ageing function (automatic check): refitting the best-supported model with each function, %s is %sbehind %s. Refit with a supported function: a misspecified shape can make interaction terms look supported without selective (dis)appearance.",
+        cur, if (length(gap) && is.finite(gap[[1]])) paste0(format_num(gap[[1]]), " AIC ") else "",
+        paste(fc$supported, collapse = ", "))
     }
     if (!is.null(fc) && isTRUE(fc$skipped)) {
-      out$function_form_skipped <- "The ageing-function check was not run automatically because this dataset is large. Use the Ageing-function check on the Checks tab to compare functional forms for your models: a misspecified shape can make the interaction models look supported without any selective disappearance."
+      out$function_form_skipped <- "Ageing function: not checked automatically (large dataset). Run the ageing-function check (Checks tab): a misspecified shape can make the interaction models look supported."
     }
     adv <- tryCatch(random_slope_advice(individual_data_support(r$data)), error = function(e) NULL)
-    slope_fitted <- !identical(normalise_slope(input$random_structure %||% "none"), "none")
+    # the structure actually fitted: 'Automatic' can resolve to an intercept only (0.23.1; review finding 1)
+    slope_fitted <- !identical(normalise_slope(r$random_structure %||% "none"), "none")
     int_supported <- {
       a <- r$aic
       elig <- a[is.finite(a$Delta_AIC) & a$Delta_AIC < 2, , drop = FALSE]
@@ -3129,14 +3177,9 @@ server <- function(input, output, session) {
     }
     if (!slope_fitted && int_supported) {
       lvl <- adv$level %||% "limited"
-      strength <- switch(lvl,
-        good = "These data support fitting random slopes",
-        limited = "These data give limited support for fitting random slopes",
-        "These data give weak support for fitting random slopes")
-      out$random_slopes <- paste0(strength,
-        ". Random slopes account for heterogeneity in ageing, and leaving them out can inflate the fit of interaction models, ",
-        "because the interaction term recovers some of that heterogeneity. Refit with random slopes, or with a slope for every ",
-        "age term if the data allow, to check that the interaction's advantage is not a false positive.")
+      strength <- switch(lvl, good = "the data support them", limited = "the data give limited support", "the data give weak support")
+      out$random_slopes <- paste0("Random slopes (", strength, "): without them, an interaction model can win by absorbing ",
+                                  "individual differences in ageing. Refit with random slopes, one per age term if the data allow.")
     }
     first <- c("random_slopes", "error_family", "function_form", "function_form_skipped")
     out[c(intersect(first, names(out)), setdiff(names(out), first))]
@@ -3170,9 +3213,9 @@ server <- function(input, output, session) {
     res <- run_with_progress("Fitting this model with each ageing function", function(pr) {
       compare_population_functions(d, meta(), family = ms$family, random_slope = ms$random_slope,
                                    standardise = ms$standardise, zi_str = ms$zi, progress = pr, model = m,
-                                   among = ms$among, include_invalid = isTRUE(ms$include_invalid))
+                                   among = ms$among, include_invalid = isTRUE(ms$include_invalid), disp = ms$disp)
     })
-    res$signature <- paste(data_sig(), m, ms$family, ms$random_slope, ms$standardise, ms$among)
+    res$signature <- paste(data_sig(), m, ms$family, ms$random_slope, ms$standardise, ms$among, ms$disp)
     res$model_checked <- m
     res$data_sig <- safe_get(data_sig())
     function_check(res)
@@ -3261,7 +3304,11 @@ server <- function(input, output, session) {
   make_code_download <- function() {
     downloadHandler(
       filename = function() paste0("disappR_models_", Sys.Date(), ".R"),
-      content = function(file) writeLines(code_text(), file)
+      content = function(file) {
+        con <- file(file, open = "w", encoding = "UTF-8")
+        on.exit(close(con), add = TRUE)
+        writeLines(code_text(), con)
+      }
     )
   }
   output$download_code <- make_code_download()
@@ -3282,37 +3329,6 @@ server <- function(input, output, session) {
   # ======================================================================
   # 7. Summary and report
   # ======================================================================
-  summary_parts <- reactive({
-    d <- dat()
-    m <- meta()
-    integ <- integrity()
-    ms <- msum()
-    im <- imet()
-    warn_rows <- integ$table[integ$table$Status == "Warning", , drop = FALSE]
-    a2_alr <- proxy_slopes_by_age(d, proxy_values(im, if (life_known()) "LS" else "ALR"), "r")
-    a2_afr <- if (length(unique(im$entry[is.finite(im$entry)])) >= 2) proxy_slopes_by_age(d, proxy_values(im, "AFR"), "r") else NULL
-    r <- model_res()
-    models_ok <- !is.null(r) && isTRUE(r$ok) && identical(r$signature, model_sig())
-    rec <- character(0)
-    if (models_ok) {
-      aic <- r$aic
-      lrt <- r$lrt
-      # first match only: a repeated comparison must not hand a vector to && below
-      p_of <- function(cmp) if (nrow(lrt) && cmp %in% lrt$Comparison) lrt$P_value[lrt$Comparison == cmp][[1]] else NA_real_
-      p24 <- p_of("Model 2 vs Model 4")
-      p12 <- p_of("Model 1 vs Model 2")
-      dA <- function(mod) if (mod %in% aic$Model) aic$Delta_AIC[aic$Model == mod][[1]] else NA_real_
-      # Only fit-validity notes are kept here (0.20.6): the model comparison table carries the AIC and LRT details.
-      if (any(unlist(r$validity) != "Valid")) rec <- c(rec, "Some fits are classified Caution or Failed; inspect the fitting status and check whether a simpler random-effect structure gives the same conclusion.")
-      if (isTRUE(r$n_excluded > 0)) rec <- c(rec, sprintf("%d fit(s) with an invalid Hessian were excluded from these statements.", r$n_excluded))
-      rec <- c(rec, tryCatch(consistency_notes(r, if (is_toy()) safe_get(deviation_raw()) else NULL, NULL), error = function(e) character(0)))
-    }
-    fam <- integ$family
-    fam_note <- if (!identical(fam$family, "gaussian") && models_ok && identical(r$family, "gaussian")) "Warning: a count trait was modelled as Gaussian; refit with a count family." else NULL
-    list(d = d, m = m, integ = integ, warn_rows = warn_rows, ms = ms, a2 = a2_alr, a2_afr = a2_afr, r = r,
-         models_ok = models_ok, rec = rec, fam_note = fam_note, b2 = b2_res(), a3 = a3_compare_current())
-  })
-
 
   # ======================================================================
   # Saved results: every "Save to summary" button adds a snapshot here
@@ -3377,8 +3393,11 @@ server <- function(input, output, session) {
     "Individual-level function comparison",
     "Population-level ageing functions",
     "Model comparison",
+    "Cross-fit model comparison",
     "Model predictions trajectory",
     "Coefficients of",
+    "Peak age and onset",
+    "Among-individual covariance",
     "Residual checks for",
     "performance checks for",
     "Error-family check with",
@@ -3474,7 +3493,8 @@ server <- function(input, output, session) {
     entry <- list(id = id, section = section, title = title, time = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
                   data = data_description(), text = as.character(text), tables = tables, plots = plots, code = code,
                   verdict = sm$verdict, meaning = sm$meaning, order = save_rank(section, title), fingerprint = fp,
-                  evidence = if (is.list(evidence)) evidence else NULL)
+                  evidence = if (is.list(evidence)) evidence else NULL,
+                  methods = tryCatch(methods_context(), error = function(e) NULL))
     lst <- saved_results()
     lst[[id]] <- entry
     saved_results(lst)
@@ -3655,7 +3675,6 @@ server <- function(input, output, session) {
     aic <- r$aic
     best_id <- sub("^Model ", "M", aic$Model[[1]])
     elig <- aic[aic$Eligible, , drop = FALSE]
-    d45 <- if (all(c("Model 4", "Model 5") %in% elig$Model)) elig$AIC[elig$Model == "Model 5"] - elig$AIC[elig$Model == "Model 4"] else NA_real_
     txt <- c(sprintf("%s; %s ageing function; random effects %s", family_label(r$family), r$age_function,
                      if (isTRUE(r$nonlinear)) r$random else random_display(meta(), r$random_slope)),
              if (nzchar(r$random_note %||% "")) r$random_note,
@@ -3706,7 +3725,7 @@ server <- function(input, output, session) {
   observeEvent(input$save_family, disappr_guard("input$save_family", {
     fr <- family_res()
     if (is.null(fr) || !isTRUE(fr$ok)) return(nothing_to_save("Run the error-family check first."))
-    add_saved("5 Modelling", paste("Error-family check with", model_label(fr$model)), tables = list(`Count families` = fr$table))
+    add_saved("5 Modelling", paste("Error-family check with", model_label(fr$model)), text = if (nzchar(fr$skipped %||% "")) fr$skipped else NULL, tables = list(`Error families` = fr$table))
   }))
   observeEvent(input$save_dharma, disappr_guard("input$save_dharma", {
     z <- dharma_res()
@@ -3750,23 +3769,6 @@ server <- function(input, output, session) {
     if (is.null(code)) return(nothing_to_save("Fit models first."))
     add_saved("5 Modelling", "Reproducible R code", code = code)
   }))
-
-  overview_text <- reactive({
-    z <- summary_parts()
-    ms <- z$ms
-    lk <- life_known()
-    c(sprintf("Data: %s rows from %s individuals; %d distinct ages.", format(nrow(z$d), big.mark = ","),
-              format(length(unique(z$d$id)), big.mark = ","), length(unique(z$d$age))),
-      if (nrow(z$warn_rows)) paste0("Integrity warning \u2014 ", z$warn_rows$Check, ": ", z$warn_rows$Result),
-      z$integ$family$text,
-      paste(if (lk) "LS:" else "ALR:", a2_interpretation(z$a2, if (lk) "LS" else "ALR")),
-      if (!is.null(z$a2_afr)) paste("AFR:", a2_interpretation(z$a2_afr, "AFR")),
-      sprintf("Sampling: %.1f%% of expected occasions missed; p = %.2f. %s", ms$percent, ms$p, ms$type),
-      ms$guidance,
-      if (nrow(z$a3)) paste0("Individual fits: lowest mean \u0394AICc for ", z$a3$Function[[1]], "."),
-      if (z$models_ok) c(sprintf("Models: %s; lowest AIC among eligible fits: %s (%s).", family_label(z$r$family), z$r$aic$Model[[1]], z$r$aic$Fit[[1]]), z$rec)
-      else "Models not fitted for the current data and settings.")
-  })
 
   output$saved_controls <- renderUI({
     lst <- saved_results()
@@ -3837,6 +3839,377 @@ server <- function(input, output, session) {
       con <- file(file, open = "w", encoding = "UTF-8")
       on.exit(close(con))
       writeLines(text_report(saved_results(), "disappR report: saved results", trait = safe_get(trait_label()) %||% "the trait"), con)
+    }
+  )
+  # ======================================================================
+  # 0.22.0: sampling interval, current data, stored models, peak and onset, random-effect covariance, methods
+  # ======================================================================
+  output$age_step_note <- renderUI({
+    d <- safe_get(dat())
+    if (is.null(d)) return(NULL)
+    inferred <- infer_age_step(d$age, d$id)
+    man <- age_step_manual()
+    if (identical(input$age_step_auto, FALSE) && is.null(man)) {
+      return(p(class = "small-note", style = "color:#A50026;",
+               sprintf("Enter a positive interval; the inferred %s is used until then.", format_num(inferred))))
+    }
+    txt <- if (is.null(man)) sprintf("Inferred interval: %s, used app-wide.", format_num(inferred))
+           else sprintf("Set to %s, used app-wide (inferred: %s).", format_num(man), format_num(inferred))
+    warn <- NULL
+    if (!is.null(man)) {
+      rng <- diff(range(d$age[is.finite(d$age)]))
+      if (is.finite(rng) && man > rng) {
+        warn <- "Longer than the whole age range: records fall on one or two occasions."
+      } else if (is.finite(inferred) && man < inferred / 1.5) {
+        warn <- "Shorter than most gaps between records: missingness rises and the decomposition links fewer individuals."
+      }
+    }
+    tagList(p(class = "small-note", txt), if (!is.null(warn)) p(class = "small-note", style = "color:#A50026;", warn))
+  })
+  # unticking 'infer' starts the manual entry from the inferred interval
+  observeEvent(input$age_step_auto, disappr_guard("input$age_step_auto", {
+    if (!identical(input$age_step_auto, FALSE)) return(invisible(NULL))
+    if (isTRUE(is.finite(num_input(input$age_step_value, NA_real_)))) return(invisible(NULL))
+    d <- safe_get(dat())
+    if (is.null(d)) return(invisible(NULL))
+    st <- infer_age_step(d$age, d$id)
+    if (is.finite(st)) updateNumericInput(session, "age_step_value", value = signif(st, 6))
+  }), ignoreInit = TRUE)
+
+  # ---- current data, in the sidebar ----
+  TOY_MISSING_LABELS <- c(complete = "complete", mcar = "missing completely at random (~25%)", mwo = "missing when old",
+                          mwy = "missing when young", trait = "trait-dependent missingness", condition = "condition-dependent missingness")
+  output$current_data_box <- renderUI({
+    src <- input$data_source %||% "toy"
+    d <- safe_get(dat())
+    row <- function(lab, val) div(class = "cd-row", span(class = "cd-lab", paste0(lab, ": ")), val)
+    recs <- if (!is.null(d)) sprintf("%s records, %s individuals", format(nrow(d), big.mark = ","), format(length(unique(d$id)), big.mark = ",")) else NULL
+    rows <- list()
+    if (identical(src, "toy")) {
+      cfg <- utils::modifyList(TOY_DEFAULTS, toy_cfg())
+      paper <- identical(cfg$trait, "paper")
+      form <- if (paper) "Quadratic" else cfg$form
+      sel <- function(x) names(SELECTION_TYPES)[SELECTION_TYPES == x][1]
+      dir_txt <- function(x) if (isTRUE(as.numeric(x) < 0)) "negative" else "positive"
+      rows <- list(
+        div(class = "cd-head", "Current data: simulated"),
+        row("Trait", names(TOY_TRAITS)[TOY_TRAITS == cfg$trait][1]),
+        row("Sample size", paste0(format(cfg$n_id, big.mark = ","), " individuals", if (!is.null(recs)) paste0(" (", format(nrow(d), big.mark = ","), " records)") else "")),
+        row("Average time steps", paste0(if (paper) 25 else cfg$mean_ls, " (mean lifespan)")),
+        row("Functional form", paste0(form, if (!paper) paste0(": ", tolower(toy_shape_label(form, cfg$shape))) else "")),
+        row("Selective disappearance", paste0(sel(cfg$sd_type), if (!identical(cfg$sd_type, "none")) paste0(", ", dir_txt(cfg$sd_dir)) else "")),
+        row("Selective appearance", if (identical(cfg$afr_mode, "individual")) paste0(sel(cfg$sa_type), if (!identical(cfg$sa_type, "none")) paste0(", ", dir_txt(cfg$sa_dir)) else "", "; AFR varies")
+                                    else "none (the same AFR for all)"),
+        row("Strength", if (paper) "as in the manuscript" else if (identical(cfg$strength, "dramatic")) "dramatic" else "moderate"),
+        row("Individual differences in ageing rate", if (identical(cfg$rate_var, "high")) "large" else "small"),
+        row("Sampling", unname(TOY_MISSING_LABELS[cfg$missingness]) %||% cfg$missingness),
+        if (isTRUE(cfg$diet) || isTRUE(cfg$groups)) row("Also", paste(c(if (isTRUE(cfg$diet)) "diet covariate", if (isTRUE(cfg$groups)) "25 families"), collapse = "; ")),
+        row("Seed", cfg$seed))
+      if (isTRUE(safe_get(toy_settings_pending()))) rows <- c(rows, list(div(class = "cd-warn", "Settings changed: not yet simulated.")))
+    } else if (identical(src, "example")) {
+      ex <- current_example()
+      rows <- list(div(class = "cd-head", "Current data: published example"), div(class = "cd-row", ex$label),
+                   if (!is.null(recs)) row("Size", recs))
+    } else {
+      rows <- list(div(class = "cd-head", "Current data: uploaded file"), div(class = "cd-row", input$data_file$name %||% "no file yet"),
+                   if (!is.null(recs)) row("Size", recs))
+    }
+    if (!is.null(d)) {
+      mp <- safe_get(current_map())
+      st <- resolve_age_step(d$age, d$id, age_step_manual())
+      rows <- c(rows, list(
+        if (!identical(src, "toy") && !is.null(mp)) row("Trait column", mp$trait),
+        row("Sampling interval", paste0(format_num(st), if (is.null(age_step_manual())) " (inferred)" else " (set)"))))
+    }
+    div(class = "current-data", Filter(Negate(is.null), rows))
+  })
+
+  # ---- stored models: compare models across fits ----
+  model_store <- reactiveVal(list())
+  store_counter <- reactiveVal(0L)
+  output$store_pick_ui <- renderUI({
+    r <- safe_get(fitted_models())
+    if (is.null(r) || !isTRUE(r$ok)) return(p(class = "small-note", "Fit models, then tick the ones to store. Stored models stay when you refit."))
+    ch <- intersect(sub("^Model ", "M", r$aic$Model[is.finite(r$aic$AIC)]), names(r$fits))
+    checkboxGroupInput("store_pick", "Models from the current fit", choices = stats::setNames(ch, model_label(ch)), inline = TRUE)
+  })
+  observeEvent(input$store_models, disappr_guard("input$store_models", {
+    r <- safe_get(fitted_models())
+    if (is.null(r) || !isTRUE(r$ok)) { notify("Fit models first.", type = "warning"); return(invisible(NULL)) }
+    pick <- intersect(input$store_pick %||% character(0), names(r$fits))
+    if (!length(pick)) { notify("Tick at least one model to store.", type = "warning"); return(invisible(NULL)) }
+    st <- model_store()
+    keys <- vapply(st, function(e) e$key, character(1))
+    added <- 0L; dup <- 0L
+    for (m in pick) {
+      e <- tryCatch(stored_model_entry(r, m, safe_get(data_sig()) %||% ""), error = function(err) NULL)
+      if (is.null(e)) next
+      # the model's predicted population trajectory, kept for the comparison plot (0.24.7)
+      e$curve <- tryCatch({
+        pc <- predict_population_curve(r$fits[[m]], r, smooth_prediction_ages(r$data$age))
+        pc[is.finite(pc$fitted), c("age", "fitted"), drop = FALSE]
+      }, error = function(err) NULL)
+      if (e$key %in% keys) { dup <- dup + 1L; next }
+      k <- store_counter() + 1L
+      store_counter(k)
+      e$id <- paste0("S", k)
+      st[[e$id]] <- e
+      keys <- c(keys, e$key)
+      added <- added + 1L
+    }
+    model_store(st)
+    notify(sprintf("%d model(s) stored%s.", added, if (dup > 0) sprintf("; %d already stored", dup) else ""), duration = 4)
+  }))
+  store_table_r <- reactive(stored_comparison_table(model_store()))
+  output$store_table <- renderTable({
+    tab <- store_table_r()
+    if (!nrow(tab)) return(data.frame(Note = "No models stored yet."))
+    tab$df <- NULL
+    names(tab)[names(tab) == "dAIC"] <- "\u0394AIC"
+    tab
+  }, striped = TRUE, spacing = "xs")
+  output$store_note <- renderUI({
+    st <- model_store()
+    if (!length(st)) return(NULL)
+    cur <- safe_get(data_sig()) %||% ""
+    other <- sum(vapply(st, function(e) !identical(e$data_sig, cur), logical(1)))
+    tagList(
+      p(class = "small-note", "\u0394AIC is within a set: same records, same likelihood type. Any two models in a set are comparable."),
+      lapply(stored_set_notes(st), function(x) p(class = "small-note", style = "color:#8a5a00;", x)),
+      if (other > 0) p(class = "small-note", sprintf("%d stored model(s) from other data or data settings.", other)) else NULL)
+  })
+  output$store_manage_ui <- renderUI({
+    st <- model_store()
+    if (!length(st)) return(NULL)
+    tagList(
+      selectizeInput("store_remove_ids", NULL, choices = names(st), multiple = TRUE, options = list(placeholder = "stored models to remove")),
+      actionButton("store_remove", "Remove", class = "btn-default btn-sm"),
+      actionButton("store_clear", "Clear all", class = "btn-default btn-sm"))
+  })
+  # predicted trajectories of the stored models, for the models ticked in 'store_plot_ids' (0.24.7)
+  output$store_plot_pick_ui <- renderUI({
+    st <- model_store()
+    has <- names(st)[vapply(st, function(e) is.data.frame(e$curve) && nrow(e$curve) > 1, logical(1))]
+    if (!length(has)) return(p(class = "small-note", "Store models to compare their predicted trajectories here."))
+    lab <- vapply(st[has], function(e) paste0(e$id, ": ", e$label, " (", e$spec, ")"), character(1))
+    checkboxGroupInput("store_plot_ids", "Stored models to draw", choices = stats::setNames(has, lab), selected = has)
+  })
+  output$store_pred_plot <- renderPlot({
+    st <- model_store()
+    ids <- intersect(input$store_plot_ids %||% character(0), names(st))
+    shiny::validate(shiny::need(length(ids) > 0, "Store models and tick them above to draw their predicted trajectories."))
+    df <- do.call(rbind, lapply(ids, function(k) {
+      e <- st[[k]]
+      if (!is.data.frame(e$curve) || !nrow(e$curve)) return(NULL)
+      data.frame(age = e$curve$age, fitted = e$curve$fitted, Model = paste0(e$id, ": ", e$label), stringsAsFactors = FALSE)
+    }))
+    shiny::validate(shiny::need(!is.null(df) && nrow(df) > 0, "No predictions are available for the ticked models: store them again from a new fit."))
+    ggplot(df, aes(age, fitted, colour = Model)) + geom_line(linewidth = 1) +
+      labs(x = "Age", y = "Predicted trait (response scale)", colour = NULL) + theme_disappR(12) +
+      theme(legend.position = "bottom", legend.direction = "vertical")
+  }, height = 380)
+  observeEvent(input$store_remove, disappr_guard("input$store_remove", {
+    st <- model_store()
+    model_store(st[setdiff(names(st), input$store_remove_ids %||% character(0))])
+  }))
+  observeEvent(input$store_clear, disappr_guard("input$store_clear", model_store(list())))
+  observeEvent(input$save_store, disappr_guard("input$save_store", {
+    tab <- store_table_r()
+    if (!nrow(tab)) return(nothing_to_save("Store models first."))
+    names(tab)[names(tab) == "dAIC"] <- "Delta AIC"
+    add_saved("5 Modelling", "Cross-fit model comparison",
+              text = c("Delta AIC is within a set (same data, records and likelihood type).",
+                       stored_set_notes(model_store())),
+              tables = list(`Stored models` = tab))
+  }))
+
+  # ---- peak age and onset of senescence, for every fitted model ----
+  peak_all <- reactive({
+    r <- fitted_models()
+    lapply(stats::setNames(names(r$fits), names(r$fits)), function(m) {
+      tryCatch(peak_onset_summary(r, m), error = function(e) list(ok = FALSE, model = m, message = conditionMessage(e)))
+    })
+  })
+  peak_table_df <- reactive({
+    z <- peak_all()
+    ci <- function(l) if (length(l) == 2 && all(is.finite(l))) paste0(format_num(l[[1]]), "\u2013", format_num(l[[2]])) else ""
+    rows <- lapply(names(z), function(m) {
+      x <- z[[m]]
+      if (!isTRUE(x$ok)) {
+        return(data.frame(Model = model_label(m), `Peak age` = "not available", `Peak 95% CI` = "", `Onset of final decline` = "",
+                          `Onset 95% CI` = "", check.names = FALSE, stringsAsFactors = FALSE))
+      }
+      tp <- x$turning
+      data.frame(Model = model_label(m),
+                 `Peak age` = if (isTRUE(tp$peak_interior)) format_num(tp$peak) else "none within the sampled ages",
+                 `Peak 95% CI` = if (isTRUE(tp$peak_interior)) ci(x$ci$peak) else "",
+                 `Onset of final decline` = switch(tp$onset_type, interior = format_num(tp$onset),
+                                                   from_start = paste("at or before", format_num(x$age_range[[1]])),
+                                                   no_final_decline = "no final decline", ""),
+                 `Onset 95% CI` = if (identical(tp$onset_type, "interior")) ci(x$ci$onset) else "",
+                 check.names = FALSE, stringsAsFactors = FALSE)
+    })
+    do.call(rbind, rows)
+  })
+  output$peak_table <- renderTable(peak_table_df(), striped = TRUE, spacing = "xs")
+  output$peak_sentences <- renderUI({
+    z <- peak_all()
+    div(class = "small-note", lapply(z, function(x) p(peak_onset_sentence(x))))
+  })
+  observeEvent(input$save_peak, disappr_guard("input$save_peak", {
+    tab <- safe_get(peak_table_df())
+    z <- safe_get(peak_all())
+    if (is.null(tab) || is.null(z)) return(nothing_to_save("Fit models first."))
+    add_saved("5 Modelling", "Peak age and onset of senescence", text = vapply(z, peak_onset_sentence, character(1)),
+              tables = list(`Peak and onset` = tab))
+  }))
+
+  # ---- among-individual covariance between the random effects and the lifespan proxies ----
+  output$blup_model_ui <- renderUI({
+    r <- safe_get(fitted_models())
+    if (is.null(r)) return(NULL)
+    ch <- names(r$fits)
+    cur <- isolate(input$blup_model)
+    selectInput("blup_model", "Random effects from", choices = stats::setNames(ch, model_label(ch)),
+                selected = if (isTRUE(cur %in% ch)) cur else if ("M1" %in% ch) "M1" else ch[[1]])
+  })
+  blup_res <- reactive({
+    r <- fitted_models()
+    req(input$blup_model)
+    tryCatch(blup_proxy_covariance(r, input$blup_model), error = function(e) list(ok = FALSE, message = conditionMessage(e)))
+  })
+  blup_table_df <- reactive({
+    z <- blup_res()
+    shiny::validate(shiny::need(isTRUE(z$ok), z$message %||% "Not available for this model."))
+    t <- z$table
+    data.frame(`Random effect` = t$Component, Proxy = t$Proxy, N = t$N, Covariance = sig_text(t$Covariance, 3), r = sprintf("%.3f", t$r),
+               `95% CI of r` = paste0(round(t$Lower_95, 3), " to ", round(t$Upper_95, 3)), P = vapply(t$P, format_p, character(1)),
+               check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  output$blup_table <- renderTable(blup_table_df(), striped = TRUE, spacing = "xs")
+  blup_plot_obj <- reactive({
+    z <- blup_res()
+    shiny::validate(shiny::need(isTRUE(z$ok), z$message %||% "Not available for this model."))
+    ggplot(z$points, aes(proxy, blup)) +
+      geom_hline(yintercept = 0, linetype = 2, colour = "grey50") +
+      geom_point(alpha = 0.35, size = 1.3, colour = "#35637A") +
+      geom_smooth(method = "lm", formula = y ~ x, se = TRUE, colour = "black", linewidth = 0.8) +
+      facet_grid(Component ~ Proxy, scales = "free") +
+      labs(x = "Proxy (original units)", y = "Predicted random effect", subtitle = paste("Random effects from", model_label(z$model))) +
+      theme_disappR(13)
+  })
+  output$blup_plot <- renderPlot(blup_plot_obj())
+  blup_lines <- reactive({
+    z <- blup_res()
+    if (!isTRUE(z$ok)) return(character(0))
+    c(if (length(z$in_model)) sprintf("%s includes %s: only the remaining association is shown (Model 1 shows all of it).",
+                                      model_label(z$model), paste(z$in_model, collapse = " and ")),
+      if (!isTRUE(z$slopes)) "Level only: fit random slopes to test the ageing rate.",
+      "Descriptive: p-values are anticonservative (shrunken random effects; Hadfield et al. 2010).")
+  })
+  output$blup_note <- renderUI({
+    txt <- safe_get(blup_lines())
+    if (is.null(txt) || !length(txt)) return(NULL)
+    div(class = "small-note", lapply(txt, p))
+  })
+  observeEvent(input$save_blup, disappr_guard("input$save_blup", {
+    tab <- safe_get(blup_table_df())
+    pl <- safe_get(blup_plot_obj())
+    if (is.null(tab) || is.null(pl)) return(nothing_to_save("Fit models first."))
+    add_saved("5 Modelling", paste0("Among-individual covariance with lifespan proxies (", model_label(input$blup_model), ")"),
+              text = safe_get(blup_lines()), tables = list(`Random effects and proxies` = tab), plots = list(pl))
+  }))
+
+  # ---- auto-written methods ----
+  methods_context <- function() {
+    d <- safe_get(dat())
+    m <- safe_get(meta())
+    src <- input$data_source %||% "toy"
+    ctx <- list(version = DISAPPR_VERSION)
+    if (!is.null(d) && !is.null(m)) {
+      ctx$data <- list(
+        source = src,
+        label = switch(src, example = current_example()$label, upload = input$data_file$name %||% "an uploaded file",
+                       sub("^Simulated: ", "", toy_truth_text(toy_cfg())$sim)),
+        trait = m$map$trait %||% "the trait", n_rows = nrow(d), n_ind = length(unique(d$id)), n_trait = sum(is.finite(d$trait)),
+        age_min = min(d$age, na.rm = TRUE), age_max = max(d$age, na.rm = TRUE),
+        step = resolve_age_step(d$age, d$id, m$age_step), step_manual = valid_age_step(m$age_step),
+        alr_mapped = isTRUE(m$alr_mapped), afr_mapped = isTRUE(m$entry_mapped), trait_specific_ages = !isFALSE(m$trait_specific_ages),
+        life_known = isTRUE(m$has_life) && !isTRUE(m$life_auto), n_censored = m$n_censored %||% 0,
+        covars = unname(vapply(m$covars %||% character(0), function(cv) tryCatch(as.character(m$cov_labels[[cv]] %||% cv)[1], error = function(e) cv), character(1))),
+        groups = c(if (isTRUE(m$has_group2)) paste("random intercepts for", m$map$group2),
+                   if (isTRUE(m$has_group)) paste0("random intercepts for ", m$map$group, if (isTRUE(m$nested)) " (individuals nested within groups)" else ""),
+                   if (length(m$random_terms)) paste("random intercepts for", paste(unlist(m$random_labels[m$random_terms]), collapse = ", "))),
+        subset = if (!is.null(m$subset)) paste0(m$subset$var, " = ", paste(m$subset$levels, collapse = ", ")) else "")
+    }
+    ctx$visual <- list(proxy = safe_get(vis_px()) %||% "ALR", n_bins = as.numeric(input$n_bins %||% 4),
+                       bin_method = input$bin_method %||% "quantile", trait_scale = input$trait_scale %||% "raw")
+    ctx$sampling <- list(miss_start = input$miss_start %||% "afr", afe_age = num_input(input$afe_age, NA_real_))
+    ctx$step4 <- list(fn = input$a3_function %||% "Quadratic", scale = safe_get(a3_link()) %||% "identity")
+    r <- safe_get(fitted_models())
+    if (!is.null(r) && isTRUE(r$ok)) {
+      ctx$models <- list(family = r$family, age_function = r$age_function,
+                         random = tryCatch(if (isTRUE(r$nonlinear)) r$random else random_display(m, r$random_slope), error = function(e) r$random),
+                         among = r$among %||% "linear", standardise = isTRUE(r$standardise), disp = r$disp %||% "constant",
+                         zi = if (isTRUE(r$family %in% ZI_FAMILIES)) (r$zi %||% "") else "",
+                         models = names(r$fits), n_rows = nrow(r$data), n_ind = length(unique(r$data$id)),
+                         decomposition = isTRUE(input$show_decomp), lmertest = isTRUE(HAS_LMERTEST))
+      sw <- r$provenance$software
+      if (length(sw)) ctx$software <- sw[intersect(c("R", "disappR", "lme4", "glmmTMB", "lmerTest", "DHARMa"), names(sw))]
+    }
+    z <- safe_get(perm_store())
+    if (is.list(z) && is.null(z$error) && length(z$model)) {
+      ctx$boot <- list(n = z$n_perm, model = model_label(z$model), null_function = z$null_model$age_function %||% "",
+                       disp = z$null_model$disp %||% "constant")
+    }
+    if (length(input$blup_model)) ctx$blup_model <- model_label(input$blup_model)
+    ctx
+  }
+  methods_seen <- new.env()
+  methods_seen$ids <- character(0)
+  saved_in_order <- function() {
+    lst <- saved_results()
+    if (!length(lst)) return(lst)
+    lst[order(vapply(lst, function(e) as.numeric(e$order %||% 99999), numeric(1)))]
+  }
+  output$methods_pick_ui <- renderUI({
+    lst <- saved_in_order()
+    if (!length(lst)) return(p(class = "small-note", "Save results with 'Save to summary' to describe them here."))
+    ids <- names(lst)
+    cur <- isolate(input$methods_pick)
+    sel <- if (is.null(cur) && !length(methods_seen$ids)) ids else c(intersect(cur %||% character(0), ids), setdiff(ids, methods_seen$ids))
+    methods_seen$ids <- ids
+    checkboxGroupInput("methods_pick", "Saved results to describe", selected = sel,
+                       choices = stats::setNames(ids, vapply(lst, function(e) paste0(e$section, ": ", e$title), character(1))))
+  })
+  methods_res <- reactive({
+    lst <- saved_in_order()
+    pick <- input$methods_pick %||% character(0)
+    methods_text(unname(lst[names(lst) %in% pick]))
+  })
+  output$methods_conflicts <- renderUI({
+    z <- methods_res()
+    if (!length(z$conflicts)) return(NULL)
+    div(class = "diagnosis-card", style = "border-left: 5px solid #A50026;",
+        div(class = "diagnosis-title", badge("caution"), " Conflicts to resolve"),
+        lapply(z$conflicts, function(x) div(class = "diagnosis-detail", x)))
+  })
+  output$methods_text_ui <- renderUI({
+    z <- methods_res()
+    if (!length(z$paragraphs)) return(p(class = "small-note", "Tick saved results to draft the methods."))
+    tagList(div(class = "methods-draft", style = "background:#fbf8f3; border:1px solid #e3d3bf; border-radius:6px; padding:10px 14px;",
+                lapply(z$paragraphs, p)),
+            h5(strong("References")), tags$ul(class = "small-note", lapply(z$references, tags$li)))
+  })
+  output$download_methods <- downloadHandler(
+    filename = function() paste0("disappR_methods_", Sys.Date(), ".txt"),
+    content = function(file) {
+      z <- methods_res()
+      con <- file(file, open = "w", encoding = "UTF-8")
+      on.exit(close(con))
+      writeLines(c("METHODS (draft written by disappR; check every statement before use)", "", z$paragraphs, "",
+                   if (length(z$conflicts)) c("CONFLICTS TO RESOLVE", z$conflicts, "") else NULL,
+                   "REFERENCES", z$references), con)
     }
   )
 }

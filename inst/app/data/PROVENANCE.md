@@ -2,6 +2,32 @@
 
 Every file below was checked cell by cell against the archived original.
 
+## Sources, DOIs and licences
+
+The bundled data files are redistributed under the terms of their sources; they are not covered by the package's
+MIT licence. Dryad publishes all data under a CC0 public-domain dedication, so the Dryad files may be redistributed
+without restriction. Cite the paper and the dataset when you use an example.
+
+| File | Paper (DOI) | Data source (DOI) | Licence |
+|---|---|---|---|
+| fly_fecundity.csv | Sanghvi et al. 2025, *American Naturalist* (DOI to add) | supplied by the authors | **to confirm** |
+| bichet_2022_tern_immunity.csv | Bichet et al. 2022, *J. Anim. Ecol.* 91: 458-469 (10.1111/1365-2656.13642) | Dryad 10.5061/dryad.63xsj3v3q | CC0 1.0 |
+| bichet_2022_marmot_immunity.csv | Bichet et al. 2022, *Ecol. Evol.* (10.1002/ece3.9094) | Dryad 10.5061/dryad.bvq83bk5d | CC0 1.0 |
+| moullec_2023_alpine_swift_reproduction.csv | Moullec, Reichert & Bize 2023, *Front. Ecol. Evol.* 11: 983266 (10.3389/fevo.2023.983266) | supplementary material of the article | CC BY 4.0 (the article's licence; **confirm** that the file came from the article's supplement) |
+| pasztor_2022_clouded_apollo_body_size.csv | Pásztor et al. 2022, *Ecol. Evol.* (10.1002/ece3.9668) | Dryad 10.5061/dryad.jq2bvq8bp | CC0 1.0 |
+| wynn_2025_tern_navigation.csv | Wynn, Kürten, Moiron & Bouwhuis 2025, *J. Anim. Ecol.* 94: 535-544 (10.1111/1365-2656.14231) | Dryad 10.5061/dryad.m63xsj4cj | CC0 1.0 |
+| sanghvi_2022_beetle_female_fecundity.csv | Sanghvi et al. 2022, *Evolution* 76: 1868-1882 (10.1111/evo.14567) | Dryad 10.5061/dryad.nvx0k6dvt | CC0 1.0 |
+| allain_2023_chipmunk_reproduction.csv | Allain et al., *Oikos* 2024, online 2023 (10.1111/oik.09944) | Dryad 10.5061/dryad.pg4f4qrwr | CC0 1.0 |
+| bouwhuis_2009_great_tit_recruitment.csv | Bouwhuis et al. 2009, *Proc. R. Soc. B* 276: 2769-2777 (10.1098/rspb.2009.0457) | no public archive found; supplied by the authors | **permission to confirm** |
+| warner_2016_turtle_reproduction.csv | Warner et al. 2016, *PNAS* 113: 6502-6507 (10.1073/pnas.1600035113) | Dryad 10.5061/dryad.g2r87 | CC0 1.0 |
+| mckennaell_2023_soay_breeding_survival.csv, mckennaell_2023_soay_offspring_weight.csv | McKenna-Ell et al. 2023, *Biol. Lett.* (10.1098/rsbl.2023.0050) | Dryad 10.5061/dryad.stqjq2c7s | CC0 1.0 |
+| szejnersigal_2025_bee_activity.csv | Szejner-Sigal et al. 2025, *Proc. R. Soc. B* (10.1098/rspb.2024.2637) | Dryad 10.5061/dryad.j9kd51cq3 | CC0 1.0 |
+
+Three entries still need the authors' input before a public release: the fly data (licence and DOI), the great tit
+data (written permission, or a public deposit), and the swift file's source.
+
+## Checks against the archived originals
+
 | File | Rows vs original | Columns | Values | Derived columns |
 |---|---|---|---|---|
 | fly_fecundity.csv | unchanged | unchanged | unchanged | none (as supplied with the app) |

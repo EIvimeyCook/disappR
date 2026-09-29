@@ -20,6 +20,7 @@ ui <- dashboardPage(
       menuItem("6 \u00b7 Summary and report", tabName = "summary", icon = icon("square-check"))
     ),
     tags$hr(),
+    uiOutput("current_data_box"),
     tags$hr(),
     div(class = "sidebar-cite", strong("Cite as"),
         tags$ol(
@@ -173,6 +174,11 @@ ui <- dashboardPage(
  .skin-blue .sidebar-menu>li:hover>a, .skin-blue .sidebar-menu>li.active>a { background:#5B4B40 !important; color:#FFF9F2 !important; border-left-color:#D6A15E !important; }
  .sidebar-note { padding:2px 18px 18px; color:#DCCFC0; font-size:12px; line-height:1.55; }
  .sidebar-cite { padding:2px 18px 18px; color:#DCCFC0; font-size:11.5px; line-height:1.45; }
+ .current-data { padding:2px 18px 4px; color:#DCCFC0; font-size:11.5px; line-height:1.45; white-space:normal; }
+ .current-data .cd-head { font-weight:700; color:#F3EBE1; margin-bottom:3px; }
+ .current-data .cd-row { margin:1px 0; }
+ .current-data .cd-lab { color:#B9AC9D; }
+ .current-data .cd-warn { color:#F0B27A; margin-top:3px; }
  .purpose .purpose-lead { color:#4D4036; font-size:14.5px; line-height:1.6; margin:0 0 8px; }
  .purpose ul { padding-left:18px; margin:4px 0 10px; }
  .purpose li { color:#5E4E42; font-size:13.5px; line-height:1.55; margin-bottom:6px; }
@@ -365,8 +371,7 @@ ui <- dashboardPage(
             div(class = "guide-box", style = "margin-top:10px;",
                 div(class = "guide-head", "About the bundled empirical examples"),
                 div(class = "guide-goal",
-                    "Default settings match each paper\u0027s model specification as closely as the app and each study\u0027s method and analysis descriptions allow. Fitting the default settings generally reproduces the results these studies report. You can explore whether alternative models would have given a different fit and biological interpretation of the data. Their purpose is not to scrutinise the original analyses or to argue for a reanalysis, but only so that researchers can play with real datasets in different ways using the app\u0027s features.")),
-              box_note("Column mapping, covariates, nesting, random effects, the error family and the model selection are pre-filled to match the published analysis. Change any of them to explore. How each bundled file relates to its archived original is documented in data/PROVENANCE.md, and REPLICATION.md in the package root sets each example against its published analysis.")
+                    "Default settings match each paper\u0027s model specification as closely as the app and each study\u0027s method and analysis descriptions allow. Fitting the default settings generally reproduces the results these studies report. You can explore whether alternative models would have given a different fit and biological interpretation of the data. Their purpose is not to scrutinise the original analyses or to argue for a reanalysis, but only so that researchers can play with real datasets in different ways using the app\u0027s features."))
             ),
             conditionalPanel("input.data_source == 'upload'",
               fileInput("data_file", "CSV file (one row per individual \u00d7 age)", accept = ".csv"),
@@ -411,7 +416,13 @@ ui <- dashboardPage(
                 tags$li(strong("ALR"), " \u2014 age at last record, used as a proxy for lifespan."),
                 tags$li(strong("LS"), " \u2014 known lifespan, where you have it."),
                 tags$li(strong("Among-individual term"), " \u2014 the ALR, LS, AFR or mean-age term that carries the correction for who is present."),
-                tags$li(strong("Within-individual change"), " \u2014 how a trait changes as one individual ages, which is what you want to estimate.")))
+                tags$li(strong("Within-individual change"), " \u2014 how a trait changes as one individual ages, which is what you want to estimate."),
+                tags$li(strong("AIC, \u0394AIC"), " \u2014 model fit penalised for complexity; lower is better, and models within 2 AIC of the best are equally supported."),
+                tags$li(strong("Random slope"), " \u2014 lets each individual have its own ageing rate (or curvature)."),
+                tags$li(strong("Error family"), " \u2014 the distribution of the trait around the model: Gaussian, Gamma, lognormal or beta for continuous traits; Poisson or negative binomial for counts; binomial for 0/1 or proportions."),
+                tags$li(strong("Sampling interval"), " \u2014 the time between occasions; it defines expected and missed records."),
+                tags$li(strong("SD, SE, CI"), " \u2014 standard deviation, standard error, confidence interval."),
+                tags$li(strong("MCAR"), " \u2014 missing completely at random: records missed regardless of age or trait.")))
         ),
         fluidRow(box(width = 12, title = "Preview (first 10 rows)", status = "info", solidHeader = FALSE, collapsible = TRUE, collapsed = TRUE,
                      tableOutput("data_preview"))),
@@ -439,7 +450,6 @@ ui <- dashboardPage(
               column(3, radioButtons("trait_scale", "Trait scale", inline = TRUE, choices = c("Raw" = "raw", "log(trait + 1)" = "log1p")))
             ),
             uiOutput("visual_scale_advice"),
-            box_note("These settings apply to all figures below. Every bin, bin \u00d7 age point and age bin needs at least 3 individuals; with no more distinct values than bins, each value is its own bin. Choose AFR to diagnose selective appearance."),
             uiOutput("toy_card_visual")
           )
         ),
@@ -504,16 +514,19 @@ ui <- dashboardPage(
         fluidRow(
           box(width = 8, title = info_title("When was each individual actually seen?", "heatmap"), status = "primary", solidHeader = TRUE,
               plotOutput("heatmap", height = "auto"), uiOutput("heatmap_note"), save_button("save_heatmap")),
-          box(width = 4, title = info_title("Settings and proxy guidance", "sampling_guidance"), status = "info", solidHeader = TRUE,
+          box(width = 4, title = info_title("Missingness settings", "sampling_guidance"), status = "info", solidHeader = TRUE,
+              checkboxInput("age_step_auto", info_title("Infer the sampling interval", "age_step"), TRUE),
+              conditionalPanel("!input.age_step_auto",
+                numericInput("age_step_value", "Interval (age units)", value = NA, min = 0, step = 0.5)),
+              uiOutput("age_step_note"),
               radioButtons("miss_start", info_title("Count missed occasions from", "afr_expression"),
                            choices = c("Age at first record (AFR)" = "afr",
                                        "Age at first trait expression (AFE)" = "afe"), selected = "afr"),
               conditionalPanel("input.miss_start == 'afe'",
                 numericInput("afe_age", "Age at first trait expression (AFE)", value = NA)),
-              box_note("Missed occasions are counted only from the first record (AFR), or from the age at first expression (AFE) if set, to the age at last record (ALR). This setting changes the missingness figures on this tab only: every model and statistic in the app uses AFR, as mapped on the Data tab."),
+              box_note("Missed occasions are counted only from the age at first record (AFR), or from the age at first expression (AFE) if set, to the age at last record (ALR), both included."),
               sliderInput("heat_n", "Individuals to show in the grid", min = 20, max = 500, value = 150, step = 10),
               selectInput("heat_order", "Order individuals by", choices = c("ALR" = "alr", "AFR" = "afr", "Mean trait value" = "trait", "ID" = "id", "Random" = "random")),
-              uiOutput("sampling_guidance"),
               save_button("save_sampling"))
         ),
         fluidRow(
@@ -554,7 +567,6 @@ ui <- dashboardPage(
             sliderInput("a3_n", "Individuals to draw", min = 5, max = 60, value = 20, step = 5),
             selectInput("a3_order", "Which individuals", choices = c("Random sample" = "random", "Longest ALR" = "longest", "Shortest ALR" = "shortest")),
             uiOutput("a3_metrics"),
-            uiOutput("a3_support"),
             div(class = "use-function-box", uiOutput("use_a3_function_ui"))
           ),
           box(width = 9, title = info_title("How does each individual change with age?", "a3_fits"), status = "info", solidHeader = TRUE,
@@ -576,12 +588,12 @@ ui <- dashboardPage(
         fluidRow(box(width = 12, title = info_title("Individual coefficient summary", "a3_coefs"), status = "info", solidHeader = FALSE, collapsible = TRUE, collapsed = TRUE,
                      tableOutput("a3_coef_table"))),
         fluidRow(
-          box(width = 4, title = info_title("Which shape fits the population trajectory?", "b2"), status = "info", solidHeader = TRUE,
+          box(width = 4, title = info_title("How do different functions fit the population-level data?", "b2"), status = "info", solidHeader = TRUE,
               checkboxGroupInput("b2_functions", "Functions to compare", choices = MODEL_FUNCTIONS, selected = AGE_FUNCTIONS, inline = TRUE),
               actionButton("run_functions", "Compare ageing functions", class = "btn-primary btn-block-space", icon = icon("play")),
               tableOutput("b2_table"),
               save_button("save_b2")),
-          box(width = 8, title = "Fitted population trajectories", status = "info", solidHeader = TRUE,
+          box(width = 8, title = info_title("Fitted population trajectories", "b2_curves"), status = "info", solidHeader = TRUE,
               plotOutput("b2_plot", height = 600))
         ),
         section_code_box("individual")
@@ -593,8 +605,7 @@ ui <- dashboardPage(
         guide_box("models",
           goal = "Fit mixed-effects models that follow the form of Models 1 to 6 in our manuscript (Sanghvi et al. 2026), plus further models for selective appearance (Models 7\u201310). You set the error family, random terms and covariates, then compare AICs, predicted ageing trajectories, model output and diagnostics.",
           start_with = "choosing a functional form for the likely ageing trajectory, the error distribution and the models to compare, then press Fit models. View the model predictions and the model output.",
-          then = "check the model assumptions and diagnostics, then explore the advanced settings: random slopes, higher-order among-individual terms, scaling, and terms added to a specific model.", tip = "Further: simulate data without any lifespan effect, keeping every individual's real ages, to test whether the lifespan term reflects a real association (the null-model bootstrap, Advanced tab)."),
-        fluidRow(column(12, uiOutput("suggested_analysis"))),
+          then = "check the model assumptions and diagnostics, then explore the advanced settings: random slopes, higher-order among-individual terms, scaling, and terms added to a specific model.", further = "permute the data to test whether the lifespan effect reflects a real association (Advanced tab)."),
         tabBox(width = 12, id = "model_tabs",
           tabPanel("Fit", icon = icon("play"),
           fluidRow(
@@ -617,7 +628,8 @@ ui <- dashboardPage(
                                              "Higher order, powers of the mean" = "same"),
                                  selected = "linear"),
                     checkboxInput("standardise", "Standardise age and proxies (default)", TRUE),
-                    p(class = "small-note", "Standardising changes the scale of the coefficients, not the fitted model - except with uncorrelated random intercepts and slopes, where centring decides the age at which the two are assumed uncorrelated, so the fit and AIC differ."),
+                    p(class = "small-note", "Standardising changes the scale of the coefficients. It does not alter the fitted model when random intercepts and slopes are correlated (or absent). When they are uncorrelated, centring decides the age at which they are assumed uncorrelated, which changes the fit and AIC."),
+                    radioButtons("disp_model", info_title("Is the variance in the data changing across age?", "disp"), choices = DISP_OPTIONS, selected = "constant"),
                     checkboxInput("include_invalid", "Include fits with invalid Hessians in the ranking (inspection only)", FALSE))
                 ),
                 column(8,
@@ -690,11 +702,11 @@ ui <- dashboardPage(
             )
           ),
           fluidRow(
-            box(width = 12, title = info_title("Which selective processes best explain the data?", "model_support"), status = "info", solidHeader = TRUE,
+            box(width = 8, title = info_title("Which selective processes best explain the data?", "model_support"), status = "info", solidHeader = TRUE,
               uiOutput("model_fit_note"),
+              uiOutput("sensitivity_banner"),
               fluidRow(
                 column(6, plotOutput("aic_plot", height = 400)),
-                column(12, uiOutput("sensitivity_banner")),
                 column(6, uiOutput("model_rowset_warning"), tableOutput("aic_table"))
               ),
               tags$details(class = "info-more", tags$summary(info_title("Nested likelihood-ratio tests", "lrt")),
@@ -702,16 +714,29 @@ ui <- dashboardPage(
               uiOutput("consistency_ui"),
               tags$details(tags$summary(info_title("Fitting status, convergence and dropped rows", "fit_status")), tableOutput("status_table"), uiOutput("drop_note")),
               save_button("save_models")
-            )
+            ),
+            box(width = 4, title = info_title("Compare models across fits", "model_store"), status = "info", solidHeader = TRUE,
+              uiOutput("store_pick_ui"),
+              actionButton("store_models", "Store selected models", class = "btn-default btn-block-space", icon = icon("plus")),
+              uiOutput("store_note"),
+              div(style = "overflow-x:auto;", tableOutput("store_table")),
+              uiOutput("store_manage_ui"),
+              save_button("save_store"))
+          ),
+          fluidRow(
+            box(width = 12, title = info_title("Predicted trajectories of the stored models", "store_pred"), status = "info", solidHeader = TRUE,
+              fluidRow(column(4, uiOutput("store_plot_pick_ui")), column(8, plotOutput("store_pred_plot", height = "380px"))))
           ),
           fluidRow(
             box(width = 7, title = plain_title("What ageing trajectory does each model and method predict?", "Model predictions trajectory", "predictions"), status = "primary", solidHeader = TRUE,
               fluidRow(
-                column(3, checkboxInput("show_observed", "Observed means", TRUE)),
-                column(3, checkboxInput("show_raw_points", "Individual records (jittered)", FALSE)),
-                column(3, checkboxInput("show_decomp", "Decomposition", TRUE), info_title("", "decomposition")),
-                column(3, checkboxInput("pred_as_lines", "Model predictions as lines, not functional smooths", FALSE)),
-                column(3, checkboxInput("show_a3", "Reconstruction from individual fits", FALSE), info_title("", "reconstruction"))
+                column(4, checkboxInput("show_observed", "Observed means", TRUE)),
+                column(4, checkboxInput("show_raw_points", "Individual records (jittered)", FALSE)),
+                column(4, checkboxInput("show_decomp", "Decomposition", TRUE), info_title("", "decomposition"))
+              ),
+              fluidRow(
+                column(6, checkboxInput("pred_as_lines", "Model predictions as lines, not functional smooths", FALSE)),
+                column(6, checkboxInput("show_a3", "Reconstruction from individual fits", FALSE), info_title("", "reconstruction"))
               ),
               fluidRow(column(8, uiOutput("pred_models_ui")), column(4, uiOutput("pred_by_ui"))),
               uiOutput("truth_pending_pred"),
@@ -733,6 +758,22 @@ ui <- dashboardPage(
                 tags$details(class = "info-more", tags$summary("Scaling constants"),
                              div(class = "info-more-body", tableOutput("scaling_table"))),
                 save_button("save_coefs"))
+          ),
+          fluidRow(
+            box(width = 12, title = info_title("Peak age and onset of senescence in each model", "peak_onset"), status = "primary", solidHeader = TRUE,
+                p(class = "small-note", "From each model's predicted trajectory (the model-predictions figure). 95% CIs: 1,000 draws of the fixed effects."),
+                tableOutput("peak_table"),
+                uiOutput("peak_sentences"),
+                save_button("save_peak"))
+          ),
+          fluidRow(
+            box(width = 12, title = info_title("Do individuals' model-predicted random effects covary with lifespan, ALR or AFR?", "blup_cov"), status = "info", solidHeader = TRUE,
+                fluidRow(
+                  column(4, uiOutput("blup_model_ui"), uiOutput("blup_note")),
+                  column(8, tableOutput("blup_table"))
+                ),
+                plotOutput("blup_plot", height = 460),
+                save_button("save_blup"))
           )
           ),
           tabPanel("Checks", icon = icon("stethoscope"),
@@ -753,9 +794,9 @@ ui <- dashboardPage(
               ))
           ),
           fluidRow(
-            box(width = 6, title = info_title("Error-family check (count traits)", "family_check"), status = "warning", solidHeader = TRUE,
+            box(width = 6, title = info_title("Error-family check", "family_check"), status = "warning", solidHeader = TRUE,
                 selectInput("family_check_model", "Fit this model with each count family", choices = stats::setNames(MODEL_IDS, model_label(MODEL_IDS)), selected = "M4"),
-                actionButton("run_family_check", "Compare count families", class = "btn-default btn-block-space", icon = icon("scale-balanced")),
+                actionButton("run_family_check", "Compare error families", class = "btn-default btn-block-space", icon = icon("scale-balanced")),
                 tableOutput("family_table"),
                 save_button("save_family")),
             box(width = 6, title = info_title("Ageing-function check", "function_check"), status = "warning", solidHeader = TRUE,
@@ -834,6 +875,13 @@ ui <- dashboardPage(
           box(width = 12, title = info_title("Evidence summary: what do the saved results suggest?", "evidence"),
               status = "primary", solidHeader = TRUE,
               uiOutput("evidence_summary"))
+        ),
+        fluidRow(
+          box(width = 12, title = info_title("Auto-written methods", "methods_text"), status = "primary", solidHeader = TRUE,
+              uiOutput("methods_pick_ui"),
+              uiOutput("methods_conflicts"),
+              uiOutput("methods_text_ui"),
+              downloadButton("download_methods", "Download methods (text)", class = "btn-default"))
         ),
         fluidRow(
           box(width = 12, title = "Saved results (these are exported)", status = "info", solidHeader = TRUE,

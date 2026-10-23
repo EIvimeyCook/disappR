@@ -60,8 +60,8 @@ exported as R code.
 disappR is not on CRAN. Install the development version from GitHub:
 
 ```r
-install.packages("devtools")
-devtools::install_github("EIvimeyCook/disappR")
+install.packages("pak")
+pak::pak("EIvimeyCook/disappR")
 ```
 
 The app needs `shiny`, `shinydashboard`, `ggplot2` and `lme4`, which are

@@ -41,8 +41,8 @@ exported as R code.
   and a comparison of ageing functions at both levels.
 - **Ten comparative mixed models**, from a naive model to models for
   age-independent and age-dependent selective disappearance and appearance,
-  with Gaussian, Poisson, negative binomial, zero-inflated, binomial and
-  beta-binomial families.
+  with Gaussian, Gamma, lognormal, beta, Poisson, negative binomial,
+  zero-inflated, binomial and beta-binomial families.
 - **Checks on the fitted models.** Likelihood-ratio tests, residual diagnostics
   (DHARMa and performance), error-family and ageing-function checks, effect
   sizes and a null-model bootstrap for the lifespan effect.
@@ -50,7 +50,7 @@ exported as R code.
   the ageing shape, the sampling design and the type and strength of selection,
   and see how close each model gets to the truth.
 - **13 published datasets** from 12 studies of laboratory and wild populations,
-  each set up to reproduce the analysis in its paper.
+  each set up to follow its paper (the great tit data open on laying date).
 - **Reproducible output.** Downloadable R code for every section, HTML and text
   reports, the analysis data, and a reproducibility bundle of every setting used.
 - **Runs locally.** Your data never leave your machine.
@@ -66,8 +66,8 @@ pak::pak("EIvimeyCook/disappR")
 
 The app needs `shiny`, `shinydashboard`, `ggplot2` and `lme4`, which are
 installed automatically. The packages below are optional. Without them the app
-still runs with fewer analyses, and the *Start here* page lists anything that is
-missing.
+still runs with fewer analyses, and the *Start here* page lists any that are
+missing, apart from `callr`, which `run_app()` reports in the R console.
 
 ```r
 install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance", "see", "codetools", "callr"))
@@ -75,7 +75,7 @@ install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance", "see"
 
 | Package | Enables |
 | :------ | :------ |
-| `glmmTMB` | Count, proportion and binary traits |
+| `glmmTMB` | All non-Gaussian families: count, proportion, binary, Gamma, lognormal and beta |
 | `lmerTest` | p-values for Gaussian models |
 | `nlme` | The non-linear exponential ageing function |
 | `DHARMa` | Simulation-based residual checks |
@@ -106,9 +106,10 @@ shiny::runApp("path/to/disappR/inst/app")
 The app is laid out as six numbered steps in the left-hand sidebar. You can move
 between them freely, but each builds on the one before.
 
-**Start here.** An overview of the problem and the workflow. The *Quick start*
-buttons load a simulated dataset where the answer is known, or open the list of
-published examples. This page also lists which optional packages are installed.
+**Start here.** An overview of the problem and the workflow. Under *Choose how
+to start*, the three buttons take you to the Data step with simulated data (where
+the answer is known), the published examples, or the upload option selected.
+This page also lists which optional packages are installed (apart from `callr`).
 
 1. **Data** — choose a data source: simulated teaching data, one of the 13
    published datasets, or your own CSV (one row per individual per sampling
@@ -165,9 +166,9 @@ Data should be a CSV with **one row per individual per sampling occasion**.
 | Individual ID | Yes | Can be nested within a group (for example family), and within a second level above that |
 | Age | Yes | Numeric, in any unit; can be rounded to a set resolution |
 | Trait | Yes | Continuous, count, proportion or binary (0/1) |
-| Age at last record (ALR) | No | Worked out from each individual's last row if not mapped |
+| Age at last record (ALR) | No | If not mapped, the oldest age at which the individual has a trait value (untick *Trait-specific ALR/AFR* to use any record) |
 | Known lifespan (LS) | No | Map only if lifespan is truly known; enables Model 6 |
-| Age at first observation (AFR) | No | Worked out from each individual's first row if not mapped; enables Models 7–10 |
+| Age at first observation (AFR) | No | If not mapped, the youngest age at which the individual has a trait value (same option); enables Models 7–10, which need AFR to vary among individuals |
 | Censoring | No | Marks individuals still alive at the end of the study |
 | Covariates | No | Continuous or categorical, with optional interactions with age or with each other |
 | Group / random effects | No | Grouping variables and additional random intercepts |
@@ -176,7 +177,9 @@ Data should be a CSV with **one row per individual per sampling occasion**.
 Each individual must have a single ALR, lifespan and AFR. If a mapped column
 gives an individual different values in different rows, loading stops and names
 the individuals involved; you can then fix the data or tick the box to exclude
-them. Repeated records of the same individual at the same age can be kept or
+them. Repeated records of the same individual at the same age are kept by
+default. You can choose to collapse exact duplicates (rows identical in every
+mapped column); rows that differ in anything are always kept, and nothing is
 averaged.
 
 ## The models
@@ -216,8 +219,10 @@ as a CSV.
 
 ## Example data
 
-Thirteen published datasets are bundled, each opening with the settings that
-most closely reproduce the analysis in its paper:
+Thirteen published datasets are bundled. Each opens with settings that follow
+its paper as closely as the app allows, except the great tit data, which open on
+laying date (the trait analysed in Sanghvi et al. 2026) rather than the traits in
+Bouwhuis et al. 2009:
 
 - Sanghvi et al. 2025, *American Naturalist* — *Drosophila melanogaster* daily fecundity
 - Sanghvi et al. 2022, *Evolution* — seed beetle female fecundity
@@ -227,13 +232,13 @@ most closely reproduce the analysis in its paper:
 - Moullec et al. 2023, *Frontiers in Ecology and Evolution* — Alpine swift reproduction
 - Pásztor et al. 2022, *Ecology and Evolution* — clouded Apollo butterfly body size
 - Allain et al. 2023, *Oikos* — eastern chipmunk reproduction
-- Bouwhuis et al. 2009, *Proc. R. Soc. B* — great tit recruit production
+- Bouwhuis et al. 2009, *Proc. R. Soc. B* — great tit laying date (opens here), recruit production, clutch size, brood size and fledglings
 - Warner et al. 2016, *PNAS* — painted turtle reproduction
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep breeding probability and offspring survival
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep offspring birth weight
 - Szejner-Sigal et al. 2025, *Proc. R. Soc. B* — alfalfa leafcutting bee locomotor activity
 
-Sources and licences for each are listed in
+Sources are listed, with licences where confirmed, in
 [`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md).
 
 ## Scripted use
@@ -252,6 +257,11 @@ disappr_compare(fit)          # AIC table
 disappr_predict(fit, "M4")    # predicted population trajectory
 cat(disappr_code(fit, x))     # R code that reproduces the analysis
 ```
+
+The exported script reads `your_data.csv` by default, so write your data to that
+file or pass a name as the third argument. In version 0.24.9 the figure section
+of the script stops with an error when no covariates are mapped; the model fits
+above it run correctly.
 
 | Function | Purpose |
 | :------- | :------ |
@@ -276,10 +286,19 @@ cat(disappr_code(fit, x))     # R code that reproduces the analysis
   how to read it.
 - **The video walkthrough** on [OSF](https://osf.io/kevnm/files/m6utp) shows the
   app in use.
-- **The vignettes** cover the bigger picture. Run `browseVignettes("disappR")`
-  for an overview of the package, a tab-by-tab walkthrough of the workflow, the
-  models and methods, how the app was validated against independent code and
-  the published analyses, and the test suite.
+- **The vignettes** cover the bigger picture: an overview of the package, a
+  tab-by-tab walkthrough of the workflow, the models and methods, how the app
+  was validated against independent code and the published analyses, and the
+  test suite. `pak` does not build vignettes, so to use
+  `browseVignettes("disappR")` install with:
+
+  ```r
+  install.packages(c("remotes", "knitr", "rmarkdown"))
+  remotes::install_github("EIvimeyCook/disappR", build_vignettes = TRUE)
+  ```
+
+  This needs pandoc, which comes with RStudio. The sources can also be read in
+  the [`vignettes/`](vignettes) folder on GitHub.
 
 ## Tips and limitations
 
@@ -331,4 +350,8 @@ Edward R. Ivimey-Cook — <e.ivimeycook@gmail.com> —
 
 ## License
 
-Released under the [MIT License](LICENSE.md).
+The disappR code is released under the [MIT License](LICENSE.md). The bundled
+datasets are not covered by this licence: they are redistributed under the terms
+of their sources, listed in
+[`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md). Cite the original
+paper and dataset when you use one.

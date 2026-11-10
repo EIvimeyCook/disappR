@@ -238,7 +238,7 @@ Bouwhuis et al. 2009:
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep offspring birth weight
 - Szejner-Sigal et al. 2025, *Proc. R. Soc. B* — alfalfa leafcutting bee locomotor activity
 
-Sources are listed, with licences where confirmed, in
+Sources and licence details for each dataset are listed in
 [`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md).
 
 ## Scripted use
@@ -259,9 +259,9 @@ cat(disappr_code(fit, x))     # R code that reproduces the analysis
 ```
 
 The exported script reads `your_data.csv` by default, so write your data to that
-file or pass a name as the third argument. In version 0.24.9 the figure section
-of the script stops with an error when no covariates are mapped; the model fits
-above it run correctly.
+file or pass a name as the third argument. Its figure section expects at least
+one mapped covariate; without one, run the model-fitting part of the script on
+its own.
 
 | Function | Purpose |
 | :------- | :------ |

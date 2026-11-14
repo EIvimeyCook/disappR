@@ -52,7 +52,7 @@ test_that("every engine file is loaded in both source and installed mode", {
   g <- paste(readLines(file.path(pkg_root, "inst", "app", "global.R"), warn = FALSE), collapse = "\n")
   listed <- regmatches(g, gregexpr('"[^"]+[.]R"', g))[[1]]
   listed <- gsub('"', "", listed)
-  expect_setequal(setdiff(r_files, c("run_app.R", "api.R")), intersect(listed, r_files))
+  expect_setequal(setdiff(r_files, "run_app.R"), intersect(listed, r_files))   # api.R is loaded too since 0.25.1 (tests run from a checkout use it)
   desc <- read.dcf(file.path(pkg_root, "DESCRIPTION"))
   if ("Collate" %in% colnames(desc)) {
     coll <- gsub("'", "", strsplit(trimws(desc[1, "Collate"]), "[[:space:]]+")[[1]])

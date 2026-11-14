@@ -13,7 +13,7 @@ EX <- get("EXAMPLES", eng)
 # every example, and in files with several traits each other trait the paper analysed (run as "example:trait", with
 # that trait's published covariates, family and GAMM settings, as choosing the trait on the Data tab applies them)
 ids <- commandArgs(trailingOnly = TRUE)
-if (!length(ids)) ids <- unlist(lapply(names(EX), function(k) c(k, paste(k, setdiff(names(EX[[k]]$traits), EX[[k]]$mapping$trait), sep = ":"))))
+if (!length(ids)) ids <- unlist(lapply(names(EX), function(k) { tr <- setdiff(names(EX[[k]]$traits), EX[[k]]$mapping$trait); c(k, if (length(tr)) paste(k, tr, sep = ":")) }))
 trait_preset <- get("example_trait_preset", eng)
 problems <- character(0)
 stage <- function(ex, what) message(format(Sys.time(), "%H:%M:%S"), "  ", ex, ": ", what)

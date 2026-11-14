@@ -3,7 +3,8 @@
 #   Rscript dev/prepare_sanghvi2021_beetles.R "path/to/EVEC_paper_final_data_Sanghvi_et_al_2021.xlsx"
 # Uses the sheets 'Long format data flight' and 'Long format fecundity'. Columns are renamed and recoded for
 # readability only: density H/L -> High/Low, sex F/M -> Female/Male, experiment 2/3 -> Virgin/Mated (the workbook's
-# Notes: experiment 2 = flight assay only, 3 = mating and flight assay). No values are changed.
+# Notes: experiment 2 = flight assay only, 3 = mating and flight assay); 'treatment' combines sex and density, as in
+# the paper's Figure 3A. No values are changed.
 args <- commandArgs(trailingOnly = TRUE)
 xl <- if (length(args)) args[[1]] else stop("Give the path of the workbook.")
 out <- file.path("inst", "app", "data")
@@ -11,6 +12,7 @@ f <- as.data.frame(readxl::read_excel(xl, sheet = "Long format data flight"))
 flight <- data.frame(id = f$id, container = f$batch, density = ifelse(f$density == "H", "High", "Low"),
                      sex = ifelse(f$sex == "F", "Female", "Male"), mating = ifelse(f$exp == 3, "Mated", "Virgin"),
                      dev_time = f$devtime, lifespan = f$lifespan, age = f$age, ability = f$ability, propensity = f$propensity)
+flight$treatment <- paste(flight$sex, flight$density)   # the four groups of the paper's Figure 3A
 utils::write.csv(flight, file.path(out, "sanghvi_2021_beetle_flight.csv"), row.names = FALSE)
 cat("flight:", nrow(flight), "rows,", length(unique(flight$id)), "beetles\n")
 e <- as.data.frame(readxl::read_excel(xl, sheet = "Long format fecundity"))

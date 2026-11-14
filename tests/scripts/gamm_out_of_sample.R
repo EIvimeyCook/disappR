@@ -28,6 +28,15 @@ n_max <- as.integer(Sys.getenv("DISAPPR_OOS_MAX", "0"))   # > 0: only the first 
 first_n <- function(x) if (n_max > 0) utils::head(x, n_max) else x
 pmap <- function(x, f) if (cores > 1 && .Platform$OS.type == "unix") parallel::mclapply(x, f, mc.cores = cores, mc.preschedule = FALSE) else lapply(x, f)
 `%||%` <- function(a, b) if (is.null(a)) b else a
+dget <- function(v, nm) if (length(v) && nm %in% names(v)) v[[nm]] else NA_real_   # a named entry, NA when absent
+# results are kept in this folder so that a summary can be re-run without refitting (DISAPPR_OOS_REUSE=1)
+cache_dir <- Sys.getenv("DISAPPR_OOS_CACHE", file.path(tempdir(), "oos"))
+dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+cached <- function(name, expr) {
+  f <- file.path(cache_dir, paste0(name, ".rds"))
+  if (identical(Sys.getenv("DISAPPR_OOS_REUSE"), "1") && file.exists(f)) return(readRDS(f))
+  x <- expr; saveRDS(x, f); x
+}
 
 # ---- every post-fit function, with invariants ----------------------------------------------------------------------
 post_fit <- function(label, r, gd) {
@@ -153,33 +162,33 @@ sim_one <- function(i) {
   out
 }
 t0 <- Sys.time()
-RA <- pmap(first_n(seq_along(sc)), sim_one)
+RA <- cached("part_a", lapply(pmap(first_n(seq_along(sc)), sim_one), function(x) { x$r <- NULL; x }))
 for (x in RA) {
   if (inherits(x, "try-error")) { all_errors <- c(all_errors, paste("worker:", as.character(x))); next }
   all_errors <- c(all_errors, x$errors); all_broken <- c(all_broken, x$broken)
   if (!identical(x$status, "ok")) { line("  %s  NOT FITTED: %s", x$label, x$status %||% ""); next }
   dv <- x$dev
   line("  %s | %s %4d rec %3ds | mean |D|%%: with proxy %5s, without %5s%s, %s %5s | ALR %+.3g (p %s)%s",
-       x$label, x$engine, x$n, x$secs, dv[["GAMM with proxy"]] %||% NA, dv[["GAMM without proxy"]] %||% NA,
-       if (!is.null(dv[["GAMM with ti(age, ALR)"]])) sprintf(", ti %5s", dv[["GAMM with ti(age, ALR)"]]) else "", sprintf("GLMM %-3s", x$glmm),
-       if (length(gi <- grep("^GLMM", names(dv)))) dv[[gi[1]]] else NA, x$alr[["est"]], format_p(x$alr[["p"]]),
+       x$label, x$engine, x$n, x$secs, dget(dv, "GAMM with proxy"), dget(dv, "GAMM without proxy"),
+       if (is.finite(dget(dv, "GAMM with ti(age, ALR)"))) sprintf(", ti %5s", dget(dv, "GAMM with ti(age, ALR)")) else "", sprintf("GLMM %-3s", x$glmm),
+       dget(dv, grep("^GLMM", names(dv), value = TRUE)[1] %||% ""), x$alr[["est"]], format_p(x$alr[["p"]]),
        if (!is.null(x$verdict)) paste0(" | proxy comparison: ", x$verdict) else "")
 }
 ok <- Filter(function(x) identical(x$status, "ok") && length(x$dev), RA)
 sel <- Filter(function(x) isTRUE(x$sd_level), ok)
 sgn <- Filter(function(x) identical(x$sd_type, "independent") && x$trait %in% c("mass", "count_pois", "count_nb"), ok)
-better <- vapply(sel, function(x) isTRUE(x$dev[["GAMM with proxy"]] <= x$dev[["GAMM without proxy"]]), logical(1))
+better <- vapply(sel, function(x) isTRUE(dget(x$dev, "GAMM with proxy") <= dget(x$dev, "GAMM without proxy")), logical(1))
 right <- vapply(sgn, function(x) isTRUE(sign(x$alr[["est"]]) == x$sd_dir && x$alr[["p"]] < 0.05), logical(1))
-gam_v_glmm <- vapply(ok, function(x) { g <- grep("^GLMM", names(x$dev)); if (!length(g)) NA_real_ else x$dev[["GAMM with proxy"]] - x$dev[[g[1]]] }, numeric(1))
+gam_v_glmm <- vapply(ok, function(x) { g <- grep("^GLMM", names(x$dev)); if (!length(g)) NA_real_ else dget(x$dev, "GAMM with proxy") - x$dev[[g[1]]] }, numeric(1))
 line("")
 line("  %d of %d simulated datasets fitted (%.0f min).", length(ok), length(RA), as.numeric(difftime(Sys.time(), t0, units = "mins")))
 line("  With selective disappearance through lifespan (%d datasets): the ALR term brings the GAMM closer to the true curve in %d.", length(sel), sum(better))
 line("  Age-independent selective disappearance (%d datasets): ALR term in the simulated direction and p < 0.05 in %d.", length(sgn), sum(right))
 line("  GAMM with proxy minus best GLMM, mean |D| percentage points: median %.2f, range %.2f to %.2f (negative: the GAMM is closer).",
      stats::median(gam_v_glmm, na.rm = TRUE), min(gam_v_glmm, na.rm = TRUE), max(gam_v_glmm, na.rm = TRUE))
-dep <- Filter(function(x) x$sd_type %in% c("dependent", "both") && !is.null(x$dev[["GAMM with ti(age, ALR)"]]), ok)
+dep <- Filter(function(x) x$sd_type %in% c("dependent", "both") && is.finite(dget(x$dev, "GAMM with ti(age, ALR)")), ok)
 if (length(dep)) {
-  dl <- vapply(dep, function(x) x$dev[["GAMM with proxy"]], numeric(1)); dt <- vapply(dep, function(x) x$dev[["GAMM with ti(age, ALR)"]], numeric(1))
+  dl <- vapply(dep, function(x) dget(x$dev, "GAMM with proxy"), numeric(1)); dt <- vapply(dep, function(x) dget(x$dev, "GAMM with ti(age, ALR)"), numeric(1))
   dg <- vapply(dep, function(x) { g <- grep("^GLMM", names(x$dev)); if (length(g)) x$dev[[g[1]]] else NA_real_ }, numeric(1))
   line("  Age-dependent selective disappearance (%d datasets), median mean |D|%%: GAMM with linear ALR %.1f, with ti(age, ALR) %.1f, best GLMM %.1f.",
        length(dep), stats::median(dl), stats::median(dt), stats::median(dg, na.rm = TRUE))
@@ -260,7 +269,7 @@ ex_one <- function(key) {
   out
 }
 t0 <- Sys.time()
-RB <- pmap(first_n(keys), ex_one)
+RB <- cached("part_b", pmap(first_n(keys), ex_one))
 agree <- list()
 for (x in RB) {
   if (inherits(x, "try-error")) { all_errors <- c(all_errors, paste("worker:", as.character(x))); next }

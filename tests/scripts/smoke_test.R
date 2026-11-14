@@ -761,6 +761,7 @@ cat("\n", paste(notes, collapse = "\n"), "\n", sep = "")
 if (length(fails)) {
   cat("\nFAILURES (", length(fails), "):\n", sep = "")
   for (nm in names(fails)) cat(" -", nm, ":", fails[[nm]], "\n")
+  if (!interactive()) quit(status = 1)   # so that run_all.R counts the tier as failed
 } else {
   cat("\nNo errors.\n")
 }

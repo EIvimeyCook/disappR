@@ -246,4 +246,7 @@ if (identical(Sys.getenv("DISAPPR_BIG"), "1")) {
 
 setwd(old_wd)
 cat("\n", sum(results$Result == "PASS"), " passed, ", sum(results$Result == "FAIL"), " failed, ", sum(results$Result == "INFO"), " info\n", sep = "")
-if (any(results$Result == "FAIL")) print(results[results$Result == "FAIL", ], row.names = FALSE)
+if (any(results$Result == "FAIL")) {
+  print(results[results$Result == "FAIL", ], row.names = FALSE)
+  if (!interactive()) quit(status = 1)   # so that run_all.R counts the tier as failed
+}

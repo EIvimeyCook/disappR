@@ -280,7 +280,7 @@ gamm_curve_obj <- reactive({
   # rather than squashing the rest of the plot
   shown <- switch(show, points = dd$trait, means = om$trait, bins = c(om$trait - 1.96 * om$se, om$trait + 1.96 * om$se), numeric(0))
   yr <- range(c(cv$fit, shown), na.rm = TRUE); span <- diff(yr); if (!is.finite(span) || span <= 0) span <- max(abs(yr), 1)
-  ylim <- c(max(min(cv$lo, na.rm = TRUE), yr[1] - 0.6 * span), min(max(cv$hi, na.rm = TRUE), yr[2] + 0.6 * span))
+  ylim <- c(min(yr[1], max(min(cv$lo, na.rm = TRUE), yr[1] - 0.6 * span)), max(yr[2], min(max(cv$hi, na.rm = TRUE), yr[2] + 0.6 * span)))
   p <- p + coord_cartesian(ylim = ylim)
   p + labs(x = "Age", y = "Trait (population curve)") +
     theme_disappR(13) + theme(legend.position = "bottom", legend.box = "vertical", legend.key.width = grid::unit(3, "lines"))

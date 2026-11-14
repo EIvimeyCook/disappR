@@ -4,6 +4,11 @@
   when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
   a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
 * `launch_app.R` and `run_app()` also offer gamm4.
+* **Ages on a continuous scale no longer freeze the hazard panel.** With ages computed from dates (the elephant
+  example), the life table had hundreds of age classes and its frailty test ran for hours. Above 60 classes it now uses
+  about 40 equal intervals, the frailty model is skipped on very large person-occasion tables (the GLM test stands),
+  and disappearances are counted among the individuals at risk at the start of each interval (unchanged for ages on
+  the sampling grid).
 
 # disappR 0.25.0
 

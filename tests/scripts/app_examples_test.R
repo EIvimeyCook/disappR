@@ -13,9 +13,13 @@ EX <- get("EXAMPLES", eng)
 ids <- commandArgs(trailingOnly = TRUE)
 if (!length(ids)) ids <- names(EX)
 problems <- character(0)
+stage <- function(ex, what) message(format(Sys.time(), "%H:%M:%S"), "  ", ex, ": ", what)
 touch <- function(output_env, names, ex) {
   for (nm in names) {
+    t1 <- Sys.time()
     res <- tryCatch({ output_env[[nm]]; "ok" }, shiny.silent.error = function(e) "ok", error = function(e) conditionMessage(e))
+    el <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
+    if (el > 20) stage(ex, sprintf("output %s took %.0f s", nm, el))
     if (!identical(res, "ok")) problems <<- c(problems, sprintf("[%s] %s: %s", ex, nm, res))
   }
 }
@@ -48,32 +52,32 @@ shiny::testServer(app, {
                       b2_functions = c("Linear", "Quadratic"), heat_order = "alr", heat_n = 500)
     d <- tryCatch(dat(), error = function(e) NULL)
     if (is.null(d) || !nrow(d)) { problems <<- c(problems, sprintf("[%s] the data did not load", ex_id)); next }
-    touch(output, step1_4, ex_id)
+    stage(ex_id, "steps 1-4"); touch(output, step1_4, ex_id)
     # step 5 with the example's published settings
     mods <- ex$models %||% c("M1", "M2", "M3", "M4")
     use <- stats::setNames(as.list(paste0("M", 1:10) %in% mods), paste0("use_M", 1:10))
     do.call(session$setInputs, c(use, list(model_family = ex$family %||% "gaussian", model_age_function = ex$age_function %||% "Quadratic",
                                            random_structure = ex$random_structure %||% "none", among_order = "linear", standardise = TRUE,
                                            include_invalid = FALSE)))
-    session$setInputs(fit_models = sample.int(1e6, 1))
+    stage(ex_id, "step 5 fit"); session$setInputs(fit_models = sample.int(1e6, 1))
     r5 <- tryCatch(model_res(), error = function(e) NULL)
     ok5 <- isTRUE(r5$ok)
     if (!ok5) problems <<- c(problems, sprintf("[%s] step 5 fit failed: %s", ex_id, r5$message %||% "no result"))
     else session$setInputs(coef_model = names(r5$fits)[[1]])
-    touch(output, step5, ex_id)
+    stage(ex_id, "step 5 outputs"); touch(output, step5, ex_id)
     # step 7 with the example's GAMM settings (or the defaults), the family suggested for the trait
     g <- ex$gamm %||% list()
     session$setInputs(gamm_family = gamm_suggest_family(ex$family %||% "gaussian"), gamm_k = g$k %||% 10, gamm_individual = g$individual %||% "ri",
                       gamm_proxy = g$proxy %||% "ALR", gamm_proxy_form = g$proxy_form %||% "linear", gamm_afr_form = g$afr_form %||% "none",
                       gamm_olre = isTRUE(g$olre), gamm_terminal = FALSE, gamm_group = "", gamm_engine = "auto", gamm_covars = TRUE,
                       gamm_random = TRUE, gamm_cov_smooth = FALSE, gamm_ar1 = FALSE, gamm_show_data = "means", gamm_age_bins = 8)
-    session$setInputs(gamm_fit = sample.int(1e6, 1))
+    stage(ex_id, "GAMM fit"); session$setInputs(gamm_fit = sample.int(1e6, 1))
     r7 <- gamm_store()
     ok7 <- isTRUE(r7$ok)
     if (!ok7) problems <<- c(problems, sprintf("[%s] GAMM fit failed: %s", ex_id, r7$message %||% "no result"))
-    touch(output, step7, ex_id)
+    stage(ex_id, "GAMM outputs"); touch(output, step7, ex_id)
     for (sd in c("bins", "points", "none")) { session$setInputs(gamm_show_data = sd); touch(output, c("gamm_curve_plot", "gamm_curve_note"), ex_id) }
-    session$setInputs(gamm_run_poly = sample.int(1e6, 1))
+    stage(ex_id, "shape comparison"); session$setInputs(gamm_run_poly = sample.int(1e6, 1))
     touch(output, c("gamm_poly_reading", "gamm_poly_table", "gamm_guide_ui"), ex_id)
     poly_ok <- is.data.frame(gamm_poly_store())
     if (ok7 && !poly_ok) problems <<- c(problems, sprintf("[%s] shape comparison failed: %s", ex_id, gamm_poly_store()$message %||% ""))

@@ -277,6 +277,8 @@ gamm_engine_for <- function(s, n, n_ind, structure = s$structure, proxy_form = s
   if (isTRUE(s$ar1) && identical(s$family, "gaussian")) return("bam")  # AR1 errors: bam only
   g4 <- gamm_g4_compatible(s, structure, proxy_form, afr_form, gd = gd)
   if (identical(e, "gamm4") && !g4) e <- "bam"
+  # individuals cost mgcv nothing when the model has no individual random effect (e.g. annual survival)
+  if (identical(s$individual %||% "ri", "none")) n_ind <- 0
   if (identical(e, "auto")) return(if ((n_ind > GAMM_G4_IND || gamm_olre_on(s)) && g4) "gamm4" else if (n > GAMM_BAM_ROWS || n_ind > GAMM_BAM_IND || gamm_olre_on(s)) "bam" else "gam")
   e
 }

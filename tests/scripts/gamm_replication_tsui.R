@@ -12,7 +12,7 @@ errors <- character(0)
 line <- function(...) cat(..., "\n", sep = "")
 rd <- function(f) utils::read.csv(file.path("inst", "app", "data", f), stringsAsFactors = FALSE)
 fac <- function(d, v) { for (x in v) d[[x]] <- factor(d[[x]]); d }
-age_row <- function(fit) { st <- summary(fit)$s.table; st[grep("^s\\(age", rownames(st))[1], , drop = FALSE] }
+age_row <- function(fit) { st <- summary(fit)$s.table; st[grep("^s\\((age|parent_age)", rownames(st))[1], , drop = FALSE] }
 term_row <- function(fit, lab) {
   sm <- summary(fit)
   if (lab %in% rownames(sm$p.table)) return(sprintf("%s %s (p %s)", lab, format_num(sm$p.table[lab, 1], 3), format_p(sm$p.table[lab, 4])))
@@ -30,9 +30,11 @@ authors <- function(label, formula, data, family, proxy) {
   if (!is.null(fit)) show("(a) authors' formula, mgcv::gam", fit, nrow(fit$model), term_row(fit, proxy))
   invisible(fit)
 }
-app <- function(label, id, trait = NULL, gamm = list(), proxy_label = "") {
+app <- function(label, id, trait = NULL, gamm = list(), proxy_label = "", covars = NULL) {
   ex <- disappr_example(id)
   mp <- ex$mapping; if (!is.null(trait)) mp$trait <- trait
+  # each trait's own covariates, as a user would tick them on the Data tab
+  if (!is.null(covars)) { mp$covars <- covars; mp$cov_factor <- intersect(mp$cov_factor, covars) }
   b <- standardise_data(ex$data, mp)
   gd <- gamm_data(b$data, b$meta)
   s <- utils::modifyList(utils::modifyList(gamm_defaults(), EXAMPLES[[id]]$gamm), c(gamm, list(family = gamm_suggest_family(EXAMPLES[[id]]$family))))
@@ -48,13 +50,13 @@ physio$newlifespan <- physio$newlifespan
 re3 <- "+ s(birthyear, bs = 're') + s(Observer, bs = 're') + s(BirdID, bs = 're')"
 run("Model 2: wing length (Gaussian; lifespan smooth)")
 authors("wing", paste("WingLength_z ~ s(age_year, k = 15) + s(newlifespan) + RightTarsus_z + newstat + SexEstimate + avg_invert", re3), physio, gaussian(), "newlifespan")
-app("wing", "tsui_mass", "WingLength_z", list(k = 15, proxy_form = "smooth"), "LS")
+app("wing", "tsui_mass", "WingLength_z", list(k = 15, proxy_form = "smooth"), "LS", c("RightTarsus_z", "newstat", "SexEstimate", "avg_invert"))
 run("Model 3: tarsus length (Gaussian; lifespan smooth)")
 authors("tarsus", paste("RightTarsus_z ~ s(age_year, k = 10) + s(newlifespan) + SexEstimate + avg_invert + newstat", re3), physio, gaussian(), "newlifespan")
-app("tarsus", "tsui_mass", "RightTarsus_z", list(k = 10, proxy_form = "smooth"), "LS")
+app("tarsus", "tsui_mass", "RightTarsus_z", list(k = 10, proxy_form = "smooth"), "LS", c("SexEstimate", "avg_invert", "newstat"))
 run("Model 4: fat score (Poisson; lifespan linear)")
 authors("fat", paste("FatScore ~ s(age_year, k = 15) + newlifespan + SexEstimate + newstat + avg_invert + CatchTime_mins", re3), physio, poisson(), "newlifespan")
-app("fat", "tsui_mass", "FatScore", list(k = 15, proxy_form = "linear", family = "poisson"), "LS")
+app("fat", "tsui_mass", "FatScore", list(k = 15, proxy_form = "linear", family = "poisson"), "LS", c("SexEstimate", "newstat", "avg_invert", "CatchTime_mins"))
 
 oxy <- fac(rd("tsui_2026_warbler_oxidative.csv"), c("BirdID", "SexEstimate", "newstat", "birthyear"))
 re2 <- "+ s(birthyear, bs = 're') + s(BirdID, bs = 're')"

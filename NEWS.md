@@ -4,6 +4,11 @@
   when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
   a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
 * `launch_app.R` and `run_app()` also offer gamm4.
+* **Six more Tsui et al. 2026 examples** (oxidative status, haematocrit and white blood cells, malaria, provisioning,
+  annual reproductive success, annual survival), with the published GAMM settings. With wing length, tarsus and fat
+  score (in the body-mass file), 12 of the paper's 13 GAMMs can be run; all 12 replicate the authors' code
+  (inst/validation/gamm/README.md).
+* A GAMM without an individual random effect is no longer sent to gamm4 because of the number of individuals.
 * **Ages on a continuous scale no longer freeze the hazard panel.** With ages computed from dates (the elephant
   example), the life table had hundreds of age classes and its frailty test ran for hours. Above 60 classes it now uses
   about 40 equal intervals, the frailty model is skipped on very large person-occasion tables (the GLM test stands),

@@ -1,0 +1,50 @@
+
+Model 2: wing length (Gaussian; lifespan smooth)
+  (a) authors' formula, mgcv::gam     2623 rows  age smooth edf  3.770  stat     9.57  p <0.001    s(newlifespan) edf 4.21 (p 0.158)
+  (b) disappR engine (bam)            2622 rows  age smooth edf  3.781  stat     9.54  p <0.001    s(LS) edf 3.6 (p 0.171)
+
+Model 3: tarsus length (Gaussian; lifespan smooth)
+  (a) authors' formula, mgcv::gam     2640 rows  age smooth edf  1.000  stat     2.49  p 0.115     s(newlifespan) edf 3.17 (p 0.135)
+  (b) disappR engine (bam)            2639 rows  age smooth edf  1.001  stat     2.43  p 0.119     s(LS) edf 3.05 (p 0.122)
+
+Model 4: fat score (Poisson; lifespan linear)
+  (a) authors' formula, mgcv::gam     1453 rows  age smooth edf  1.000  stat     1.32  p 0.251     newlifespan 0.0000329 (p 0.121)
+  (b) disappR engine (bam)            1453 rows  age smooth edf  1.000  stat     1.33  p 0.250     LS 0.012 (p 0.120)
+
+Model 5: oxidative damage, ROMs (Gaussian; lifespan smooth)
+  (a) authors' formula, mgcv::gam      639 rows  age smooth edf  1.989  stat     1.34  p 0.241     s(newlifespan) edf 1.44 (p 0.146)
+  (b) disappR engine (gam)             639 rows  age smooth edf  1.993  stat     1.35  p 0.240     s(LS) edf 1.42 (p 0.144)
+
+Model 6: antioxidant capacity, OXY (Gaussian; lifespan linear)
+  (a) authors' formula, mgcv::gam      638 rows  age smooth edf  1.001  stat     0.67  p 0.413     newlifespan -0.0000324 (p 0.332)
+  (b) disappR engine (gam)             638 rows  age smooth edf  1.001  stat     0.67  p 0.413     LS -0.0118 (p 0.332)
+
+Model 7: haematocrit (Gaussian; lifespan smooth)
+  (a) authors' formula, mgcv::gam     1744 rows  age smooth edf  1.005  stat     2.17  p 0.141     s(newlifespan) edf 1 (p 0.542)
+  (b) disappR engine (bam)            1744 rows  age smooth edf  1.000  stat     2.18  p 0.140     s(LS) edf 1 (p 0.540)
+
+Model 8: white blood cells (Gaussian; lifespan linear)
+  (a) authors' formula, mgcv::gam     1744 rows  age smooth edf  4.482  stat     5.16  p <0.001    newlifespan 0.0000267 (p 0.159)
+  (b) disappR engine (bam)            1744 rows  age smooth edf  4.482  stat     5.16  p <0.001    LS 0.00974 (p 0.159)
+
+Model 9: malaria infection (binomial; lifespan linear)
+  (a) authors' formula, mgcv::gam     3197 rows  age smooth edf  5.466  stat   229.25  p <0.001    newlifespan 0.000019 (p 0.645)
+  (b) disappR engine (bam)            3197 rows  age smooth edf  5.350  stat   230.55  p <0.001    LS 0.00571 (p 0.700)
+
+Model 11: provisioning rate (Gaussian; lifespan smooth)
+  (a) authors' formula, mgcv::gam     1004 rows  age smooth edf  1.551  stat     5.86  p 0.009     s(newlifespan) edf 1 (p 0.094)
+  (b) disappR engine (gam)            1004 rows  age smooth edf  1.551  stat     5.86  p 0.009     s(LS) edf 1 (p 0.094)
+
+Model 12: annual reproductive success (Poisson; first-breeding year linear, last-breeding year smooth)
+  (a) authors' formula, mgcv::gam     5176 rows  age smooth edf  9.662  stat   266.54  p <0.001    s(maxrepro) edf 1 (p <0.001)
+  (a) authors' formula, mgcv::gam     5176 rows  age smooth edf  9.649  stat   270.07  p <0.001    s(maxreproage) edf 1.01 (p <0.001)
+  (b) disappR engine (bam)            5176 rows  age smooth edf  9.611  stat   268.14  p <0.001    s(ALR) edf 1 (p <0.001)
+
+Model 13: annual survival (binomial; no bird random effect, no proxy)
+  (a) authors' formula, mgcv::gam     5174 rows  age smooth edf  2.276  stat     7.05  p 0.051     
+Warning message:
+In newton(lsp = lsp, X = G$X, y = G$y, Eb = G$Eb, UrS = G$UrS, L = G$L,  :
+  Fitting terminated with step failure - check results carefully
+  (b) disappR engine (gam)            5174 rows  age smooth edf  2.203  stat     6.78  p 0.052     
+
+Replication script finished without errors.

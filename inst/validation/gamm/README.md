@@ -169,3 +169,28 @@ is the likely cause, and it needs the authors' code to resolve.
 
 The disappR group comparison ran in fast mode (gamm4), with GI best and I +1.3. Its fit uses a smooth of age per sex
 with ALR (k = 15). The rise to a peak is at 55 years in females and 60 in males.
+
+## Replication: the other Tsui et al. 2026 traits (`replication_results_tsui.txt`, `tests/scripts/gamm_replication_tsui.R`)
+
+The deposit has data for 12 of the paper's 13 GAMMs (the telomere file is missing). Body mass is above; the other 11
+are compared here: the authors' model G formula refitted with mgcv::gam (REML) against the disappR engine with the
+example's settings and each trait's own covariates.
+
+| Model | Trait (family) | Records | Age smooth edf, authors / disappR | p, authors / disappR |
+|---|---|---|---|---|
+| 2 | Wing length (Gaussian) | 2,623 / 2,622 | 3.77 / 3.78 | <0.001 / <0.001 |
+| 3 | Tarsus (Gaussian) | 2,640 / 2,639 | 1.00 / 1.00 | 0.115 / 0.119 |
+| 4 | Fat score (Poisson) | 1,453 / 1,453 | 1.00 / 1.00 | 0.251 / 0.250 |
+| 5 | Oxidative damage, ROMs (Gaussian) | 639 / 639 | 1.99 / 1.99 | 0.241 / 0.240 |
+| 6 | Antioxidant capacity, OXY (Gaussian) | 638 / 638 | 1.00 / 1.00 | 0.413 / 0.413 |
+| 7 | Haematocrit (Gaussian) | 1,744 / 1,744 | 1.01 / 1.00 | 0.141 / 0.140 |
+| 8 | White blood cells (Gaussian) | 1,744 / 1,744 | 4.48 / 4.48 | <0.001 / <0.001 |
+| 9 | Malaria infection (binomial) | 3,197 / 3,197 | 5.47 / 5.35 | <0.001 / <0.001 |
+| 11 | Provisioning rate (Gaussian) | 1,004 / 1,004 | 1.55 / 1.55 | 0.009 / 0.009 |
+| 12 | Annual reproductive success (Poisson) | 5,176 / 5,176 | 9.66 / 9.61 | <0.001 / <0.001 |
+| 13 | Annual survival (binomial) | 5,174 / 5,174 | 2.28 / 2.20 | 0.051 / 0.052 |
+
+Every conclusion about the age smooth and the lifespan, ALR and AFR terms agrees. The one-record differences are the
+bird with a blank observer, which disappR treats as missing. Differences in edf come from the engine (bam for large
+data) and, for reproductive success, from using the ages of first and last reproduction where the authors used the
+calendar years (the version with ages, refitted with the authors' code, gives edf 9.65).

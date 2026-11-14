@@ -4,6 +4,8 @@
   when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
   a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
 * `launch_app.R` and `run_app()` also offer gamm4.
+* The A4 hazard models no longer stop on data with only one or two ages (the age-dependent trait effect cannot be
+  estimated there, so no age-specific odds ratios are given).
 * **GAMM proxy comparison by marginal-likelihood AIC.** The comparison of no, linear, smooth and age-dependent ALR,
   lifespan or AFR terms used mgcv's AIC, which is conditional on the random effects: the individual random intercepts
   absorb a property of the individual such as ALR, so strong age-independent selective disappearance could show no

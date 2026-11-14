@@ -331,10 +331,10 @@ if (requireNamespace("shiny", quietly = TRUE)) {
     }
   }
   outs <- c("mapping_ui", "data_metrics", "integrity_table", "integrity_extra", "dist_var_ui", "dist_plot", "data_preview",
-            "visual_proxy_ui", "facet_ui", "a1_plot", "bin_diff_plot", "a2_plot", "sampling_metrics", "sampling_guidance", "heatmap", "missing_by_age", "coverage_table", "missing_vs_var", "drivers_table",
+            "visual_proxy_ui", "facet_ui", "a1_plot", "bin_diff_plot", "a2_plot", "sampling_metrics", "heatmap", "missing_by_age", "missing_vs_var", "drivers_table",
             "proxy_plots_ui", "proxy_alr_mean", "a3_metrics", "a3_plot", "a3_mean_plot", "a3_compare_table", "a3_coef_table",
             "model_fit_note", "aic_plot", "aic_table", "lrt_table", "status_table", "pred_plot", "coef_model_ui",
-            "coef_table", "coef_re_table", "code_ui", "summary_ui")
+            "coef_table", "coef_re_table", "code_ui")
   base_inputs <- list(n_bins = 4, bin_method = "equal", show_se = FALSE,
                       trait_scale = "raw", heat_order = "alr",
                       miss_var = "ALR", dist_unit = "row", a3_function = "Quadratic", a3_recon = "both", a3_n = 10,

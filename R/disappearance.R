@@ -515,9 +515,12 @@ disappearance_models <- function(ia) {
                row_for(m3, "change_z", "Change since the previous occasion", nrow(xc), sum(xc$event)))
   p_age <- if (!is.null(m1) && !is.null(m2)) hazard_lrt(paste("event ~", base_rhs, "+ trait_z"), paste("event ~", base_rhs, "+ trait_z + trait_z:age_c"), x, 1)$p else NA_real_
   ages <- as.numeric(stats::quantile(x$age, c(0.1, 0.5, 0.9), names = FALSE))
-  or_at <- if (!is.null(m2)) {
-    cf <- hazard_fixef(m2)
-    vc <- as.matrix(stats::vcov(m2))
+  cf2 <- if (!is.null(m2)) tryCatch(hazard_fixef(m2), error = function(e) NULL) else NULL
+  vc2 <- if (!is.null(m2)) tryCatch(as.matrix(stats::vcov(m2)), error = function(e) NULL) else NULL
+  terms2 <- c("trait_z", "trait_z:age_c")
+  # with one or two ages the interaction cannot be estimated (dropped as aliased): no age-specific odds ratios then
+  or_at <- if (all(terms2 %in% names(cf2)) && all(terms2 %in% rownames(vc2)) && all(is.finite(cf2[terms2]))) {
+    cf <- cf2; vc <- vc2
     ac <- (ages - mean(x$age)) / (if (stats::sd(x$age) > 0) stats::sd(x$age) else 1)
     data.frame(Age = ages, Odds_ratio = exp(cf[["trait_z"]] + cf[["trait_z:age_c"]] * ac),
                Lower_95 = exp(cf[["trait_z"]] + cf[["trait_z:age_c"]] * ac - 1.96 * sqrt(vc["trait_z", "trait_z"] + ac^2 * vc["trait_z:age_c", "trait_z:age_c"] + 2 * ac * vc["trait_z", "trait_z:age_c"])),

@@ -112,7 +112,9 @@ disappr_example <- function(key) {
   ex <- EXAMPLES[[key]]
   if (is.null(ex)) stop("Unknown example '", key, "'. Available: ", paste(names(EXAMPLES), collapse = ", "), call. = FALSE)
   app <- system.file("app", package = "disappR")
-  if (!nzchar(app) && dir.exists(file.path("inst", "app"))) app <- file.path("inst", "app")
+  # without an installed package: the source checkout's app, from the package root or from inside the app folder
+  if (!nzchar(app)) for (cand in c(file.path("inst", "app"), ".", file.path("..", "..", "inst", "app")))
+    if (dir.exists(file.path(cand, "data")) && file.exists(file.path(cand, "global.R"))) { app <- cand; break }
   if (!nzchar(app) || !dir.exists(file.path(app, "data"))) stop("The bundled example data were not found.", call. = FALSE)
   owd <- setwd(app)
   on.exit(setwd(owd), add = TRUE)

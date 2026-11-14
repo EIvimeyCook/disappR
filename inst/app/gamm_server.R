@@ -770,7 +770,7 @@ gamm_fast_text <- function() {
               if (is.finite(lv)) format(lv, big.mark = ",") else "many", as.integer(GAMM_FAST_LEVELS))),
     p(strong("What this changes")),
     tags$ul(
-      tags$li("Models are compared by gamm4's likelihood, which is more cautious about extra smooth terms. In our simulations it rarely flagged age-dependent selective disappearance that was not there (about 2% of datasets, against 11% with mgcv) and found real effects as often."),
+      tags$li("Models are compared by gamm4's marginal likelihood. The proxy comparison uses the marginal likelihood with mgcv too, so it usually reaches the same conclusion; the group and shape comparisons use mgcv's AIC with mgcv, and gamm4's likelihood is more cautious about extra smooth terms."),
       tags$li("The age-dependent proxy form is s(age, by = proxy): the age curve tilts linearly with the proxy, rather than changing shape freely as with ti(age, proxy)."),
       tags$li("Group structures GS and S cannot be fitted with gamm4 and are left out; G, GI and I are compared.")),
     p("Results can therefore differ from an mgcv comparison of the same data. To use mgcv anyway, choose the bam engine under Advanced options on the Fit tab (this can be slow). The methods draft records which method was used."))

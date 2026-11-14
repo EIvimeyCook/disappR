@@ -36,6 +36,9 @@ step7 <- c("gamm_data_note", "gamm_family_hint", "gamm_individual_note", "gamm_g
 summary_rows <- list()
 
 shiny::testServer(app, {
+  # the Modelling tab's inputs exist from the start in the browser; step 4's function comparison reads them
+  session$setInputs(model_family = "gaussian", model_age_function = "Quadratic", random_structure = "none", among_order = "linear",
+                    standardise = TRUE, include_invalid = FALSE)
   for (ex_id in ids) {
     ex <- EX[[ex_id]]; m <- ex$mapping
     t0 <- Sys.time()

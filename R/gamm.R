@@ -1363,6 +1363,14 @@ gamm_cautions <- function(r, kc = gamm_kcheck(r), cc = gamm_concurvity(r), qr = 
   binary <- all(dd$trait %in% c(0, 1)) && !(".trials" %in% names(dd) && any(dd$.trials > 1, na.rm = TRUE))
   if (!is.null(qr) && s$family %in% c("poisson", "binomial") && !binary && is.finite(qr$dispersion_p) && qr$dispersion_p < 0.05 && qr$dispersion > 1)
     out <- c(out, sprintf("Simulated residuals suggest overdispersion (ratio %s): add an observation-level random effect, or try the %s family.", format_num(qr$dispersion, 2), if (s$family == "poisson") "negative binomial or Tweedie" else "beta"))
+  # complete separation: a covariate level that perfectly predicts the outcome (e.g. a status 'dead' in a survival model)
+  # gives a coefficient on the link scale far from zero with an enormous standard error
+  pt <- tryCatch(summary(r$fit, re.test = FALSE)$p.table, error = function(e) NULL)
+  if (!is.null(pt) && !identical(r$fit$family$link, "identity")) {
+    sep <- rownames(pt)[is.finite(pt[, 2]) & (pt[, 2] > 1e3 | (abs(pt[, 1]) > 15 & pt[, 2] > 10))]
+    sep <- setdiff(sep, "(Intercept)")
+    if (length(sep)) out <- c(out, sprintf("Complete separation: %s perfectly predicts the outcome, so its estimate is meaningless and the curve (which averages over covariate levels) is unreliable. Leave out those records (Subset the data, step 1) or the covariate.", paste(sep, collapse = ", ")))
+  }
   if (!isTRUE(r$converged)) out <- c(out, "The fit did not report full convergence: simplify the model (smaller k, fewer random terms) and refit.")
   other <- setdiff(r$notes, grep("left out|lowered|do not vary|one level", r$notes, value = TRUE))
   if (length(other)) out <- c(out, paste("Fitting notes:", paste(utils::head(other, 3), collapse = "; ")))

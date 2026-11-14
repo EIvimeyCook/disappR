@@ -485,6 +485,7 @@ EXAMPLES <- list(
                  covariates = "SexEstimate: sex (0/1); avg_bug: insect abundance; yearlytq_10k: territory quality in units of 10,000 (yearlytq: raw); statbefore: status in the previous year",
                  finding = "Model 13 of the paper's 13: actuarial senescence."),
     file = "tsui_2026_warbler_survival.csv",
+    subset = list(var = "statbefore", levels = c("Dom", "Sub")),
     mapping = example_map(id = "BirdID", age = "age", trait = "survival",
                           covars = c("SexEstimate", "avg_bug", "yearlytq_10k", "statbefore"), cov_factor = c("SexEstimate", "statbefore"),
                           random = c("occasionyear", "birthyear")),
@@ -492,7 +493,9 @@ EXAMPLES <- list(
     gamm = list(k = 19, proxy = "none", proxy_form = "linear", individual = "none", afr_form = "none"),
     note = paste("Whether each Seychelles warbler survived each year. The paper's model: survival ~ s(age, k = 19) + covariates, binomial, with",
                  "random intercepts for year and birth year and no bird-level random effect. A lifespan or ALR term would be circular for survival",
-                 "(the last record is the year of death), so only Model 1 is fitted in step 5 and no proxy in step 7.", "Data: Zenodo 10.5281/zenodo.21101620 (CC BY 4.0). ")),
+                 "(the last record is the year of death), so only Model 1 is fitted in step 5 and no proxy in step 7. Records whose previous-year",
+                 "status is 'dead' (76 complete records, none surviving) are left out through the subset: that level perfectly predicts death",
+                 "(complete separation), which makes its coefficients and the averaged curve meaningless.", "Data: Zenodo 10.5281/zenodo.21101620 (CC BY 4.0). ")),
   brown_haematocrit = list(
     label = "Brown et al. 2021, Ecology and Evolution \u2014 Seychelles warbler (haematocrit; GAMM)",
     about = list(species = "Seychelles warbler (Acrocephalus sechellensis), wild population on Cousin Island",

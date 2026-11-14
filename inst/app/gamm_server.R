@@ -93,14 +93,25 @@ output$gamm_individual_note <- renderUI({
          else NULL
   if (is.null(msg)) NULL else p(class = "small-note", msg)
 })
+# A bundled example's group and structure: the group selector is rebuilt when the data load, which can happen after
+# the example's settings are applied, so the preset is kept here and used whenever the selector is built, until the
+# user picks another group.
+gamm_preset_group <- reactiveVal(NULL)
+observeEvent(input$gamm_group, {
+  pg <- isolate(gamm_preset_group())
+  if (!is.null(pg) && !identical(input$gamm_group, pg$group)) gamm_preset_group(NULL)
+}, ignoreInit = TRUE)
 output$gamm_group_ui <- renderUI({
   gd <- safe_get(gamm_gd()); m <- safe_get(meta())
   ch <- if (is.null(gd) || is.null(m)) character(0) else gamm_group_choices(m, gd)
   if (!length(ch)) return(p(class = "small-note", "Curves per group: map a categorical covariate (such as sex) with 2\u20138 levels on the Data tab."))
+  pg <- gamm_preset_group()
+  sel_g <- if (!is.null(pg) && pg$group %in% c("", ch)) pg$group else isolate(input$gamm_group) %||% ""
+  sel_s <- if (!is.null(pg) && !is.null(pg$structure)) pg$structure else isolate(input$gamm_structure) %||% "I"
   tagList(
-    selectInput("gamm_group", "Separate curves for a group (optional)", c("(none)" = "", ch), isolate(input$gamm_group) %||% ""),
+    selectInput("gamm_group", "Separate curves for a group (optional)", c("(none)" = "", ch), sel_g),
     conditionalPanel("input.gamm_group != ''",
-      selectInput("gamm_structure", "Group curves", GAMM_STRUCTURES, isolate(input$gamm_structure) %||% "I")))
+      selectInput("gamm_structure", "Group curves", GAMM_STRUCTURES, sel_s)))
 })
 outputOptions(output, "gamm_group_ui", suspendWhenHidden = FALSE)
 output$gamm_truth_ui <- renderUI(if (isTRUE(is_toy())) checkboxInput("gamm_show_truth", "True trajectory (simulation)", TRUE) else NULL)
@@ -176,7 +187,7 @@ gamm_sim <- reactive(TRUE)   # simultaneous intervals throughout (Simpson 2018):
 gamm_kc <- reactive(gamm_kcheck(gamm_res()))
 gamm_cc <- reactive(gamm_concurvity(gamm_res()))
 gamm_qr <- reactive(gamm_quantile_residuals(gamm_res()))
-gamm_curve_df <- reactive(gamm_curve(gamm_res(), scale = input$gamm_curve_scale %||% "typical", n_proxy = as.integer(input$gamm_n_proxy %||% 3)))
+gamm_curve_df <- reactive(gamm_curve(gamm_res(), scale = input$gamm_curve_scale %||% "average", n_proxy = as.integer(input$gamm_n_proxy %||% 3)))
 output$gamm_n_proxy_ui <- renderUI({
   r <- safe_get(gamm_res())
   if (is.null(r) || is.null(gamm_proxy_values(r))) return(NULL)
@@ -186,10 +197,10 @@ output$gamm_scale_ui <- renderUI({
   r <- safe_get(gamm_res()); if (is.null(r)) return(NULL)
   lk <- tryCatch(r$fit$family$link %||% r$fit$family$linfo[[1]]$link, error = function(e) "identity")
   if (identical(lk, "identity")) return(NULL)
-  tagList(radioButtons("gamm_curve_scale", NULL, c("Typical individual (random effects at zero)" = "typical",
-                                                   "Population average (comparable with the observed means)" = "average"),
-                       isolate(input$gamm_curve_scale) %||% "typical", inline = TRUE),
-          p(class = "small-note", "For counts and proportions the GAMM's curve is for a typical individual (and typical year). When individuals or years differ a lot it lies below the observed means; the population average averages the prediction over the estimated random effects of every record."))
+  tagList(radioButtons("gamm_curve_scale", NULL, c("Population average (comparable with the observed means)" = "average",
+                                                   "Typical individual (random effects at zero)" = "typical"),
+                       isolate(input$gamm_curve_scale) %||% "average", inline = TRUE),
+          p(class = "small-note", "For counts and proportions the curve shown by default is the population average: the prediction averaged over the estimated random effects of every record, comparable with the observed means. The typical individual (random effects at zero, the median) can lie far from the data when individuals or years differ a lot, for example in survival with strong year effects."))
 })
 gamm_deriv_df <- reactive(gamm_derivative(gamm_res()))
 gamm_cautions_now <- reactive(gamm_cautions(gamm_res(), safe_get(gamm_kc()) %||% data.frame(), safe_get(gamm_cc()) %||% data.frame(),
@@ -216,6 +227,12 @@ gamm_curve_obj <- reactive({
   r <- gamm_res(); cv <- gamm_curve_df()
   cv$lo <- cv$lower_sim; cv$hi <- cv$upper_sim
   dd <- r$data; dd$level <- gamm_level_of(r)
+  # each group's curve covers only the ages that group was recorded at: beyond them it is extrapolation
+  if (length(unique(cv$level)) > 1) {
+    rng <- tapply(dd$age, dd$level, range)
+    keep <- vapply(seq_len(nrow(cv)), function(i) { a <- rng[[cv$level[i]]]; is.null(a) || (cv$age[i] >= a[1] - 1e-8 && cv$age[i] <= a[2] + 1e-8) }, logical(1))
+    cv <- cv[keep, , drop = FALSE]
+  }
   grp_lab <- if (nzchar(r$settings$group %||% "")) gamm_pretty(r$settings$group) else NULL
   by_group <- length(unique(cv$level)) > 1
   by_proxy <- any(nzchar(cv$proxy))
@@ -259,6 +276,12 @@ gamm_curve_obj <- reactive({
     tc <- safe_get(toy_true_curve(tr, ages))
     if (length(tc) == length(ages)) p <- p + geom_line(data = data.frame(age = ages, fit = tc), aes(age, fit), inherit.aes = FALSE, linetype = "longdash", colour = "black", linewidth = 0.8)
   }
+  # the y-axis follows the curves and the data shown; an interval that balloons where data are sparse is clipped
+  # rather than squashing the rest of the plot
+  shown <- switch(show, points = dd$trait, means = om$trait, bins = c(om$trait - 1.96 * om$se, om$trait + 1.96 * om$se), numeric(0))
+  yr <- range(c(cv$fit, shown), na.rm = TRUE); span <- diff(yr); if (!is.finite(span) || span <= 0) span <- max(abs(yr), 1)
+  ylim <- c(max(min(cv$lo, na.rm = TRUE), yr[1] - 0.6 * span), min(max(cv$hi, na.rm = TRUE), yr[2] + 0.6 * span))
+  p <- p + coord_cartesian(ylim = ylim)
   p + labs(x = "Age", y = "Trait (population curve)") +
     theme_disappR(13) + theme(legend.position = "bottom", legend.box = "vertical", legend.key.width = grid::unit(3, "lines"))
 })
@@ -657,6 +680,7 @@ observeEvent(list(input$data_source, input$example_id), disappr_guard("gamm exam
   if (!is.null(g$individual)) updateSelectInput(session, "gamm_individual", selected = g$individual)
   updateCheckboxInput(session, "gamm_olre", value = isTRUE(g$olre))
   # group curves (for example sex or a treatment) as in the published analysis; no grouping otherwise
+  gamm_preset_group(list(group = g$group %||% "", structure = g$structure))
   updateSelectInput(session, "gamm_group", selected = g$group %||% "")
   if (!is.null(g$structure)) updateSelectInput(session, "gamm_structure", selected = g$structure)
 }), ignoreInit = TRUE)

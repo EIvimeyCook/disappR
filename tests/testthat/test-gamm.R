@@ -306,3 +306,13 @@ test_that("the proxy comparison uses the marginal-likelihood AIC, which detects 
   expect_identical(gamm_proxy_comparison(gd, s)$verdicts[["ALR"]], "age_independent")
   expect_true(is.na(gamm_marginal_aic(gamm_fit(gd, s))))     # REML fits have no marginal AIC
 })
+
+test_that("the guide asks for a refit when the proxy comparison supports another form than the one fitted", {
+  pc <- list(verdicts = c(ALR = "age_dependent", AFR = "age_independent"))
+  m <- gamm_proxy_refit(pc, "ALR", "linear", "none")
+  expect_length(m, 2)
+  expect_match(m[[1]], "age-dependent ALR form")
+  expect_match(m[[2]], "linear AFR term")
+  expect_length(gamm_proxy_refit(pc, "ALR", "ti", "linear"), 0)
+  expect_length(gamm_proxy_refit(list(verdicts = c(ALR = "none")), "ALR", "linear", "none"), 0)
+})

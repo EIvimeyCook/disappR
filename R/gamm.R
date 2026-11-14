@@ -668,6 +668,23 @@ gamm_p_words <- function(p) { f <- format_p(p); if (startsWith(f, "<")) sub("^<"
 # A guided reading of the fitted GAMM, question by question, for readers who know parametric models. Each item has a
 # question, the answer for this fit, and what to do next. comp: optional results of the shape (poly), group and proxy
 # comparisons, used when they have been run.
+# What to refit when the proxy comparison supports another form than the one fitted (the curve shown is then biased:
+# without an age-dependent term under age-dependent selective disappearance, it is distorted in shape).
+gamm_proxy_refit <- function(proxy, prox, pf, afr_form) {
+  v <- proxy$verdicts %||% character(0)
+  msg <- character(0)
+  fitted <- c(stats::setNames(pf, prox), AFR = afr_form)
+  for (p in names(v)) {
+    f <- fitted[[p]] %||% "none"
+    if (identical(v[[p]], "age_dependent") && !f %in% c("ti", "vc"))
+      msg <- c(msg, sprintf("Refit with an age-dependent %s form (Fit tab, %s: 'Age-dependent, smooth in both', or 'Age-dependent, linear in the proxy'): the fitted model has %s, so the curve shown is biased in shape.",
+                            p, if (p == "AFR") "'AFR ... entered as'" else "'...entered as' under the lifespan proxy", if (identical(f, "none")) paste("no", p, "term") else paste("a", f, p, "term")))
+    else if (identical(v[[p]], "age_independent") && identical(f, "none"))
+      msg <- c(msg, sprintf("Refit with a linear %s term: the fitted model has none, so the curve shown mixes selective %s with ageing.", p, if (p == "AFR") "appearance" else "disappearance"))
+  }
+  msg
+}
+
 gamm_guide <- function(r, o, poly = NULL, groups = NULL, proxy = NULL) {
   s <- r$settings
   sm <- o$smooth; pr <- o$parametric
@@ -729,7 +746,8 @@ gamm_guide <- function(r, o, poly = NULL, groups = NULL, proxy = NULL) {
         else { if (is.finite(sml$P[i]) && sml$P[i] < 0.05) "a non-linear but age-independent effect" else "no clear effect" }), ""), collapse = "; "))
     out[[length(out) + 1]] <- item("4. Does selective disappearance or appearance shape the curve?",
       paste0(paste(bits[nzchar(bits)], collapse = ". "), "."),
-      if (is.null(proxy)) "Open the Selective disappearance tab and press 'Compare proxy forms': it compares no proxy, linear, smooth and age-dependent forms on the same records." else paste("Comparison:", paste(unlist(proxy$texts), collapse = " ")))
+      if (is.null(proxy)) "Open the Selective disappearance tab and press 'Compare proxy forms': it compares no proxy, linear, smooth and age-dependent forms on the same records."
+      else paste(c("Comparison:", unlist(proxy$texts), gamm_proxy_refit(proxy, prox, pf, r$afr_form %||% "none")), collapse = " "))
   }
   # 5. the pattern
   out[[length(out) + 1]] <- item("5. What is the pattern of ageing?",

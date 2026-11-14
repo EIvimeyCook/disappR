@@ -10,6 +10,9 @@
   AIC gain (out-of-sample tests on simulated data). It now uses the AIC of the marginal likelihood, as step 5's mixed
   models and gamm4 do (identical to lme4's AIC for the same model). The group and shape comparisons, which compare
   smooth structures, keep mgcv's AIC, as in the published analyses they replicate.
+* The GAMM guide asks for a refit when the proxy comparison supports another form than the one fitted (for example an
+  age-dependent ALR term when a linear one was fitted: under age-dependent selective disappearance a linear term leaves
+  the curve biased in shape, about 10% from the truth in the simulations against 1-3% with the age-dependent term).
 * The exported step-5 R script runs to the end when no covariates are mapped (its figure section selected a column
   named "").
 * **Choosing a trait applies the paper's model for it.** In bundled files with several traits (Tsui et al. 2026 body

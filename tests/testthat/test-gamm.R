@@ -250,3 +250,18 @@ test_that("the guided reading and the check summary answer for the fitted model"
   expect_true(attr(cs, "overall") %in% c("good", "caution", "problem"))
   expect_true(all(nzchar(cs[["What to do"]])))
 })
+
+test_that("negative binomial comparisons with many levels use gamm4 with theta fixed from the REML fit", {
+  skip_if_not_installed("gamm4")
+  set.seed(5)
+  d <- do.call(rbind, lapply(1:340, function(i) { a <- 1:sample(3:7, 1); u <- rnorm(1, 0, 0.3)
+    data.frame(id = i, age = a, trait = rnbinom(length(a), mu = exp(1 + 0.2 * a - 0.03 * a^2 + u), size = 2)) }))
+  gd <- gamm_gd_of(d, covars = character(0))
+  s <- utils::modifyList(gamm_defaults(), list(family = "nb", k = 5))
+  s2 <- gamm_prepare_comparison(gd, s)
+  expect_true(is.finite(s2$nb_theta) && s2$nb_theta > 0.5 && s2$nb_theta < 8)
+  pr <- gamm_parametric_reference(gd, s)
+  expect_identical(attr(pr, "engine"), "gamm4")
+  expect_true(all(is.finite(pr$AIC)))
+  expect_false(identical(pr$Model[[1]], "No age effect"))
+})

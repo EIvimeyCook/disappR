@@ -265,7 +265,9 @@ gamm_g4_compatible <- function(s, structure = s$structure, proxy_form = s$proxy_
   # covariate x age interactions become ti() only for numeric covariates (categorical ones are handled by group curves)
   ca <- s$cov_age %||% character(0)
   if (!is.null(gd)) ca <- ca[vapply(ca, function(v) v %in% names(gd) && is.numeric(gd[[v]]) && length(unique(gd[[v]])) >= 5, logical(1))]
-  gamm_has_gamm4() && s$family %in% c("gaussian", "poisson", "binomial", "Gamma") && (s$individual %||% "ri") %in% c("ri", "rs", "none") &&
+  # negative binomial: only with theta fixed (gamm_nb_theta), as lme4 cannot estimate it within gamm4
+  fam_ok <- s$family %in% c("gaussian", "poisson", "binomial", "Gamma") || (identical(s$family, "nb") && is.finite(s$nb_theta %||% NA_real_))
+  gamm_has_gamm4() && fam_ok && (s$individual %||% "ri") %in% c("ri", "rs", "none") &&
     !"ti" %in% c(proxy_form, afr_form) && structure %in% c("G", "GI", "I") && !isTRUE(s$ar1) && !isTRUE(s$select) && !length(ca)
 }
 
@@ -297,6 +299,20 @@ gamm_fast_threshold <- function() {
 # One engine for every model of a comparison, so that their AICs are comparable: gamm4 only if all the models allow it.
 # fast_ok: comparisons (fitted by ML) use gamm4 from GAMM_FAST_LEVELS random-effect levels, not only from GAMM_G4_IND
 # individuals.
+# Negative binomial comparisons with many random-effect levels: ML fits in mgcv can take hours, so theta is estimated
+# once from the REML fit of the model as set and then held fixed, which lets gamm4 (lme4) fit every compared model.
+# AICs remain comparable because every model shares the same theta.
+gamm_nb_theta <- function(gd, s) {
+  r <- tryCatch(gamm_fit(gd, utils::modifyList(s, list(nb_theta = NULL, engine = "auto"))), error = function(e) NULL)
+  th <- tryCatch(as.numeric(r$fit$family$getTheta(TRUE)), error = function(e) NA_real_)
+  if (length(th) == 1 && is.finite(th) && th > 0) th else NA_real_
+}
+gamm_prepare_comparison <- function(gd, s, fast_ok = TRUE) {
+  if (identical(s$family, "nb") && isTRUE(fast_ok) && !is.finite(s$nb_theta %||% NA_real_) && gamm_has_gamm4() &&
+      isTRUE(gamm_re_levels(gd, s) > gamm_fast_threshold())) s$nb_theta <- gamm_nb_theta(gd, s)
+  s
+}
+
 gamm_set_engine <- function(gd, s, specs, fast_ok = FALSE) {
   # count records and individuals as a single fit would: those complete for the model's variables
   keep <- tryCatch(gamm_common_rows(gd, list(gamm_formula(s, gd)), s$family), error = function(e) rep(TRUE, nrow(gd)))
@@ -404,6 +420,7 @@ gamm_fit <- function(gd, s, method = s$method, structure = s$structure, proxy_fo
   if (identical(engine, "bam") && fam %in% c("gaulss")) engine <- "gam"
   f <- stats::as.formula(f_str)
   famobj <- gamm_family_obj(fam)
+  if (identical(engine, "gamm4") && identical(fam, "nb")) famobj <- MASS::negative.binomial(theta = s$nb_theta)
   if (identical(fam, "gaulss")) f <- list(f, stats::as.formula(paste("~", gamm_age_smooth(s, k = min(s$k, 6L)))))
   rho <- 0
   fit <- NULL; mer <- NULL; err <- NULL
@@ -1073,6 +1090,7 @@ gamm_lrt <- function(a, b, label) {
 # G (one shape, groups differ in level) against I (a separate curve per group).
 gamm_group_comparison <- function(gd, s, progress = NULL) {
   s <- utils::modifyList(gamm_defaults(), s)
+  s <- gamm_prepare_comparison(gd, s)
   if (!nzchar(s$group %||% "") || !s$group %in% names(gd)) return(list(ok = FALSE, message = "Choose a grouping variable first."))
   structs <- GAMM_STRUCTURES
   # with many random-effect levels, G, GI and I are fitted with gamm4 (fast); GS and S need mgcv (sz and linked smooths)
@@ -1111,6 +1129,7 @@ gamm_group_comparison <- function(gd, s, progress = NULL) {
 # age-dependent (ti) proxy; then the same for AFR. Returns a verdict for the summary page.
 gamm_proxy_comparison <- function(gd, s, progress = NULL) {
   s <- utils::modifyList(gamm_defaults(), s)
+  s <- gamm_prepare_comparison(gd, s)
   out <- list(ok = TRUE, tables = list(), verdicts = character(0), texts = character(0))
   sets <- list()
   if (!identical(s$proxy, "none")) sets[[s$proxy]] <- "proxy"
@@ -1177,6 +1196,7 @@ gamm_naive_vs_corrected <- function(gd, r) {
 # Is a smooth needed? The same model with linear, quadratic and cubic age against the smooth (ML, same records).
 gamm_parametric_reference <- function(gd, s) {
   s <- utils::modifyList(gamm_defaults(), s)
+  s <- gamm_prepare_comparison(gd, s)
   # one common age effect for every model (structure G: the group main effect stays), so the smooth is compared with the
   # polynomials like for like; whether groups need their own curves is the Groups comparison
   s$structure <- "G"

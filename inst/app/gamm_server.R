@@ -699,6 +699,7 @@ output$gamm_next_ui <- renderUI({
 # the first time in a session (a short notification afterwards), and a note kept above the results.
 gamm_fast_plan <- reactive({
   gd <- safe_get(gamm_gd()); s <- gamm_settings()
+  if (identical(s$family, "nb")) s$nb_theta <- 1   # placeholder: comparisons estimate theta first (gamm_prepare_comparison)
   if (is.null(gd) || !nrow(gd)) return(NULL)
   lv <- safe_get(gamm_re_levels(gd, s)) %||% NA_real_
   list(levels = lv,
@@ -742,7 +743,7 @@ gamm_fast_text <- function() {
     p("Results can therefore differ from an mgcv comparison of the same data. To use mgcv anyway, choose the bam engine under Advanced options on the Fit tab (this can be slow). The methods draft records which method was used."))
 }
 gamm_fast_box <- function() div(class = "caution-box", style = "margin-top:8px;", icon("bolt"),
-  " Fitted with gamm4 (fast method for many random-effect levels): models compared by gamm4's likelihood; the age-dependent form is s(age, by = proxy); group structures GS and S not fitted. Results can differ from mgcv. ",
+  " Fitted with gamm4 (fast method for many random-effect levels): models compared by gamm4's likelihood; the age-dependent form is s(age, by = proxy); group structures GS and S not fitted; for the negative binomial family, theta is held at the estimate of the model as fitted. Results can differ from mgcv. ",
   actionLink("gamm_fast_more", "Why?"))
 gamm_fast_seen <- reactiveVal(FALSE)
 gamm_fast_disclaimer <- function() {

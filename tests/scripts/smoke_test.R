@@ -485,7 +485,8 @@ local({
   raw$cnt <- ifelse(stats::runif(nrow(raw)) < 0.3, 0L, stats::rnbinom(nrow(raw), size = 2, mu = exp(2 - 0.15 * raw$age)))
   map <- list(id = "ID", age = "age", trait = "y", alr = "__AUTO_LAST__", life = "lifespan", entry = "__AUTO_FIRST__",
               condition = "", covars = "treat", cov_factor = "treat", cov_int = character(0), group = "sire", group2 = "family",
-              nested = TRUE, random = character(0), censor = "", censor_value = "", age_round = NA_real_, cov_age = character(0))
+              nested = TRUE, random = character(0), censor = "", censor_value = "", age_round = NA_real_, cov_age = character(0),
+              inconsistent = "exclude")   # IDs repeat (i %% 50): two individuals can share family, sire and ID by chance
   b <- check("0.9.4 three-level standardise", standardise_data(raw, map))
   if (is.null(b)) return(invisible(NULL))
   n_true <- nrow(unique(raw[, c("family", "sire", "ID")]))

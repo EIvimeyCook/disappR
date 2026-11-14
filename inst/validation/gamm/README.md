@@ -188,10 +188,11 @@ example's settings and each trait's own covariates.
 | 9 | Malaria infection (binomial) | 3,197 / 3,197 | 5.47 / 5.35 | <0.001 / <0.001 |
 | 11 | Provisioning rate (Gaussian) | 1,004 / 1,004 | 1.55 / 1.55 | 0.009 / 0.009 |
 | 12 | Annual reproductive success (Poisson) | 5,176 / 5,176 | 9.66 / 9.61 | <0.001 / <0.001 |
-| 13 | Annual survival (binomial) | 5,174 / 5,174 | 2.28 / 2.20 | 0.051 / 0.052 |
+| 13 | Annual survival (binomial) | 5,174 / 5,098 | 2.28 / 2.25 | 0.051 / 0.051 |
 
 Every conclusion about the age smooth and the lifespan, ALR and AFR terms agrees. The one-record differences are the
-bird with a blank observer, which disappR treats as missing. Differences in edf come from the engine (bam for large
+bird with a blank observer, which disappR treats as missing. For survival, the example leaves out the 76 records whose
+previous-year status is 'dead' (none survived: complete separation), which brings the age smooth closer to the published one. Differences in edf come from the engine (bam for large
 data) and, for reproductive success, from using the ages of first and last reproduction where the authors used the
 calendar years (the version with ages, refitted with the authors' code, gives edf 9.65).
 

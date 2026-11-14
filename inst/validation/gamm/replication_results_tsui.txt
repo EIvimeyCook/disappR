@@ -45,6 +45,6 @@ Model 13: annual survival (binomial; no bird random effect, no proxy)
 Warning message:
 In newton(lsp = lsp, X = G$X, y = G$y, Eb = G$Eb, UrS = G$UrS, L = G$L,  :
   Fitting terminated with step failure - check results carefully
-  (b) disappR engine (gam)            5174 rows  age smooth edf  2.203  stat     6.78  p 0.052     
+  (b) disappR engine (gam)            5098 rows  age smooth edf  2.253  stat     6.96  p 0.051     
 
 Replication script finished without errors.

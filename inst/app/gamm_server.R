@@ -505,11 +505,12 @@ output$gamm_proxy_verdict <- renderUI({
 })
 output$gamm_proxy_tables <- renderUI({
   z <- gamm_proxy_store()
-  if (is.null(z) || !isTRUE(z$ok)) return(p(class = "small-note", "Fits no, linear, smooth and age-dependent forms of each proxy by ML on the same records, and compares them by AIC."))
+  if (is.null(z) || !isTRUE(z$ok)) return(p(class = "small-note", "Fits no, linear, smooth and age-dependent forms of each proxy by ML on the same records, and compares them by marginal-likelihood AIC."))
   lapply(names(z$tables), function(p) {
     id <- paste0("gamm_proxy_tab_", p)
     output[[id]] <- renderTable(z$tables[[p]][, c("Model", "AIC", "dAIC", "Weight", "edf", "Records", "Status")], striped = TRUE, spacing = "xs")
-    tagList(h5(strong(p)), tableOutput(id))
+    tagList(h5(strong(p)), tableOutput(id),
+            p(class = "small-note", "AIC from the marginal likelihood (random effects integrated out), as in step 5: the AIC that mgcv reports is conditional on the random effects, which can absorb a property of the individual such as ALR or lifespan and so hide it."))
   })
 })
 gamm_naive_df <- reactive({

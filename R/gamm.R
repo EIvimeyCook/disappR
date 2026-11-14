@@ -492,6 +492,28 @@ gamm_aic <- function(r) {
   tryCatch(stats::AIC(if (!is.null(r$mer)) r$mer else r$fit), error = function(e) NA_real_)
 }
 
+# Marginal-likelihood AIC of an ML fit: 2 x the negative log marginal likelihood (mgcv's ML score, the random effects
+# and smooth wiggliness integrated out) plus 2 x the parameters as a mixed model counts them: unpenalised coefficients,
+# smoothing (variance) parameters, the scale and any family parameter. For gamm4 fits it is lme4's AIC, the same thing.
+# mgcv's AIC() is conditional on the estimated random effects, so an individual-level fixed term such as ALR or
+# lifespan, which the individual random intercepts can absorb almost for free, gains little conditional AIC however
+# strongly it is supported; comparisons of such terms use this criterion instead (as step 5's mixed models do).
+gamm_marginal_aic <- function(r) {
+  if (!isTRUE(r$ok)) return(NA_real_)
+  if (!is.null(r$mer)) return(gamm_aic(r))
+  fit <- r$fit
+  if (!identical(fit$method, "ML")) return(NA_real_)
+  tryCatch({
+    p_fix <- sum(fit$nsdf) + sum(vapply(fit$smooth, function(sm) {
+      nb <- sm$last.para - sm$first.para + 1
+      if (!length(sm$S)) return(nb)
+      nb - qr(Reduce(`+`, sm$S))$rank
+    }, numeric(1)))
+    n_par <- p_fix + length(fit$sp) + isTRUE(fit$scale.estimated) + if (grepl("^Negative Binomial|^Tweedie", fit$family$family %||% "")) 1 else 0
+    2 * as.numeric(fit$gcv.ubre) + 2 * n_par
+  }, error = function(e) NA_real_)
+}
+
 # ---------------------------------------------------------------------------
 # Summaries and checks
 # ---------------------------------------------------------------------------
@@ -1064,8 +1086,9 @@ gamm_difference <- function(r, n = 150) {
 # Comparisons (each fits all its models by ML to the same records)
 # ---------------------------------------------------------------------------
 
-gamm_compare_table <- function(fits, labels) {
-  tab <- data.frame(Model = labels, AIC = vapply(fits, gamm_aic, numeric(1)),
+gamm_compare_table <- function(fits, labels, criterion = c("conditional", "marginal")) {
+  criterion <- match.arg(criterion)
+  tab <- data.frame(Model = labels, AIC = vapply(fits, if (identical(criterion, "marginal")) gamm_marginal_aic else gamm_aic, numeric(1)),
                     edf = vapply(fits, function(r) if (isTRUE(r$ok)) sum(r$fit$edf) else NA_real_, numeric(1)),
                     `Deviance explained (%)` = vapply(fits, function(r) if (isTRUE(r$ok)) tryCatch(100 * gamm_num1(summary(r$fit, re.test = FALSE)$dev.expl), error = function(e) NA_real_) else NA_real_, numeric(1)),
                     Status = vapply(fits, function(r) if (isTRUE(r$ok)) "fitted" else r$message %||% "failed", character(1)),
@@ -1160,7 +1183,8 @@ gamm_proxy_comparison <- function(gd, s, progress = NULL) {
     names(fits) <- forms
     labs <- c(paste("No", p, "term"), paste("Linear", p), paste("Smooth", p),
               if (fast) paste0("Age-dependent ", p, ": s(age, by = ", p, ")") else paste0("Age-dependent ", p, ": ti(age, ", p, ")"))
-    tab <- gamm_compare_table(fits, labs)
+    # proxy terms are properties of the individual: compared by marginal-likelihood AIC (see gamm_marginal_aic)
+    tab <- gamm_compare_table(fits, labs, criterion = "marginal")
     tab$Records <- sum(rows)
     out$tables[[p]] <- tab
     out$fits[[p]] <- lapply(fits, function(r) if (isTRUE(r$ok)) tryCatch(gamm_tables(r)$smooth, error = function(e) NULL) else NULL)

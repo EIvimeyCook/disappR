@@ -5,7 +5,8 @@
 #      appearance, missingness and grouped data. Each dataset is fitted as a user would (ALR linear; AFR linear when
 #      entry ages differ), and compared with the truth: how far the GAMM curve is from the true within-individual
 #      trajectory (mean |D| %, as the app's 'deviation from truth' table), with and without the proxy term, against the
-#      best step-5 GLMM; the sign of the ALR term; and, for a subset, the verdict of the proxy comparison.
+#      best step-5 GLMM (and, under age-dependent selection, the GAMM with the age-dependent form ti(age, ALR)); the sign of
+#      the ALR term; and, for a subset, whether the proxy comparison names the simulated kind of selective disappearance.
 #   B. The 13 bundled examples that were analysed with parametric models (steps 1-6), through every GAMM option:
 #      proxy forms, AFR, known lifespan, individual random slopes or none, observation-level random effect, terminal
 #      record, numeric covariates as smooths, group structures G-I on a categorical covariate, the gamm4 and bam
@@ -88,10 +89,10 @@ line("==== A. The app's simulator: GAMM against the true trajectory ====")
 sc <- list()
 add <- function(...) sc[[length(sc) + 1]] <<- list(...)
 for (f in AGE_FUNCTIONS) for (sd in list(c("none", 1), c("independent", 1), c("independent", -1), c("dependent", 1), c("both", 1)))
-  add(trait = "mass", form = f, sd_type = sd[1], sd_dir = as.numeric(sd[2]), cmp = identical(f, "Quadratic"))
+  add(trait = "mass", form = f, sd_type = sd[1], sd_dir = as.numeric(sd[2]), cmp = f %in% c("Quadratic", "Logarithmic"))
 for (f in AGE_FUNCTIONS) for (sd in list(c("none", 1), c("independent", 1), c("both", -1)))
   add(trait = "count_pois", form = f, sd_type = sd[1], sd_dir = as.numeric(sd[2]), cmp = identical(f, "Quadratic"))
-for (sd in c("none", "independent", "both")) add(trait = "count_nb", form = "Quadratic", sd_type = sd, sd_dir = 1, cmp = FALSE)
+for (sd in c("none", "independent", "both")) add(trait = "count_nb", form = "Quadratic", sd_type = sd, sd_dir = 1, cmp = TRUE)
 for (sd in c("none", "both")) add(trait = "count_zinb", form = "Quadratic", sd_type = sd, sd_dir = 1, cmp = FALSE)
 for (sd in c("none", "both")) add(trait = "paper", form = "Quadratic", sd_type = sd, sd_dir = 1, cmp = FALSE)
 for (sa in c("independent", "dependent")) add(trait = "mass", form = "Quadratic", sd_type = "independent", sd_dir = 1, afr_mode = "individual", sa_type = sa, cmp = TRUE)
@@ -119,10 +120,14 @@ sim_one <- function(i) {
   n <- fit_one(paste(label, "no proxy"), gd, utils::modifyList(s, list(proxy = "none", afr_form = "none")))
   out$errors <- c(a$errors, n$errors); out$broken <- c(a$broken, n$broken)
   if (!identical(a$status, "ok") || !identical(n$status, "ok")) { out$status <- paste(a$status, n$status, a$message %||% "", n$message %||% ""); return(out) }
+  # age-dependent selective disappearance: also the age-dependent form the proxy comparison points to, ti(age, ALR)
+  t <- if (cfg$sd_type %in% c("dependent", "both")) fit_one(paste(label, "ALR ti"), gd, utils::modifyList(s, list(proxy_form = "ti"))) else NULL
+  if (!is.null(t)) { out$errors <- c(out$errors, t$errors); out$broken <- c(out$broken, t$broken) }
   obs <- stats::aggregate(id ~ age, data = b$data[is.finite(b$data$trait), ], FUN = function(z) length(unique(z)))
   names(obs) <- c("age", "n")
   curves <- rbind(data.frame(age = (ca <- gamm_curve(a$r, by_proxy = FALSE))$age, fitted = ca$fit, Method = "GAMM with proxy"),
                   data.frame(age = (cn <- gamm_curve(n$r, by_proxy = FALSE))$age, fitted = cn$fit, Method = "GAMM without proxy"))
+  if (identical(t$status, "ok")) curves <- rbind(curves, data.frame(age = (ct <- gamm_curve(t$r, by_proxy = FALSE))$age, fitted = ct$fit, Method = "GAMM with ti(age, ALR)"))
   # the step-5 benchmark: the best of Models 1, 2 and 4 (with Model 7 when entry ages differ), with the true age function
   gl <- tryCatch(fit_model_suite(b$data, b$meta, c("M1", "M2", "M4", if (afr) "M7"), cfg$form, fam), error = function(e) e)
   if (inherits(gl, "error") || !isTRUE(gl$ok)) out$glmm <- "failed" else {
@@ -140,7 +145,7 @@ sim_one <- function(i) {
   if (cmp) {
     pc <- tryCatch(gamm_proxy_comparison(gd, s), error = function(e) e)
     if (inherits(pc, "error")) out$errors <- c(out$errors, paste(label, "| gamm_proxy_comparison:", conditionMessage(pc)))
-    else if (isTRUE(pc$ok)) out$verdict <- paste(names(pc$verdicts), pc$verdicts, sep = ": ", collapse = "; ")
+    else if (isTRUE(pc$ok)) { out$verdict <- paste(names(pc$verdicts), pc$verdicts, sep = ": ", collapse = "; "); out$alr_verdict <- pc$verdicts[["ALR"]] }
     nv <- tryCatch(gamm_naive_vs_corrected(gd, a$r), error = function(e) e)
     if (inherits(nv, "error")) out$errors <- c(out$errors, paste(label, "| gamm_naive_vs_corrected:", conditionMessage(nv)))
   }
@@ -154,8 +159,9 @@ for (x in RA) {
   all_errors <- c(all_errors, x$errors); all_broken <- c(all_broken, x$broken)
   if (!identical(x$status, "ok")) { line("  %s  NOT FITTED: %s", x$label, x$status %||% ""); next }
   dv <- x$dev
-  line("  %s | %s %4d rec %3ds | mean |D|%%: with proxy %5s, without %5s, %s %5s | ALR %+.3g (p %s)%s",
-       x$label, x$engine, x$n, x$secs, dv[["GAMM with proxy"]] %||% NA, dv[["GAMM without proxy"]] %||% NA, sprintf("GLMM %-3s", x$glmm),
+  line("  %s | %s %4d rec %3ds | mean |D|%%: with proxy %5s, without %5s%s, %s %5s | ALR %+.3g (p %s)%s",
+       x$label, x$engine, x$n, x$secs, dv[["GAMM with proxy"]] %||% NA, dv[["GAMM without proxy"]] %||% NA,
+       if (!is.null(dv[["GAMM with ti(age, ALR)"]])) sprintf(", ti %5s", dv[["GAMM with ti(age, ALR)"]]) else "", sprintf("GLMM %-3s", x$glmm),
        if (length(gi <- grep("^GLMM", names(dv)))) dv[[gi[1]]] else NA, x$alr[["est"]], format_p(x$alr[["p"]]),
        if (!is.null(x$verdict)) paste0(" | proxy comparison: ", x$verdict) else "")
 }
@@ -171,6 +177,20 @@ line("  With selective disappearance through lifespan (%d datasets): the ALR ter
 line("  Age-independent selective disappearance (%d datasets): ALR term in the simulated direction and p < 0.05 in %d.", length(sgn), sum(right))
 line("  GAMM with proxy minus best GLMM, mean |D| percentage points: median %.2f, range %.2f to %.2f (negative: the GAMM is closer).",
      stats::median(gam_v_glmm, na.rm = TRUE), min(gam_v_glmm, na.rm = TRUE), max(gam_v_glmm, na.rm = TRUE))
+dep <- Filter(function(x) x$sd_type %in% c("dependent", "both") && !is.null(x$dev[["GAMM with ti(age, ALR)"]]), ok)
+if (length(dep)) {
+  dl <- vapply(dep, function(x) x$dev[["GAMM with proxy"]], numeric(1)); dt <- vapply(dep, function(x) x$dev[["GAMM with ti(age, ALR)"]], numeric(1))
+  dg <- vapply(dep, function(x) { g <- grep("^GLMM", names(x$dev)); if (length(g)) x$dev[[g[1]]] else NA_real_ }, numeric(1))
+  line("  Age-dependent selective disappearance (%d datasets), median mean |D|%%: GAMM with linear ALR %.1f, with ti(age, ALR) %.1f, best GLMM %.1f.",
+       length(dep), stats::median(dl), stats::median(dt), stats::median(dg, na.rm = TRUE))
+}
+vv <- Filter(function(x) !is.null(x$alr_verdict), ok)
+if (length(vv)) {
+  want <- function(x) switch(x$sd_type, none = "none", independent = "age_independent", "age_dependent")
+  hit <- vapply(vv, function(x) identical(x$alr_verdict, want(x)), logical(1))
+  line("  Proxy comparison (marginal-likelihood AIC) gave the simulated kind of selective disappearance in %d of %d datasets%s.", sum(hit), length(vv),
+       if (any(!hit)) paste0(" (other: ", paste(vapply(vv[!hit], function(x) sprintf("%s %s -> %s", x$sd_type, x$trait, x$alr_verdict), character(1)), collapse = "; "), ")") else "")
+}
 line("")
 }
 

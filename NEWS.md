@@ -4,6 +4,12 @@
   when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
   a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
 * `launch_app.R` and `run_app()` also offer gamm4.
+* **GAMM proxy comparison by marginal-likelihood AIC.** The comparison of no, linear, smooth and age-dependent ALR,
+  lifespan or AFR terms used mgcv's AIC, which is conditional on the random effects: the individual random intercepts
+  absorb a property of the individual such as ALR, so strong age-independent selective disappearance could show no
+  AIC gain (out-of-sample tests on simulated data). It now uses the AIC of the marginal likelihood, as step 5's mixed
+  models and gamm4 do (identical to lme4's AIC for the same model). The group and shape comparisons, which compare
+  smooth structures, keep mgcv's AIC, as in the published analyses they replicate.
 * The exported step-5 R script runs to the end when no covariates are mapped (its figure section selected a column
   named "").
 * **Choosing a trait applies the paper's model for it.** In bundled files with several traits (Tsui et al. 2026 body

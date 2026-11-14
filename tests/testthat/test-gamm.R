@@ -286,3 +286,23 @@ test_that("each trait of a multi-trait example carries the paper's settings, and
     expect_true(EXAMPLES[[k]]$mapping$trait %in% names(EXAMPLES[[k]]$traits), info = k)
   }
 })
+
+test_that("the proxy comparison uses the marginal-likelihood AIC, which detects age-independent selective disappearance", {
+  skip_on_cran()
+  d <- simulate_toy_data(list(trait = "mass", form = "Quadratic", sd_type = "independent", sd_dir = 1, n_id = 200, seed = 107))
+  b <- standardise_data(d, toy_mapping(d)); gd <- gamm_data(b$data, b$meta)
+  s <- utils::modifyList(gamm_defaults(), list(family = "gaussian"))
+  rows <- gamm_common_rows(gd, list(gamm_formula(s, gd, proxy_form = "none"), gamm_formula(s, gd, proxy_form = "linear")), "gaussian")
+  f0 <- gamm_fit(gd, s, method = "ML", proxy_form = "none", rows = rows)
+  f1 <- gamm_fit(gd, s, method = "ML", proxy_form = "linear", rows = rows)
+  # the conditional AIC hardly rewards ALR (the individual intercepts absorb it); the marginal AIC clearly does
+  expect_lt(abs(gamm_aic(f0) - gamm_aic(f1)), 10)
+  expect_gt(gamm_marginal_aic(f0) - gamm_marginal_aic(f1), 50)
+  # and it is the AIC lme4 reports for the same models
+  if (gamm_has_gamm4()) {
+    g1 <- gamm_fit(gd, utils::modifyList(s, list(engine = "gamm4")), method = "ML", proxy_form = "linear", rows = rows)
+    expect_equal(gamm_marginal_aic(f1), gamm_aic(g1), tolerance = 1e-3)
+  }
+  expect_identical(gamm_proxy_comparison(gd, s)$verdicts[["ALR"]], "age_independent")
+  expect_true(is.na(gamm_marginal_aic(gamm_fit(gd, s))))     # REML fits have no marginal AIC
+})

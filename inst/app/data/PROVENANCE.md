@@ -22,6 +22,8 @@ without restriction. Cite the paper and the dataset when you use an example.
 | warner_2016_turtle_reproduction.csv | Warner et al. 2016, *PNAS* 113: 6502-6507 (10.1073/pnas.1600035113) | Dryad 10.5061/dryad.g2r87 | CC0 1.0 |
 | mckennaell_2023_soay_breeding_survival.csv, mckennaell_2023_soay_offspring_weight.csv | McKenna-Ell et al. 2023, *Biol. Lett.* (10.1098/rsbl.2023.0050) | Dryad 10.5061/dryad.stqjq2c7s | CC0 1.0 |
 | szejnersigal_2025_bee_activity.csv | Szejner-Sigal et al. 2025, *Proc. R. Soc. B* (10.1098/rspb.2024.2637) | Dryad 10.5061/dryad.j9kd51cq3 | CC0 1.0 |
+| sanghvi_2021_beetle_flight.csv | Sanghvi, Zajitschek, Iglesias-Carrasco & Head 2021, *Evol. Ecol.* 35: 367-385 (10.1007/s10682-021-10115-y) | The authors' workbook (sheet 'Long format data flight'; OSF project 2dp8r), provided by the first author for disappR; density, sex and experiment recoded to words (dev/prepare_sanghvi2021_beetles.R) | provided by the authors |
+| sanghvi_2021_beetle_fecundity.csv | the same | sheet 'Long format fecundity'; as above | provided by the authors |
 | tsui_2026_warbler_body_mass.csv | Tsui, Briga, Komdeur, Burke, Richardson & Dugdale 2026, *Evol. Lett.* 10: 506-520 (10.1093/evlett/qrag029) | Zenodo 10.5281/zenodo.21101620 (physio_28_5.csv; columns selected, lifespan also given in years) | CC BY 4.0 (attribution: cite the paper and the dataset) |
 | tsui_2026_warbler_oxidative.csv | Tsui et al. 2026, *Evol. Lett.* 10: 506-520 (10.1093/evlett/qrag029), models 5-6 | Zenodo 10.5281/zenodo.21101620 (oxy_28_5.csv; columns selected; catch time converted to minutes; lifespan also in years) (dev/prepare_tsui_traits.R) | CC BY 4.0 |
 | tsui_2026_warbler_blood.csv | the same, models 7-8 | haematocrit_28_5.csv; as above | CC BY 4.0 |

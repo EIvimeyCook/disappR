@@ -656,6 +656,9 @@ observeEvent(list(input$data_source, input$example_id), disappr_guard("gamm exam
   if (!is.null(g$afr_form)) updateSelectInput(session, "gamm_afr_form", selected = g$afr_form)
   if (!is.null(g$individual)) updateSelectInput(session, "gamm_individual", selected = g$individual)
   updateCheckboxInput(session, "gamm_olre", value = isTRUE(g$olre))
+  # group curves (for example sex or a treatment) as in the published analysis; no grouping otherwise
+  updateSelectInput(session, "gamm_group", selected = g$group %||% "")
+  if (!is.null(g$structure)) updateSelectInput(session, "gamm_structure", selected = g$structure)
 }), ignoreInit = TRUE)
 
 # ---- guidance: a hint for the proxy settings, and suggested next steps after a fit ---------------------------------

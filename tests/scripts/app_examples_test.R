@@ -72,7 +72,7 @@ shiny::testServer(app, {
     g <- ex$gamm %||% list()
     session$setInputs(gamm_family = gamm_suggest_family(ex$family %||% "gaussian"), gamm_k = g$k %||% 10, gamm_individual = g$individual %||% "ri",
                       gamm_proxy = g$proxy %||% "ALR", gamm_proxy_form = g$proxy_form %||% "linear", gamm_afr_form = g$afr_form %||% "none",
-                      gamm_olre = isTRUE(g$olre), gamm_terminal = FALSE, gamm_group = "", gamm_engine = "auto", gamm_covars = TRUE,
+                      gamm_olre = isTRUE(g$olre), gamm_terminal = FALSE, gamm_group = g$group %||% "", gamm_structure = g$structure %||% "I", gamm_engine = "auto", gamm_covars = TRUE,
                       gamm_random = TRUE, gamm_cov_smooth = FALSE, gamm_ar1 = FALSE, gamm_show_data = "means", gamm_age_bins = 8)
     stage(ex_id, "GAMM fit"); session$setInputs(gamm_fit = sample.int(1e6, 1))
     r7 <- gamm_store()

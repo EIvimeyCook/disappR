@@ -42,4 +42,5 @@ w(data.frame(BirdID = r$BirdID, parent_age = r$parent_age, ars = r$ars, minrepro
 s <- utils::read.csv(file.path(src, "survival_model.csv"), stringsAsFactors = FALSE)
 s <- s[s$age > 0 & !is.na(s$SexEstimate), , drop = FALSE]                                  # as the authors' model13.R
 w(data.frame(BirdID = s$BirdID, age = s$age, survival = s$survival, SexEstimate = s$SexEstimate, avg_bug = s$avg_bug, yearlytq = s$yearlytq,
-             statbefore = s$statbefore, occasionyear = s$occasionyear, birthyear = s$birthyear), "tsui_2026_warbler_survival.csv")
+             statbefore = s$statbefore, occasionyear = s$occasionyear, birthyear = s$birthyear,
+             yearlytq_10k = s$yearlytq / 1e4), "tsui_2026_warbler_survival.csv")   # territory quality in units of 10,000: the raw scale (~80,000) stops glmmTMB

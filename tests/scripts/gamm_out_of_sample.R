@@ -126,7 +126,7 @@ sim_one <- function(i) {
   # the step-5 benchmark: the best of Models 1, 2 and 4 (with Model 7 when entry ages differ), with the true age function
   gl <- tryCatch(fit_model_suite(b$data, b$meta, c("M1", "M2", "M4", if (afr) "M7"), cfg$form, fam), error = function(e) e)
   if (inherits(gl, "error") || !isTRUE(gl$ok)) out$glmm <- "failed" else {
-    best <- gl$aic$Model[[1]]
+    best <- sub("^Model ", "M", gl$aic$Model[[1]])   # the AIC table holds labels ("Model 2"), the fits ids ("M2")
     pc <- tryCatch(predict_population_curve(gl$fits[[best]], gl, sort(unique(c(ca$age)))), error = function(e) NULL)
     if (is.data.frame(pc) && nrow(pc)) curves <- rbind(curves, data.frame(age = pc$age, fitted = pc$fitted, Method = paste0("GLMM (", best, ")")))
     out$glmm <- best
@@ -219,7 +219,7 @@ ex_one <- function(key) {
   for (nm in names(cmp)) {
     t1 <- Sys.time(); x <- tryCatch(cmp[[nm]](), error = function(e) e); secs <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
     if (inherits(x, "error")) { out$errors <- c(out$errors, sprintf("%s | %s comparison: %s", key, nm, conditionMessage(x))); next }
-    txt <- if (is.data.frame(x)) paste("best:", x$Model[[1]]) else if (isTRUE(x$ok)) (if (!is.null(x$verdict)) x$verdict else paste(x$texts, collapse = " ")) else paste("message:", x$message)
+    txt <- if (is.data.frame(x)) paste("best:", x$Model[[1]]) else if (isTRUE(x$ok)) (if (!is.null(x[["verdict"]])) x[["verdict"]] else paste(x$texts, collapse = " ")) else paste("message:", x$message)
     out$rows <- c(out$rows, sprintf("    %-40s %6.1fs %s", paste(nm, "comparison"), secs, substr(txt, 1, 160)))
   }
   if (!is.null(res$default)) {

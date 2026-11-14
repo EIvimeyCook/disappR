@@ -77,9 +77,10 @@ tab and changes nothing in steps 1-6.
   - Pedersen et al.'s (2019) group structures for sex or treatment;
   - basis, concurvity and residual checks;
   - R code to reproduce the fit.
-- **Examples:** Tsui et al. (2026) and Brown et al. (2021) open with their
-  published GAMM settings. `inst/validation/gamm/` replicates both from the
-  authors' code.
+- **Examples:** Tsui et al. (2026), Brown et al. (2021), Cooper et al. (2021),
+  Lalande et al. (2022) and Sanghvi et al. (2021) open with their published GAMM
+  settings. `inst/validation/gamm/` replicates them from the authors' code or
+  published results.
 
 GAMMs with many individuals are much faster with an optimised BLAS (for example
 OpenBLAS on Linux, or the Accelerate BLAS that R for macOS can use). The app
@@ -251,10 +252,12 @@ as a CSV.
 
 ## Example data
 
-Thirteen published datasets are bundled. Each opens with settings that follow
-its paper as closely as the app allows, except the great tit data, which open on
-laying date (the trait analysed in Sanghvi et al. 2026) rather than the traits in
-Bouwhuis et al. 2009:
+Twenty-seven published datasets from 17 studies are bundled. Each opens with
+settings that follow its paper as closely as the app allows, except the great tit
+data, which open on laying date (the trait analysed in Sanghvi et al. 2026) rather
+than the traits in Bouwhuis et al. 2009.
+
+For steps 1-6 (mixed models):
 
 - Sanghvi et al. 2025, *American Naturalist* — *Drosophila melanogaster* daily fecundity
 - Sanghvi et al. 2022, *Evolution* — seed beetle female fecundity
@@ -269,6 +272,18 @@ Bouwhuis et al. 2009:
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep breeding probability and offspring survival
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep offspring birth weight
 - Szejner-Sigal et al. 2025, *Proc. R. Soc. B* — alfalfa leafcutting bee locomotor activity
+
+Published GAMM analyses (these also open step 7 with the paper's GAMM settings):
+
+- Tsui et al. 2026, *Evolution Letters* — Seychelles warbler: body mass, wing length, tarsus and fat score; oxidative damage and antioxidant capacity; haematocrit and white blood cells; malaria infection; chick provisioning; annual reproductive success; annual survival (12 of the paper's 13 models)
+- Brown et al. 2021, *Ecology and Evolution* — Seychelles warbler haematocrit
+- Cooper et al. 2021, *American Naturalist* — superb fairy-wren offspring and survival (females, males)
+- Lalande et al. 2022, *Journal of Evolutionary Biology* — Asian elephant body mass by sex
+- Sanghvi et al. 2021, *Evolutionary Ecology* — seed beetle flight ability and propensity, and daily fecundity
+
+In files with several traits (Tsui et al. 2026; Sanghvi et al. 2021 flight),
+choosing another trait on the Data tab applies the paper's model for that trait:
+its covariates, the family in step 5 and the GAMM settings in step 7.
 
 Sources and licence details for each dataset are listed in
 [`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md).

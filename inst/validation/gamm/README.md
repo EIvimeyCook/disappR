@@ -194,3 +194,19 @@ Every conclusion about the age smooth and the lifespan, ALR and AFR terms agrees
 bird with a blank observer, which disappR treats as missing. Differences in edf come from the engine (bam for large
 data) and, for reproductive success, from using the ages of first and last reproduction where the authors used the
 calendar years (the version with ages, refitted with the authors' code, gives edf 9.65).
+
+## Replication: Sanghvi et al. 2021, *Evol. Ecol.*: seed beetles (`replication_results_beetles.txt`, `tests/scripts/gamm_replication_beetles.R`)
+
+The paper compared group-specific age curves with one shared curve (beetle and container random effects, adult
+lifespan as a fixed term), by AIC.
+
+| Trait | Published | mgcv refit (ML) | disappR group comparison |
+|---|---|---|---|
+| Fecundity of mated females, by density | density-specific best, dAIC 27.5 | Gaussian: density-specific better by 26.7 (24.2 with lifespan) | GS best; one curve (G) 28.3 worse |
+| Flying ability of virgins, by sex | sex-specific best, dAIC 21.8 (ordinal family) | Gaussian: sex-specific better by 36.0 | GI best; G 26.2 worse |
+| Flying propensity of virgins, by sex | sex-specific best, dAIC 118 | negative binomial: sex-specific better by 94.2 | GI best; G 72.0 worse |
+
+All three conclusions replicate. The fecundity result holds with a Gaussian family; with a Poisson or negative binomial
+family one shared curve fits as well, so the published model was presumably Gaussian, and the example uses it.
+Flying ability is ordinal in the paper (mgcv's ocat family, not offered by disappR) and continuous here. The flight
+comparisons ran in fast mode (gamm4; GS and S not fitted) because the two flight examples have 377 beetles.

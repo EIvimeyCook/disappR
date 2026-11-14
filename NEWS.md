@@ -9,6 +9,10 @@
   score (in the body-mass file), 12 of the paper's 13 GAMMs can be run; all 12 replicate the authors' code
   (inst/validation/gamm/README.md).
 * A GAMM without an individual random effect is no longer sent to gamm4 because of the number of individuals.
+* **Seed-beetle examples** (Sanghvi et al. 2021, Evol. Ecol.): flight ability and flight propensity of virgins with
+  curves by sex, and daily fecundity of mated females with curves by developmental density, all with known lifespan.
+  The published group comparisons replicate (inst/validation/gamm/README.md). Example GAMM settings can now set the
+  grouping variable and structure.
 * **Ages on a continuous scale no longer freeze the hazard panel.** With ages computed from dates (the elephant
   example), the life table had hundreds of age classes and its frailty test ran for hours. Above 60 classes it now uses
   about 40 equal intervals, the frailty model is skipped on very large person-occasion tables (the GLM test stands),

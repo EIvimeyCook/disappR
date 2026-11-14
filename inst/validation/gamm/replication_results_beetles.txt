@@ -1,0 +1,18 @@
+==== Fecundity of mated females by developmental density (published: density-specific curves best, dAIC 27.5) ====
+  (a) mgcv::gam (ML, gaussian, no lifespan term), 751 records: one shared curve AIC 4063.8; density-specific curves AIC 4037.2; dAIC 26.7 in favour of density-specific curves
+  (a) mgcv::gam (ML, gaussian, lifespan term), 742 records: one shared curve AIC 4003.1; density-specific curves AIC 3978.9; dAIC 24.2 in favour of density-specific curves
+  (a) mgcv::gam (ML, negative binomial, lifespan term), 742 records: one shared curve AIC 3811.1; density-specific curves AIC 3815.3; dAIC 4.2 in favour of one shared curve
+  (b) disappR group comparison (gam, gaussian family): GS +0.0, GI +2.3, S +3.5, I +4.1, G +28.3
+      GS is best supported and G is more than 2 AIC worse: the groups appear to age differently.
+
+==== Flying ability of virgins by sex (published: sex-specific trajectories best, dAIC 21.8, ordinal family) ====
+  (a) mgcv::gam (ML, gaussian, lifespan term), 3221 records: one shared curve AIC 5898.3; sex-specific curves AIC 5862.3; dAIC 36.0 in favour of sex-specific curves
+  (b) disappR group comparison (gamm4, gaussian family): GI +0.0, I +8.8, G +26.2
+      GI is best supported and G is more than 2 AIC worse: the groups appear to age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS and S need mgcv and were not fitted.)
+
+==== Flying propensity of virgins by sex (published: sex-specific trajectories best, dAIC 118) ====
+  (a) mgcv::gam (ML, negative binomial, lifespan term), 3220 records: one shared curve AIC 10822.8; sex-specific curves AIC 10728.5; dAIC 94.2 in favour of sex-specific curves
+  (b) disappR group comparison (gamm4, nb family): GI +0.0, I +1.9, G +72.0
+      GI is best supported and G is more than 2 AIC worse: the groups appear to age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS and S need mgcv and were not fitted.)
+
+Replication script finished without errors.

@@ -53,6 +53,8 @@ shiny::testServer(app, {
                       start_mode = m$start_mode %||% "afr", start_age = m$start_age %||% NA, age_round = m$age_round %||% NA,
                       visual_proxy = "ALR", dist_var = m$trait, n_bins = 4, bin_method = "equal", a3_function = ex$age_function %||% "Quadratic",
                       b2_functions = c("Linear", "Quadratic"), heat_order = "alr", heat_n = 500)
+    # an example's subset (e.g. virgin beetles only) is set as the app sets it, through the subset controls
+    session$setInputs(subset_var = ex$subset$var %||% "", subset_levels = ex$subset$levels %||% character(0))
     d <- tryCatch(dat(), error = function(e) NULL)
     if (is.null(d) || !nrow(d)) { problems <<- c(problems, sprintf("[%s] the data did not load", ex_id)); next }
     stage(ex_id, "steps 1-4"); touch(output, step1_4, ex_id)

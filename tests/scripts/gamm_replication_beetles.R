@@ -13,17 +13,17 @@ for (f in c("utils.R", "provenance.R", "simulation.R", "import.R", "validation.R
 errors <- character(0)
 line <- function(...) cat(..., "\n", sep = "")
 rd <- function(f) utils::read.csv(file.path("inst", "app", "data", f), stringsAsFactors = TRUE)
-authors <- function(label, trait, age, grp, d, fam, k = 8) {
+authors <- function(label, trait, age, grp, d, fam, k = 8, lifespan = TRUE) {
   d$id <- factor(d$id); d$container <- factor(d$container)
-  re <- "+ lifespan + s(id, bs = 're') + s(container, bs = 're')"
+  re <- paste(if (lifespan) "+ lifespan", "+ s(id, bs = 're') + s(container, bs = 're')")
   f_shared <- sprintf("%s ~ s(%s, k = %d) + %s %s", trait, age, k, grp, re)
   f_group <- sprintf("%s ~ s(%s, by = %s, k = %d) + %s %s", trait, age, grp, k, grp, re)
   fits <- lapply(list(shared = f_shared, group = f_group), function(f)
     tryCatch(gam(stats::as.formula(f), data = d, family = fam, method = "ML"), error = function(e) { errors <<- c(errors, paste(label, conditionMessage(e))); NULL }))
   if (any(vapply(fits, is.null, logical(1)))) return(invisible(NULL))
   a <- vapply(fits, stats::AIC, numeric(1))
-  line(sprintf("  (a) mgcv::gam (ML), %d records: one shared curve AIC %.1f; %s-specific curves AIC %.1f; dAIC %.1f in favour of %s",
-               nrow(fits$shared$model), a[["shared"]], grp, a[["group"]], abs(diff(a)), if (a[["group"]] < a[["shared"]]) paste0(grp, "-specific curves") else "one shared curve"))
+  line(sprintf("  (a) mgcv::gam (ML, %s%s), %d records: one shared curve AIC %.1f; %s-specific curves AIC %.1f; dAIC %.1f in favour of %s",
+               fam$family, if (lifespan) ", lifespan term" else ", no lifespan term", nrow(fits$shared$model), a[["shared"]], grp, a[["group"]], abs(diff(a)), if (a[["group"]] < a[["shared"]]) paste0(grp, "-specific curves") else "one shared curve"))
 }
 app <- function(label, id) {
   ex <- disappr_example(id)
@@ -42,6 +42,8 @@ virgins <- beetles[beetles$mating == "Virgin", , drop = FALSE]
 fec <- rd("sanghvi_2021_beetle_fecundity.csv")
 
 line("==== Fecundity of mated females by developmental density (published: density-specific curves best, dAIC 27.5) ====")
+authors("fecundity", "eggs", "day", "density", fec, gaussian(), lifespan = FALSE)
+authors("fecundity", "eggs", "day", "density", fec, gaussian())
 authors("fecundity", "eggs", "day", "density", fec, nb())
 app("fecundity", "sanghvi2021_fecundity")
 line("")

@@ -4,6 +4,8 @@
   when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
   a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
 * `launch_app.R` and `run_app()` also offer gamm4.
+* The exported step-5 R script runs to the end when no covariates are mapped (its figure section selected a column
+  named "").
 * **Choosing a trait applies the paper's model for it.** In bundled files with several traits (Tsui et al. 2026 body
   mass, oxidative status and blood files; the Sanghvi et al. 2021 flight file), picking another trait on the Data tab
   sets that trait's published covariates, the step-5 family and the GAMM settings of step 7 (family, k, lifespan as

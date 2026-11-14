@@ -223,7 +223,8 @@ plot_code_lines <- function(res, meta) {
     "library(ggplot2)",
     paste0("make_basis <- function(age) ", basis, "  # the same age transformation as above"),
     paste0("fits <- list(", paste(sprintf("%s = %s", q(model_label(fitted)), tolower(fitted)), collapse = ", "), ")"),
-    paste0("covariates <- c(", paste(q(covs), collapse = ", "), ")"),
+    # no covariates: an empty vector (q() of nothing would give c(""), a column that does not exist)
+    paste0("covariates <- ", if (length(covs)) paste0("c(", paste(q(covs), collapse = ", "), ")") else "character(0)"),
     "population_curve <- function(fit, dat, ages) {",
     "  ind <- dat[!duplicated(dat$id), , drop = FALSE]",
     "  fac <- covariates[!vapply(ind[covariates], is.numeric, logical(1))]",

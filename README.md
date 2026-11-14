@@ -306,9 +306,7 @@ cat(disappr_code(fit, x))     # R code that reproduces the analysis
 ```
 
 The exported script reads `your_data.csv` by default, so write your data to that
-file or pass a name as the third argument. Its figure section expects at least
-one mapped covariate; without one, run the model-fitting part of the script on
-its own.
+file or pass a name as the third argument.
 
 | Function | Purpose |
 | :------- | :------ |

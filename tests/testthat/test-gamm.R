@@ -265,3 +265,24 @@ test_that("negative binomial comparisons with many levels use gamm4 with theta f
   expect_true(all(is.finite(pr$AIC)))
   expect_false(identical(pr$Model[[1]], "No age effect"))
 })
+
+test_that("each trait of a multi-trait example carries the paper's settings, and every preset names real columns", {
+  tp <- example_trait_preset(EXAMPLES$tsui_mass, "FatScore")
+  expect_identical(tp$family, "poisson")
+  expect_identical(tp$gamm$k, 15)
+  expect_identical(tp$gamm$proxy, "LS")                     # inherited from the example
+  expect_false("RightTarsus_z" %in% tp$covars)
+  expect_setequal(tp$cov_factor, c("newstat", "SexEstimate"))
+  expect_identical(example_trait_preset(EXAMPLES$tsui_mass, "WingLength_z")$gamm$proxy_form, "smooth")
+  expect_identical(example_trait_preset(EXAMPLES$sanghvi2021_flight, "propensity")$family, "nbinom2")
+  expect_identical(gamm_suggest_family(example_trait_preset(EXAMPLES$sanghvi2021_flight, "propensity")$family), "nb")
+  # the example's own trait gives the example's settings; a column the paper did not analyse gives none
+  expect_identical(example_trait_preset(EXAMPLES$tsui_malaria, "TestResult")$gamm, EXAMPLES$tsui_malaria$gamm)
+  expect_null(example_trait_preset(EXAMPLES$tsui_mass, "BodyMass"))
+  for (k in names(EXAMPLES)) for (tr in names(EXAMPLES[[k]]$traits)) {
+    ex <- disappr_example(k)
+    p <- example_trait_preset(EXAMPLES[[k]], tr)
+    expect_true(all(c(tr, p$covars) %in% names(ex$data)), info = paste(k, tr))
+    expect_true(EXAMPLES[[k]]$mapping$trait %in% names(EXAMPLES[[k]]$traits), info = k)
+  }
+})

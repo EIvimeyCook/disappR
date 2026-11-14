@@ -343,11 +343,16 @@ EXAMPLES <- list(
                           cov_factor = c("sex", "density"), random = "container"),
     family = "gaussian", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
     gamm = list(k = 8, proxy = "LS", proxy_form = "linear", individual = "ri", afr_form = "none", group = "cv_sex", structure = "I"),
+    traits = list(
+      ability = list(family = "gaussian", gamm = list(k = 8, group = "cv_sex", structure = "I"),
+                     model = "flying ability: sex-specific curves, Gaussian (the paper's ordinal family is not offered)"),
+      propensity = list(family = "nbinom2", gamm = list(k = 8, group = "cv_sex", structure = "I"),
+                        model = "flying propensity: sex-specific curves, negative binomial")),
     note = paste("Virgin seed beetles reared at high or low larval density, tested for flight every second day until death (adult lifespan known",
                  "for every beetle). The paper fitted GAMMs (mgcv) with beetle and container as random effects and lifespan as a fixed term,",
                  "and compared group-specific against shared curves by AIC. Flying ability is ordinal (1-4); the paper used mgcv's ordered",
                  "categorical family, which disappR does not offer, so here it is analysed as a continuous score (an approximation).",
-                 "For propensity choose 'propensity' as the trait and a count family. Mated females (subset 'mating') were tested only until day 8.", "Data: Sanghvi et al. 2021 (authors\u0027 workbook; OSF project 2dp8r). ")),
+                 "Choosing 'propensity' as the trait applies the propensity model (negative binomial). Mated females (subset 'mating') were tested only until day 8.", "Data: Sanghvi et al. 2021 (authors\u0027 workbook; OSF project 2dp8r). ")),
   sanghvi2021_propensity = list(
     label = "Sanghvi et al. 2021, Evolutionary Ecology \u2014 seed beetle (flight propensity of virgins; GAMMs by sex)",
     about = list(species = "Seed beetle (Callosobruchus maculatus), laboratory population",
@@ -361,6 +366,11 @@ EXAMPLES <- list(
                           cov_factor = c("sex", "density"), random = "container"),
     family = "nbinom2", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
     gamm = list(k = 8, proxy = "LS", proxy_form = "linear", individual = "ri", afr_form = "none", group = "cv_sex", structure = "I"),
+    traits = list(
+      ability = list(family = "gaussian", gamm = list(k = 8, group = "cv_sex", structure = "I"),
+                     model = "flying ability: sex-specific curves, Gaussian (the paper's ordinal family is not offered)"),
+      propensity = list(family = "nbinom2", gamm = list(k = 8, group = "cv_sex", structure = "I"),
+                        model = "flying propensity: sex-specific curves, negative binomial")),
     note = paste("The same virgin beetles as the flight-ability example: the number of flight actions per trial, recorded every second day.",
                  "Counts are overdispersed (many zeros, some large values), so a negative binomial family is used.", "Data: Sanghvi et al. 2021 (authors\u0027 workbook; OSF project 2dp8r). ")),
   sanghvi2021_fecundity = list(
@@ -393,11 +403,23 @@ EXAMPLES <- list(
                           cov_factor = c("newstat", "SexEstimate"), random = c("birthyear", "Observer")),
     family = "gaussian", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
     gamm = list(k = 15, proxy = "LS", proxy_form = "linear", individual = "ri", afr_form = "none"),
+    # the paper's model for each trait in the file (Tsui et al. 2026, Models 1-4): choosing the trait on the Data tab applies it
+    traits = list(
+      BodyMass_z = list(covars = c("RightTarsus_z", "newstat", "SexEstimate", "CatchTime_mins", "avg_invert"), family = "gaussian",
+                        gamm = list(k = 15, proxy_form = "linear"), model = "Model 1: BodyMass_z ~ s(age, k = 15) + lifespan"),
+      WingLength_z = list(covars = c("RightTarsus_z", "newstat", "SexEstimate", "avg_invert"), family = "gaussian",
+                          gamm = list(k = 15, proxy_form = "smooth"), model = "Model 2: WingLength_z ~ s(age, k = 15) + s(lifespan)"),
+      RightTarsus_z = list(covars = c("SexEstimate", "avg_invert", "newstat"), family = "gaussian",
+                           gamm = list(k = 10, proxy_form = "smooth"), model = "Model 3: RightTarsus_z ~ s(age, k = 10) + s(lifespan)"),
+      FatScore = list(covars = c("SexEstimate", "newstat", "avg_invert", "CatchTime_mins"), family = "poisson",
+                      gamm = list(k = 15, proxy_form = "linear"), model = "Model 4: FatScore ~ s(age, k = 15) + lifespan, Poisson")),
     note = paste("Morphology of individually ringed Seychelles warblers caught 1981-2022, with each bird\u0027s lifespan (in years",
                  "here; days in newlifespan). The paper fitted generalized additive mixed models in mgcv to 13 traits, with a smooth of",
                  "age, lifespan as a linear term, these covariates and random intercepts for bird, birth cohort and observer, and",
                  "located the onset of ageing from the derivative of the age smooth. Open step 7 (GAMMs): the example sets the",
-                 "published settings (k = 15, known lifespan, linear). Sex-specific curves were compared as models G, GS and S.",
+                 "published settings (k = 15, known lifespan, linear). Choosing another trait (WingLength_z, RightTarsus_z or FatScore) on the Data",
+                 "tab applies the paper\u0027s model for it: its covariates, family (Poisson for the fat score), k and lifespan form.",
+                 "Sex-specific curves were compared as models G, GS and S.",
                  "Lifespan is known for every bird in this file. Data: Zenodo 10.5281/zenodo.21101620 (CC BY 4.0). ")),
   tsui_oxidative = list(
     label = "Tsui et al. 2026, Evolution Letters \u2014 Seychelles warbler (oxidative damage and antioxidants; GAMMs)",
@@ -412,9 +434,12 @@ EXAMPLES <- list(
                           random = "birthyear"),
     family = "gaussian", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
     gamm = list(k = 10, proxy = "LS", proxy_form = "smooth", individual = "ri", afr_form = "none"),
+    traits = list(
+      sum_roms_z = list(family = "gaussian", gamm = list(k = 10, proxy_form = "smooth"), model = "Model 5: sum_roms_z ~ s(age, k = 10) + s(lifespan)"),
+      sum_oxy_z = list(family = "gaussian", gamm = list(k = 10, proxy_form = "linear"), model = "Model 6: sum_oxy_z ~ s(age, k = 10) + lifespan")),
     note = paste("Blood oxidative status of Seychelles warblers: ROMs (oxidative damage) and OXY (antioxidant capacity), both z-scored.",
                  "The paper's models: sum_roms_z ~ s(age, k = 10) + s(lifespan) and sum_oxy_z ~ s(age, k = 10) + lifespan, with the covariates",
-                 "and random intercepts for bird and birth year. For OXY choose sum_oxy_z as the trait and enter lifespan as linear in step 7.", "Data: Zenodo 10.5281/zenodo.21101620 (CC BY 4.0). ")),
+                 "and random intercepts for bird and birth year. Choosing sum_oxy_z as the trait applies the OXY model (lifespan linear in step 7).", "Data: Zenodo 10.5281/zenodo.21101620 (CC BY 4.0). ")),
   tsui_blood = list(
     label = "Tsui et al. 2026, Evolution Letters \u2014 Seychelles warbler (haematocrit and white blood cells; GAMMs)",
     about = list(species = "Seychelles warbler (Acrocephalus sechellensis), Cousin Island",
@@ -428,9 +453,12 @@ EXAMPLES <- list(
                           random = c("birthyear", "Observer")),
     family = "gaussian", age_function = "Quadratic", models = c("M1", "M2", "M4", "M6"),
     gamm = list(k = 15, proxy = "LS", proxy_form = "smooth", individual = "ri", afr_form = "none"),
+    traits = list(
+      Cells_z = list(family = "gaussian", gamm = list(k = 15, proxy_form = "smooth"), model = "Model 7: Cells_z ~ s(age, k = 15) + s(lifespan)"),
+      wbc_z = list(family = "gaussian", gamm = list(k = 15, proxy_form = "linear"), model = "Model 8: wbc_z ~ s(age, k = 15) + lifespan")),
     note = paste("Haematocrit (Cells_z) and white blood cell fraction (wbc_z) of Seychelles warblers. The paper's models: Cells_z ~ s(age, k = 15)",
                  "+ s(lifespan) and wbc_z ~ s(age, k = 15) + lifespan, with the covariates and random intercepts for bird, birth year and observer.",
-                 "For white blood cells choose wbc_z as the trait and enter lifespan as linear in step 7. Brown et al. 2021 (the haematocrit",
+                 "Choosing wbc_z as the trait applies the white blood cell model (lifespan linear in step 7). Brown et al. 2021 (the haematocrit",
                  "example) analysed an earlier subset of these birds.", "Data: Zenodo 10.5281/zenodo.21101620 (CC BY 4.0). ")),
   tsui_malaria = list(
     label = "Tsui et al. 2026, Evolution Letters \u2014 Seychelles warbler (malaria infection; GAMMs)",
@@ -577,6 +605,19 @@ EXAMPLES <- list(
                  "under 'Separate curves for a group'. Lifespan is the age at death for elephants that died (others alive or",
                  "unknown). Data: Dryad 10.5061/dryad.5dv41ns59 (CC0); code Zenodo 10.5281/zenodo.6460236. "))
 )
+
+# The published settings for one trait of a bundled example: the example's own settings, overridden by the entry for
+# that trait in its 'traits' list (files with several traits, e.g. Tsui et al. 2026 and Sanghvi et al. 2021, where each
+# trait had its own covariates, family and GAMM settings). NULL when the trait has no published model in the example.
+example_trait_preset <- function(ex, trait) {
+  if (is.null(ex) || !length(trait) || !nzchar(trait %||% "")) return(NULL)
+  tr <- ex$traits[[trait]]
+  if (is.null(tr)) { if (identical(trait, ex$mapping$trait)) tr <- list() else return(NULL) }
+  covars <- tr$covars %||% ex$mapping$covars
+  list(trait = trait, covars = covars, cov_factor = intersect(tr$cov_factor %||% ex$mapping$cov_factor, covars),
+       family = tr$family %||% ex$family %||% "gaussian", gamm = utils::modifyList(ex$gamm %||% list(), tr$gamm %||% list()),
+       model = tr$model %||% "", listed = !is.null(ex$traits[[trait]]))
+}
 
 # Listed by first-author surname, as in the manuscript's reference list. Labels begin "Surname et al. YEAR,",
 # so sorting them is the surname order; radix keeps it identical on every locale.

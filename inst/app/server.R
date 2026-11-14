@@ -508,6 +508,26 @@ server <- function(input, output, session) {
           paste(input$subset_levels %||% character(0), collapse = ","), sep = "|")
   })
 
+  # Bundled files with several traits (Tsui et al. 2026, Sanghvi et al. 2021): choosing a trait applies the paper's model
+  # for it, its covariates here and its family and GAMM settings (steps 5 and 7, through the observers that read
+  # example_trait_preset). Only for traits the paper analysed; other columns leave the settings as they are.
+  observeEvent(input$col_trait, disappr_guard("trait preset", {
+    if (!identical(input$data_source %||% "toy", "example")) return(invisible(NULL))
+    ex <- current_example()
+    if (!length(ex$traits)) return(invisible(NULL))
+    tp <- example_trait_preset(ex, input$col_trait)
+    if (is.null(tp)) return(invisible(NULL))
+    cols <- names(safe_get(raw_data()) %||% data.frame())
+    cv <- intersect(tp$covars, cols); fac <- intersect(tp$cov_factor, cv)
+    if (!setequal(cv, unique(c(input$col_cov_num, input$col_cov_fac))) || !setequal(fac, input$col_cov_fac %||% character(0))) {
+      updateSelectizeInput(session, "col_cov_num", selected = setdiff(cv, fac))
+      updateSelectizeInput(session, "col_cov_fac", selected = fac)
+    }
+    if (isTRUE(tp$listed) && !identical(input$col_trait, ex$mapping$trait))
+      notify(sprintf("The published settings for %s were applied (%s): covariates here, the family in step 5 and the GAMM settings in step 7.",
+                     input$col_trait, tp$model), type = "message", duration = 8)
+  }), ignoreInit = TRUE)
+
   # Sensible defaults whenever the data change: family and model selection. The data signature is compared with the
   # previous one, so settings that leave the analysed data unchanged (e.g. the binomial weights column chosen on the
   # Modelling tab) keep the user's family and model choices.
@@ -520,7 +540,8 @@ server <- function(input, output, session) {
     fam <- if (is_toy()) {
       toy_family(toy_cfg()$trait)
     } else if (!is.null(ex$family)) {
-      ex$family
+      # a file with several traits: the family the paper used for the chosen trait
+      (example_trait_preset(ex, input$col_trait %||% "") %||% ex)$family
     } else {
       integrity()$family$family
     }

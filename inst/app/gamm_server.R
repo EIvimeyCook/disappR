@@ -67,7 +67,10 @@ output$gamm_data_note <- renderUI({
 # support them well; bundled examples keep their published settings (see the end of this file).
 observeEvent(data_sig(), disappr_guard("gamm family suggestion", {
   # bundled examples use the family of their published analysis; other data the family suggested for the trait
-  ex_fam <- if (identical(input$data_source, "example")) safe_get(current_example()$family) else NULL
+  ex_fam <- if (identical(input$data_source, "example")) {
+    ex <- current_example(); tp <- example_trait_preset(ex, input$col_trait %||% "")
+    tp$gamm$family %||% tp$family %||% safe_get(ex$family)
+  } else NULL
   fam <- ex_fam %||% safe_get(integrity()$family$family)
   if (!is.null(fam)) updateSelectInput(session, "gamm_family", selected = gamm_suggest_family(fam))
   if (!identical(input$data_source, "example")) {
@@ -669,9 +672,11 @@ observeEvent(input$save_gamm_poly, disappr_guard("input$save_gamm_poly", {
 }))
 
 # ---- bundled examples with a published GAMM: set its settings when the example is chosen --------------------------
-observeEvent(list(input$data_source, input$example_id), disappr_guard("gamm example settings", {
+observeEvent(list(input$data_source, input$example_id, input$col_trait), disappr_guard("gamm example settings", {
   if (!identical(input$data_source, "example")) return(invisible(NULL))
-  g <- safe_get(current_example()$gamm)
+  # the GAMM settings of the published analysis; in files with several traits those of the chosen trait
+  ex <- current_example()
+  g <- (example_trait_preset(ex, input$col_trait %||% "") %||% list(gamm = safe_get(ex$gamm)))$gamm
   if (!is.list(g)) return(invisible(NULL))
   if (!is.null(g$k)) updateNumericInput(session, "gamm_k", value = g$k)
   if (!is.null(g$proxy)) updateSelectInput(session, "gamm_proxy", selected = g$proxy)

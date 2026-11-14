@@ -4,6 +4,10 @@
   when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
   a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
 * `launch_app.R` and `run_app()` also offer gamm4.
+* **Choosing a trait applies the paper's model for it.** In bundled files with several traits (Tsui et al. 2026 body
+  mass, oxidative status and blood files; the Sanghvi et al. 2021 flight file), picking another trait on the Data tab
+  sets that trait's published covariates, the step-5 family and the GAMM settings of step 7 (family, k, lifespan as
+  linear or smooth, group curves), so each published model can be rerun without looking up its settings.
 * **Six more Tsui et al. 2026 examples** (oxidative status, haematocrit and white blood cells, malaria, provisioning,
   annual reproductive success, annual survival), with the published GAMM settings. With wing length, tarsus and fat
   score (in the body-mass file), 12 of the paper's 13 GAMMs can be run; all 12 replicate the authors' code

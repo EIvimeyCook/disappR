@@ -10,8 +10,11 @@ app <- shiny::shinyAppDir(normalizePath(file.path("inst", "app")))
 eng <- new.env()
 for (f in c("utils.R", "provenance.R", "simulation.R", "import.R")) sys.source(file.path("R", f), envir = eng)
 EX <- get("EXAMPLES", eng)
+# every example, and in files with several traits each other trait the paper analysed (run as "example:trait", with
+# that trait's published covariates, family and GAMM settings, as choosing the trait on the Data tab applies them)
 ids <- commandArgs(trailingOnly = TRUE)
-if (!length(ids)) ids <- names(EX)
+if (!length(ids)) ids <- unlist(lapply(names(EX), function(k) c(k, paste(k, setdiff(names(EX[[k]]$traits), EX[[k]]$mapping$trait), sep = ":"))))
+trait_preset <- get("example_trait_preset", eng)
 problems <- character(0)
 stage <- function(ex, what) message(format(Sys.time(), "%H:%M:%S"), "  ", ex, ": ", what)
 touch <- function(output_env, names, ex) {
@@ -40,9 +43,11 @@ shiny::testServer(app, {
   session$setInputs(model_family = "gaussian", model_age_function = "Quadratic", random_structure = "none", among_order = "linear",
                     standardise = TRUE, include_invalid = FALSE)
   for (ex_id in ids) {
-    ex <- EX[[ex_id]]; m <- ex$mapping
+    ex_key <- sub(":.*", "", ex_id); ex <- EX[[ex_key]]; m <- ex$mapping
+    tp <- trait_preset(ex, if (grepl(":", ex_id)) sub(".*:", "", ex_id) else m$trait)
+    if (!is.null(tp)) { m$trait <- tp$trait; m$covars <- tp$covars; m$cov_factor <- tp$cov_factor; ex$family <- tp$family; ex$gamm <- tp$gamm }
     t0 <- Sys.time()
-    session$setInputs(data_source = "example", example_id = ex_id)
+    session$setInputs(data_source = "example", example_id = ex_key)
     cov <- m$covars %||% character(0); fac <- m$cov_factor %||% character(0)
     session$setInputs(col_id = m$id, col_age = m$age, col_trait = m$trait, col_alr = m$alr %||% "__AUTO_LAST__", col_entry = m$entry %||% "__AUTO_FIRST__",
                       col_life = m$life %||% "", col_condition = m$condition %||% "", col_cov_num = setdiff(cov, fac), col_cov_fac = intersect(fac, cov),

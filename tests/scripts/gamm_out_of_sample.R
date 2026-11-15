@@ -70,10 +70,35 @@ post_fit <- function(label, r, gd) {
   if (!nzchar(code) || inherits(tryCatch(parse(text = code), error = function(e) e), "error")) bad <- c(bad, paste(label, "| R code does not parse"))
   list(errors = err, broken = bad)
 }
+# Time limits as in the app, where fits run in a separate R process that is stopped after GAMM_TIMEOUT (300 s) and
+# comparisons after GAMM_COMPARE_TIMEOUT (here 1800 s): a fit beyond the limit is reported as TIMEOUT, not as an error.
+FIT_LIMIT <- as.numeric(Sys.getenv("DISAPPR_OOS_FIT_LIMIT", "300"))
+CMP_LIMIT <- as.numeric(Sys.getenv("DISAPPR_OOS_CMP_LIMIT", "1800"))
+GAMM_COMPARE_TIMEOUT_APP <- 3600
+# Each limited call runs in a forked process (as the app runs fits in a separate R process), killed at the limit:
+# setTimeLimit() cannot interrupt mgcv's compiled code.
+with_limit <- function(secs, expr) {
+  f <- function() expr
+  if (.Platform$OS.type != "unix") return(f())
+  job <- parallel::mcparallel(f(), silent = TRUE)
+  res <- parallel::mccollect(job, wait = FALSE, timeout = secs)
+  if (is.null(res)) {
+    tools::pskill(job$pid, tools::SIGKILL); parallel::mccollect(job, wait = FALSE)
+    stop("reached the time limit")
+  }
+  x <- res[[1]]
+  if (inherits(x, "try-error")) stop(attr(x, "condition") %||% simpleError(as.character(x)))
+  x
+}
+is_timeout <- function(e) inherits(e, "error") && grepl("time limit", conditionMessage(e))
+progress <- function(...) { message(format(Sys.time(), "%H:%M:%S "), sprintf(...)); flush(stderr()) }
 fit_one <- function(label, gd, s) {
   t0 <- Sys.time()
-  r <- tryCatch(gamm_fit(gd, s), error = function(e) e)
+  progress("start %s", label)
+  r <- tryCatch(with_limit(FIT_LIMIT, gamm_fit(gd, s)), error = function(e) e)
   secs <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+  progress("end   %s (%.0f s)", label, secs)
+  if (is_timeout(r)) return(list(label = label, status = "TIMEOUT", message = sprintf("stopped after %.0f s (the app stops a fit after %d s)", secs, as.integer(FIT_LIMIT)), secs = secs, errors = character(0)))
   if (inherits(r, "error")) return(list(label = label, status = "ERROR", errors = paste(label, "| gamm_fit:", conditionMessage(r)), secs = secs))
   if (!isTRUE(r$ok)) return(list(label = label, status = "message", message = r$message, secs = secs,
                                  errors = if (!is.character(r$message) || !nzchar(r$message)) paste(label, "| failed without a message") else character(0)))
@@ -238,6 +263,7 @@ ex_one <- function(key) {
   for (v in names(variants)) {
     f <- fit_one(paste(key, "|", v), gd, utils::modifyList(base, variants[[v]]))
     out$errors <- c(out$errors, f$errors); out$broken <- c(out$broken, f$broken)
+    if (identical(f$status, "TIMEOUT")) out$slow <- c(out$slow, paste(key, v))
     out$rows <- c(out$rows, sprintf("    %-40s %-7s %6.1fs %s", v, f$status, f$secs,
                                     if (identical(f$status, "ok")) sprintf("%s, %d rec, AIC %.1f", f$r$engine, f$r$n, gamm_aic(f$r)) else substr(f$message %||% "", 1, 110)))
     if (identical(v, "default (ALR linear)") && identical(f$status, "ok")) res$default <- f$r
@@ -246,7 +272,10 @@ ex_one <- function(key) {
   cmp <- list(shape = function() gamm_parametric_reference(gd, base), proxy = function() gamm_proxy_comparison(gd, base))
   if (length(grp)) cmp$groups <- function() gamm_group_comparison(gd, utils::modifyList(base, list(group = grp[[1]])))
   for (nm in names(cmp)) {
-    t1 <- Sys.time(); x <- tryCatch(cmp[[nm]](), error = function(e) e); secs <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
+    progress("start %s | %s comparison", key, nm)
+    t1 <- Sys.time(); x <- tryCatch(with_limit(CMP_LIMIT, cmp[[nm]]()), error = function(e) e); secs <- as.numeric(difftime(Sys.time(), t1, units = "secs"))
+    progress("end   %s | %s comparison (%.0f s)", key, nm, secs)
+    if (is_timeout(x)) { out$rows <- c(out$rows, sprintf("    %-40s %6.1fs TIMEOUT (the app allows comparisons %d s)", paste(nm, "comparison"), secs, as.integer(GAMM_COMPARE_TIMEOUT_APP))); out$slow <- c(out$slow, paste(key, nm, "comparison")); next }
     if (inherits(x, "error")) { out$errors <- c(out$errors, sprintf("%s | %s comparison: %s", key, nm, conditionMessage(x))); next }
     txt <- if (is.data.frame(x)) paste("best:", x$Model[[1]]) else if (isTRUE(x$ok)) (if (!is.null(x[["verdict"]])) x[["verdict"]] else paste(x$texts, collapse = " ")) else paste("message:", x$message)
     out$rows <- c(out$rows, sprintf("    %-40s %6.1fs %s", paste(nm, "comparison"), secs, substr(txt, 1, 160)))
@@ -288,6 +317,9 @@ line("  %d examples (%.0f min). ALR effect in the same direction as the GLMM in 
      length(RB), as.numeric(difftime(Sys.time(), t0, units = "mins")), sum(same, na.rm = TRUE), sum(is.finite(A[, "glmm"]) & is.finite(A[, "gamm"])), sum(sig_diff, na.rm = TRUE))
 line("  GAMM vs GLMM population curves: median correlation %.3f (lowest %.3f, %s).", stats::median(A[, "rho"], na.rm = TRUE),
      min(A[, "rho"], na.rm = TRUE), rownames(A)[which.min(A[, "rho"])])
+slow <- unlist(lapply(RB, function(x) x$slow))
+line("  Fits or comparisons beyond the time limit (%d s per fit, %d s per comparison): %s.", as.integer(FIT_LIMIT), as.integer(CMP_LIMIT),
+     if (length(slow)) paste(slow, collapse = "; ") else "none")
 }
 
 if (length(all_broken)) { cat("\nBROKEN INVARIANTS (", length(all_broken), "):\n  ", paste(all_broken, collapse = "\n  "), "\n", sep = "") }

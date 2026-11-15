@@ -5,7 +5,7 @@
 
 # Build stamp of the engine. The app (inst/app/global.R) carries the same stamp and refuses to start with an engine
 # whose stamp differs, for example an older installed disappR with the same version number still loaded in R.
-DISAPPR_BUILD <- "0.25.2-2026-11-15"
+DISAPPR_BUILD <- "0.25.2-2026-11-15b"
 
 AGE_FUNCTIONS <- c("Linear", "Quadratic", "Cubic", "Logarithmic", "Asymptotic exponential")
 

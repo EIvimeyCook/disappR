@@ -1,5 +1,9 @@
 # disappR 0.25.2
 
+* **GAMM step (7): shorter, self-guiding wording** (build stamp 0.25.2-2026-11-15b). The help boxes, tab guide, notes
+  and generated guide were rewritten to say what to fit, why and how to read it, each in one place (about half the
+  text). The guide now warns when an age-dependent proxy effect is found with a random intercept only, and asks for a
+  random slope or random smooth before it is interpreted (individual differences in ageing alone can produce it).
 * **New build stamp** (0.25.2-2026-11-15). Earlier 0.25.1 copies shared one stamp, so the app could not tell an engine
   from an earlier copy, installed or loaded in R, from the current one; it now stops with instructions if it finds one.
 * **Paper simulation: the Methods' 27 scenarios.** Step 1's paper simulation can now set the lifespan correlations of

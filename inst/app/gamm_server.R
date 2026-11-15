@@ -57,9 +57,8 @@ output$gamm_data_note <- renderUI({
       if (isTRUE(m$entry_mapped)) "from its column" else "is each individual's first recorded age",
       if (isTRUE(m$has_trials)) sprintf(" Binomial trials: column %s.", m$trials_col) else "")),
     if (nlevels(gd$id) > GAMM_G4_IND) div(class = "caution-box", sprintf(paste(
-      "%s individuals: GAMMs are fitted with gamm4 when the model allows it (Gaussian, Poisson, binomial or Gamma family; random",
-      "intercept or slope; one curve or a separate curve per group; no age-dependent proxy). Other models need mgcv::bam, which",
-      "with this many individuals can take many minutes and several GB of memory.%s"), format(nlevels(gd$id), big.mark = ","),
+      "%s individuals: fits use the fast gamm4 engine where possible (Gaussian, Poisson, binomial or Gamma; random intercept",
+      "or slope; no ti() proxy). Other models use mgcv::bam and can take many minutes.%s"), format(nlevels(gd$id), big.mark = ","),
       if (gamm_has_gamm4()) "" else " The gamm4 package is not installed: install.packages(\"gamm4\").")))
 })
 # Suggest the error family (from the data-integrity check of step 1) and the individual random effects when the data
@@ -82,17 +81,17 @@ output$gamm_family_hint <- renderUI({
   fam <- safe_get(integrity()$family$family); m <- safe_get(meta())
   hint <- if (!is.null(fam)) sprintf("Suggested for this trait: %s.", gamm_family_label(gamm_suggest_family(fam))) else NULL
   tri <- if (identical(input$gamm_family, "binomial") && !isTRUE(m$has_trials))
-    "Binomial without a trials column: the trait must be 0/1. For proportions, choose the trials column on the Modelling tab (step 5)." else NULL
+    "Binomial without a trials column: the trait must be 0/1 (for proportions, set the trials column in step 5)." else NULL
   if (is.null(hint) && is.null(tri)) return(NULL)
   p(class = "small-note", paste(c(hint, tri), collapse = " "))
 })
 output$gamm_individual_note <- renderUI({
   gd <- safe_get(gamm_gd()); if (is.null(gd) || !nrow(gd)) return(NULL)
   per <- table(gd$id)
-  msg <- if (identical(input$gamm_individual, "fs") && stats::median(per) < 4) "Most individuals have fewer than 4 records: a random smooth per individual is poorly supported; prefer a random intercept and slope."
-         else if (identical(input$gamm_individual, "fs") && length(per) > 300) sprintf("A random smooth for each of %s individuals can take several minutes to fit (and longer in the comparisons).", format(length(per), big.mark = ","))
-         else if (identical(input$gamm_individual, "none")) "Without an individual random effect, repeated records are treated as independent and intervals are too narrow."
-         else if (mean(per >= 3) >= 0.5 && length(per) >= 30) "Many individuals have 3 or more records: consider also a random slope or smooth, and compare the curves."
+  msg <- if (identical(input$gamm_individual, "fs") && stats::median(per) < 4) "Most individuals have fewer than 4 records: use a random intercept and slope instead."
+         else if (identical(input$gamm_individual, "fs") && length(per) > 300) sprintf("A random smooth for %s individuals can take several minutes to fit.", format(length(per), big.mark = ","))
+         else if (identical(input$gamm_individual, "none")) "Without individual random effects, intervals are too narrow."
+         else if (mean(per >= 3) >= 0.5 && length(per) >= 30) "Most individuals have 3+ records: also fit a random slope, especially before interpreting an age-dependent proxy."
          else NULL
   if (is.null(msg)) NULL else p(class = "small-note", msg)
 })
@@ -203,7 +202,7 @@ output$gamm_scale_ui <- renderUI({
   tagList(radioButtons("gamm_curve_scale", NULL, c("Population average (comparable with the observed means)" = "average",
                                                    "Typical individual (random effects at zero)" = "typical"),
                        isolate(input$gamm_curve_scale) %||% "average", inline = TRUE),
-          p(class = "small-note", "For counts and proportions the curve shown by default is the population average: the prediction averaged over the estimated random effects of every record, comparable with the observed means. The typical individual (random effects at zero, the median) can lie far from the data when individuals or years differ a lot, for example in survival with strong year effects."))
+          p(class = "small-note", "Population average: averaged over the random effects, comparable with the observed means. Typical individual: random effects at zero; can lie far from the data when individuals or years differ a lot."))
 })
 gamm_deriv_df <- reactive(gamm_derivative(gamm_res()))
 gamm_cautions_now <- reactive(gamm_cautions(gamm_res(), safe_get(gamm_kc()) %||% data.frame(), safe_get(gamm_cc()) %||% data.frame(),
@@ -385,10 +384,10 @@ observeEvent(input$gamm_run_re_test, disappr_guard("input$gamm_run_re_test", {
 }))
 output$gamm_re_test_note <- renderUI({
   z <- gamm_re_test_store()
-  if (is.null(z)) return(p(class = "small-note", style = "margin-top:8px;", "Optional: tests whether each random effect differs from zero (Wood 2013). The variance components above usually tell you enough."))
+  if (is.null(z)) return(p(class = "small-note", style = "margin-top:8px;", "Optional: tests each random effect against zero (Wood 2013); the SDs above usually suffice."))
   if (!identical(z$signature, gamm_sig())) return(div(class = "caution-box", "Settings changed since the test: run it again."))
   if (!isTRUE(z$ok)) return(div(class = "caution-box", z$message))
-  p(class = "small-note", style = "margin-top:8px;", "A small p-value means the random effect explains variation in the trait. Tests of variances against zero are on the boundary of the parameter space, so the p-values are approximate (conservative).")
+  p(class = "small-note", style = "margin-top:8px;", "Small p-value: the random effect explains variation. p-values are approximate (conservative).")
 })
 output$gamm_re_test_table <- renderTable({
   z <- gamm_re_test_store()
@@ -505,12 +504,12 @@ output$gamm_proxy_verdict <- renderUI({
 })
 output$gamm_proxy_tables <- renderUI({
   z <- gamm_proxy_store()
-  if (is.null(z) || !isTRUE(z$ok)) return(p(class = "small-note", "Fits no, linear, smooth and age-dependent forms of each proxy by ML on the same records, and compares them by marginal-likelihood AIC."))
+  if (is.null(z) || !isTRUE(z$ok)) return(p(class = "small-note", "Compares no, linear, smooth and age-dependent forms of each proxy (ML, same records)."))
   lapply(names(z$tables), function(p) {
     id <- paste0("gamm_proxy_tab_", p)
     output[[id]] <- renderTable(z$tables[[p]][, c("Model", "AIC", "dAIC", "Weight", "edf", "Records", "Status")], striped = TRUE, spacing = "xs")
     tagList(h5(strong(p)), tableOutput(id),
-            p(class = "small-note", "AIC from the marginal likelihood (random effects integrated out), as in step 5: the AIC that mgcv reports is conditional on the random effects, which can absorb a property of the individual such as ALR or lifespan and so hide it."))
+            p(class = "small-note", "Marginal-likelihood AIC, as in step 5."))
   })
 })
 gamm_naive_df <- reactive({
@@ -538,8 +537,8 @@ output$gamm_naive_plot <- renderPlot(gamm_naive_obj())
 
 # ---- groups -------------------------------------------------------------------------------------------------------
 output$gamm_groups_note <- renderUI({
-  if (!nzchar(gamm_settings()$group)) return(p(class = "small-note", "Choose 'Separate curves for a group' on the Fit tab (a categorical covariate such as sex, mapped on the Data tab) to compare trajectories between groups."))
-  p(class = "small-note", "Fits structures G, GS, GI, S and I by ML on the same records and compares them by AIC. Can take a minute.")
+  if (!nzchar(gamm_settings()$group)) return(p(class = "small-note", "Choose a grouping variable (e.g. sex) under 'Separate curves for a group' on the Fit tab."))
+  p(class = "small-note", "Compares structures G, GS, GI, S and I by AIC (ML, same records). Can take a minute.")
 })
 observeEvent(input$gamm_run_groups, disappr_guard("input$gamm_run_groups", {
   gd <- safe_get(gamm_gd()); s <- gamm_settings()
@@ -694,34 +693,34 @@ observeEvent(list(input$data_source, input$example_id, input$col_trait), disappr
 # ---- guidance: a hint for the proxy settings, and suggested next steps after a fit ---------------------------------
 output$gamm_proxy_hint <- renderUI({
   pr <- input$gamm_proxy %||% "ALR"; fm <- input$gamm_proxy_form %||% "linear"
-  txt <- c(switch(pr, ALR = "ALR: each individual's age at its last record (or the mapped ALR); keeps every individual.",
-                  LS = "Known lifespan: leaves out individuals whose lifespan is unknown (for example still alive).",
-                  none = "No proxy: the curve is the population trajectory, which selective disappearance can distort."),
+  txt <- c(switch(pr, ALR = "ALR keeps every individual.",
+                  LS = "Known lifespan drops individuals still alive.",
+                  none = "No proxy: selective disappearance can distort the curve."),
            if (!identical(pr, "none")) switch(fm,
-             linear = "Linear (like Model 2 of step 5): one number, the difference in the trait per year of the proxy, the same at every age. Age-independent selective disappearance: it shifts the curve's level, not its shape.",
-             smooth = "Smooth s(proxy): the trait may depend on the proxy non-linearly (for example only the shortest-lived differ), but still by the same amount at every age. Age-independent, like linear, only more flexible.",
-             vc = "Age-dependent, linear in the proxy, s(age, by = proxy): at any given age the trait changes linearly with the proxy, but the size of that change is a smooth function of age. The smooth analogue of Model 4 (age \u00d7 ALR): selection that grows or shrinks with age.",
-             ti = "Age-dependent, smooth in both, s(proxy) + ti(age, proxy): the proxy's effect may be non-linear and may change with age in any smooth way, a fully flexible age \u00d7 proxy surface. The most general form: needs plenty of data, is fitted with mgcv only, and can overfit."))
+             linear = "Linear (as Model 2): shifts the curve's level, same at every age.",
+             smooth = "Smooth: a non-linear effect, still the same at every age.",
+             vc = "Age-dependent (as Model 4, age \u00d7 ALR): the proxy's effect changes smoothly with age.",
+             ti = "Age-dependent and non-linear in the proxy: the most flexible; needs plenty of data (mgcv only)."))
   p(class = "small-note", paste(txt, collapse = " "))
 })
 output$gamm_next_ui <- renderUI({
   r <- safe_get(gamm_res()); if (is.null(r)) return(NULL)
   s <- r$settings; dd <- r$data; nxt <- character(0)
   kc <- safe_get(gamm_kc()) %||% data.frame()
-  if (nrow(kc) && any(kc$Flag != "")) nxt <- c(nxt, sprintf("Raise k (now %s) and refit: the basis check says the age smooth may be too stiff.", s$k))
+  if (nrow(kc) && any(kc$Flag != "")) nxt <- c(nxt, sprintf("Raise k (now %s) and refit: the basis check flags it.", s$k))
   lag1 <- gamm_lag1(gamm_resid(r), dd$id)
   per <- table(dd$id)
   if (is.finite(lag1) && lag1 > 0.3 && identical(s$individual, "ri"))
-    nxt <- c(nxt, if (stats::median(per) >= 5) "Try 'Random smooth per individual' or 'Random intercept and slope': residuals of the same individual are correlated, so individuals seem to age differently."
-                  else "Try 'Random intercept and slope': residuals of the same individual are correlated, so individuals seem to age at different rates.")
+    nxt <- c(nxt, if (stats::median(per) >= 5) "Try 'Random smooth per individual' or 'Random intercept and slope': individuals seem to age differently (correlated residuals)."
+                  else "Try 'Random intercept and slope': individuals seem to age at different rates (correlated residuals).")
   if (!identical(s$proxy, "none") && is.null(gamm_proxy_store()))
-    nxt <- c(nxt, "Open the Selective disappearance tab and press 'Compare proxy forms': it tests whether the proxy matters, and whether its effect changes with age.")
-  if (identical(s$proxy, "none")) nxt <- c(nxt, "Choose ALR (or known lifespan) as a proxy: without one the curve can be distorted by selective disappearance.")
+    nxt <- c(nxt, "Press 'Compare proxy forms' (Selective disappearance tab).")
+  if (identical(s$proxy, "none")) nxt <- c(nxt, "Choose ALR as a proxy: without one, selective disappearance can distort the curve.")
   ch <- safe_get(gamm_group_choices(meta(), gamm_gd())) %||% character(0)
-  if (length(ch) && !nzchar(s$group %||% "")) nxt <- c(nxt, sprintf("Your data have a grouping variable (%s): choose it under 'Separate curves for a group' to ask whether groups age differently.", paste(names(ch), collapse = ", ")))
-  if (nzchar(s$group %||% "") && is.null(gamm_groups_store())) nxt <- c(nxt, "Open the Groups tab and press 'Compare group structures'.")
-  if (is.null(gamm_poly_store())) nxt <- c(nxt, "On the Model output tab, read the step-by-step guide and press 'Is a smooth needed?': it compares no age, linear, quadratic and cubic age with the smooth.")
-  nxt <- c(nxt, "Read the Ageing rate tab for where the trait changes significantly with age, and save the results you will report.")
+  if (length(ch) && !nzchar(s$group %||% "")) nxt <- c(nxt, sprintf("To ask whether groups age differently, choose %s under 'Separate curves for a group'.", paste(names(ch), collapse = ", ")))
+  if (nzchar(s$group %||% "") && is.null(gamm_groups_store())) nxt <- c(nxt, "Press 'Compare group structures' (Groups tab).")
+  if (is.null(gamm_poly_store())) nxt <- c(nxt, "Read the GAMM guide on Model output and press 'Is a smooth needed?'.")
+  nxt <- c(nxt, "See Ageing rate for where the trait changes significantly, and save the results you will report.")
   div(class = "diagnosis-card", style = "border-left: 5px solid #7C8060;",
       div(class = "diagnosis-title", "Suggested next steps"),
       lapply(utils::head(nxt, 4), function(x) div(class = "diagnosis-detail", x)))
@@ -751,12 +750,12 @@ gamm_engine_note <- function(which) {
              if (isTRUE(s$ar1)) "AR1 errors", if (isTRUE(s$select)) "shrinkage selection")
     if (which == "groups" && !nzchar(s$group)) return(NULL)
     return(p(class = "small-note", style = "color:#B35806;", icon("hourglass-half"),
-      sprintf(" %s random-effect levels: this comparison needs mgcv because the model has %s, and may take a long time. For a fast comparison (gamm4), use 'Age-dependent, linear in the proxy' and a random intercept or slope.",
+      sprintf(" %s random-effect levels and %s: this comparison needs mgcv and may be slow. For speed (gamm4), use the s(age, by = proxy) form and a random intercept or slope.",
               format(pl$levels, big.mark = ","), if (length(why)) paste(why, collapse = " and ") else "terms gamm4 cannot fit")))
   }
   if (!isTRUE(pl[[which]])) return(NULL)
   p(class = "small-note", style = "color:#B35806;", icon("bolt"),
-    sprintf(" %s random-effect levels: this comparison will be fitted with gamm4, a faster method for many random-effect levels. Results can differ from mgcv; see the note that appears with the results.",
+    sprintf(" %s random-effect levels: this comparison uses the faster gamm4 engine (see the note with the results).",
             format(pl$levels, big.mark = ",")))
 }
 # shown until a comparison is run, and again once its results are out of date (data or settings changed)
@@ -766,17 +765,18 @@ output$gamm_engine_note_groups <- renderUI(if (gamm_note_due(gamm_groups_store()
 gamm_fast_text <- function() {
   lv <- safe_get(gamm_fast_plan()$levels) %||% NA_real_
   tagList(
-    p(sprintf("Your data have %s random-effect levels (individuals plus mapped random terms such as year, cohort or observer). With more than %d, comparing models with mgcv can take tens of minutes, so this comparison was fitted with gamm4, which handles random effects much faster.",
+    p(sprintf("Your data have %s random-effect levels (individuals, years, cohorts...). Above %d, mgcv comparisons can take tens of minutes, so this one used gamm4, which is much faster.",
               if (is.finite(lv)) format(lv, big.mark = ",") else "many", as.integer(GAMM_FAST_LEVELS))),
-    p(strong("What this changes")),
+    p(strong("What changes")),
     tags$ul(
-      tags$li("Models are compared by gamm4's marginal likelihood. The proxy comparison uses the marginal likelihood with mgcv too, so it usually reaches the same conclusion; the group and shape comparisons use mgcv's AIC with mgcv, and gamm4's likelihood is more cautious about extra smooth terms."),
-      tags$li("The age-dependent proxy form is s(age, by = proxy): the age curve tilts linearly with the proxy, rather than changing shape freely as with ti(age, proxy)."),
-      tags$li("Group structures GS and S cannot be fitted with gamm4 and are left out; G, GI and I are compared.")),
-    p("Results can therefore differ from an mgcv comparison of the same data. To use mgcv anyway, choose the bam engine under Advanced options on the Fit tab (this can be slow). The methods draft records which method was used."))
+      tags$li("AIC comes from gamm4's marginal likelihood; it is somewhat more cautious about extra smooth terms than mgcv."),
+      tags$li("The age-dependent proxy form is s(age, by = proxy); ti(age, proxy) is not available."),
+      tags$li("Group structures GS and S are left out (G, GI and I are compared)."),
+      tags$li("Negative binomial: theta is held at the fitted model's estimate.")),
+    p("To use mgcv anyway, choose the bam engine under Advanced options (slow). The methods draft records which was used."))
 }
 gamm_fast_box <- function() div(class = "caution-box", style = "margin-top:8px;", icon("bolt"),
-  " Fitted with gamm4 (fast method for many random-effect levels): models compared by gamm4's likelihood; the age-dependent form is s(age, by = proxy); group structures GS and S not fitted; for the negative binomial family, theta is held at the estimate of the model as fitted. Results can differ from mgcv. ",
+  " Fitted with the fast gamm4 engine; results can differ slightly from mgcv. ",
   actionLink("gamm_fast_more", "Why?"))
 gamm_fast_seen <- reactiveVal(FALSE)
 gamm_fast_disclaimer <- function() {

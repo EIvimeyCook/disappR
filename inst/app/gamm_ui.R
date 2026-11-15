@@ -5,11 +5,11 @@ gamm_tab_ui <- function() {
   tabItem(tabName = "gamm",
     page_title("Does a smooth model of age (GAMM) tell the same ageing story?"),
     guide_box("gamm",
-      goal = "Fit generalized additive mixed models (GAMMs; mgcv): the ageing trajectory is a smooth curve whose shape the data choose, rather than a function you pick. Use them to describe the shape of ageing, to locate where the trait rises and falls, and to check the conclusions of the parametric models of step 5. This step reads the data of step 1 and changes nothing in steps 1\u20136.",
-      start_with = "the settings on the Fit tab (the defaults suit most data) and press Fit GAMM. Read the curve, the plain-language summary and any cautions above it.",
-      then = "read the estimates and p-values of every term on Model output, then open Ageing rate (where the trait changes significantly with age, the peak and the onset of decline), Selective disappearance (do ALR, lifespan or AFR terms matter, and how far do they move the curve?), Groups (do the sexes or treatments age differently?) and Checks (basis size, concurvity, residuals).",
-      tip = "Save results to the summary as you go: each saved GAMM result is described in the methods draft of step 6.",
-      further = "ask whether a smooth is needed at all (no age, linear, quadratic or cubic age against the smooth, on Model output), fit a random smooth per individual, or add a terminal-record effect."),
+      goal = "Estimate the ageing curve without choosing its shape (a smooth of age), and check whether step 5's conclusions hold. Uses step 1's data; changes nothing in steps 1\u20136.",
+      start_with = "press Fit GAMM with the default settings and read the curve and summary.",
+      then = "follow the GAMM guide on Model output: is a curve needed, do ALR or AFR matter (Selective disappearance), do groups differ (Groups), is the model adequate (Checks), and where does the trait change (Ageing rate).",
+      tip = "Save results as you go; they appear in step 6's report and methods draft.",
+      further = "fit a random slope or random smooth per individual before trusting an age-dependent proxy effect, or add a terminal-record effect."),
     fluidRow(box(width = 12, status = "info", solidHeader = FALSE, uiOutput("gamm_data_note"))),
     tabBox(width = 12, id = "gamm_tabs",
       # ------------------------------------------------------------------ Fit
@@ -19,8 +19,8 @@ gamm_tab_ui <- function() {
             selectInput("gamm_family", "Error family", GAMM_FAMILIES, "gaussian"),
             uiOutput("gamm_family_hint"),
             conditionalPanel("input.gamm_family == 'poisson' || input.gamm_family == 'binomial'",
-              checkboxInput("gamm_olre", "Observation-level random effect (for overdispersed counts or proportions)", FALSE)),
-            numericInput("gamm_k", "Basis size k for age (upper limit on wiggliness)", 10, min = 3, max = 40, step = 1),
+              checkboxInput("gamm_olre", "Observation-level random effect (overdispersed counts or proportions)", FALSE)),
+            numericInput("gamm_k", "Basis size k (maximum wiggliness)", 10, min = 3, max = 40, step = 1),
             selectInput("gamm_individual", "Differences between individuals", GAMM_INDIVIDUAL, "ri"),
             uiOutput("gamm_individual_note"),
             h5(strong(info_title("Selective disappearance and appearance (how do I choose?)", "gamm_choose"))),
@@ -32,7 +32,7 @@ gamm_tab_ui <- function() {
             checkboxInput("gamm_terminal", "Terminal-record effect (last record before death)", FALSE),
             uiOutput("gamm_group_ui"),
             tags$details(class = "advanced-block",
-              tags$summary("Advanced options (defaults are fine for most analyses)"),
+              tags$summary("Advanced options (usually leave as they are)"),
               selectInput("gamm_engine", "Fitting engine", GAMM_ENGINES, "auto"),
               checkboxInput("gamm_covars", "Include the covariates mapped on the Data tab", TRUE),
               checkboxInput("gamm_cov_smooth", "Numeric covariates as smooths", FALSE),
@@ -62,7 +62,6 @@ gamm_tab_ui <- function() {
       tabPanel("Model output", icon = icon("table-list"),
         fluidRow(
           box(width = 12, title = info_title("Reading this GAMM, step by step", "gamm_guide"), status = "primary", solidHeader = TRUE,
-            p(class = "small-note", "The questions to ask of a GAMM, in order, answered for this fit. Each points to the table, comparison or tab that answers it in full."),
             uiOutput("gamm_guide_ui"))
         ),
         fluidRow(
@@ -78,7 +77,7 @@ gamm_tab_ui <- function() {
         ),
         fluidRow(
           box(width = 12, title = info_title("Is a smooth needed? No age, straight line, polynomial or smooth", "gamm_poly"), status = "primary", solidHeader = TRUE,
-            p(class = "small-note", "Refits the model with no age term, with linear, quadratic and cubic age (the functions of step 5) and with the smooth, all by maximum likelihood on the same records, and compares them by AIC. With many individuals the fits use gamm4 and take seconds to minutes; the progress bar shows the elapsed time."),
+            p(class = "small-note", "Does the smooth beat no age, linear, quadratic or cubic age (step 5's functions)? Compared by AIC on the same records."),
             actionButton("gamm_run_poly", "Compare: no age, linear, quadratic, cubic and smooth", class = "btn-default", icon = icon("scale-balanced")),
             uiOutput("gamm_engine_note_poly"),
             uiOutput("gamm_poly_reading"),
@@ -97,7 +96,7 @@ gamm_tab_ui <- function() {
       tabPanel("Ageing rate", icon = icon("arrow-trend-down"),
         fluidRow(
           box(width = 12, title = info_title("Where does the trait change with age?", "gamm_deriv"), status = "info", solidHeader = TRUE,
-            p(class = "small-note", "Simultaneous 95% intervals: they hold for the whole curve at once, so a period where the interval excludes zero is a reliable period of change."),
+            p(class = "small-note", "Where the 95% interval excludes zero, the trait changes significantly with age."),
             fluidRow(
               column(7, plotOutput("gamm_deriv_plot", height = 380)),
               column(5, h5(strong("Periods of significant change")), tableOutput("gamm_periods_table"),
@@ -117,7 +116,7 @@ gamm_tab_ui <- function() {
             uiOutput("gamm_proxy_tables"),
             save_button("save_gamm_proxy")),
           box(width = 7, title = "How far do the proxy terms move the curve?", status = "info", solidHeader = TRUE,
-            p(class = "small-note", "The population curve without any ALR, lifespan or AFR term (what a naive analysis shows) and the fitted model's curve, on the same records. A gap means that which individuals remain at each age shapes the naive curve. With a random intercept for each individual and many records per individual, a linear proxy changes the curve little, because the individual intercepts already absorb differences in level; an age-dependent proxy (or random slopes) is what removes a distortion of shape."),
+            p(class = "small-note", "The curve without ALR, lifespan or AFR terms (a naive analysis) against the fitted model's curve. A gap means selective disappearance or appearance distorts the naive curve. A linear proxy often changes it little, because individual random intercepts already absorb level differences."),
             plotOutput("gamm_naive_plot", height = 380),
             look_for("whether the two curves differ in shape (age-dependent selective disappearance) or only in level (age-independent)."))
         )
@@ -131,13 +130,13 @@ gamm_tab_ui <- function() {
               div(class = "info-more-body", tags$table(class = "table table-condensed small-note",
                 tags$thead(tags$tr(tags$th("Structure"), tags$th("What it assumes"), tags$th("In mgcv"), tags$th("Choose it when"))),
                 tags$tbody(
-                  tags$tr(tags$td(strong("G")), tags$td("One ageing curve for all groups; groups differ only in overall level."), tags$td(code("group + s(age)")), tags$td("The groups age the same way (the parametric analogue: group as an additive term).")),
-                  tags$tr(tags$td(strong("GS")), tags$td("A common curve plus a deviation for each group; all deviations share one wiggliness."), tags$td(code('s(age) + s(age, group, bs = "sz")')), tags$td("Groups share a basic pattern and differ in similar, modest ways. The deviations are shrunk towards the common curve, which helps with small groups.")),
-                  tags$tr(tags$td(strong("GI")), tags$td("A common curve plus a deviation for each group, each deviation with its own wiggliness."), tags$td(code("s(age) + s(age, by = group, m = 1)")), tags$td("Groups share a pattern, but one group departs from it in a more complex way than another.")),
-                  tags$tr(tags$td(strong("S")), tags$td("A separate curve per group, no common curve, all with the same wiggliness."), tags$td(code("s(age, by = group, id = 1)")), tags$td("No shared pattern is expected, but the curves should be similarly smooth.")),
-                  tags$tr(tags$td(strong("I")), tags$td("Fully separate curves, each with its own wiggliness."), tags$td(code("s(age, by = group)")), tags$td("Groups may age in completely different ways (the parametric analogue: age \u00d7 group with every term interacting)."))
+                  tags$tr(tags$td(strong("G")), tags$td("One ageing curve for all groups; groups differ only in overall level."), tags$td(code("group + s(age)")), tags$td("Groups age the same way (as group + age in step 5).")),
+                  tags$tr(tags$td(strong("GS")), tags$td("A common curve plus a deviation for each group; all deviations share one wiggliness."), tags$td(code('s(age) + s(age, group, bs = "sz")')), tags$td("Groups share a pattern and differ modestly; good for small groups.")),
+                  tags$tr(tags$td(strong("GI")), tags$td("A common curve plus a deviation for each group, each deviation with its own wiggliness."), tags$td(code("s(age) + s(age, by = group, m = 1)")), tags$td("Groups share a pattern, but one departs from it more than another.")),
+                  tags$tr(tags$td(strong("S")), tags$td("A separate curve per group, no common curve, all with the same wiggliness."), tags$td(code("s(age, by = group, id = 1)")), tags$td("No shared pattern, but similarly smooth curves.")),
+                  tags$tr(tags$td(strong("I")), tags$td("Fully separate curves, each with its own wiggliness."), tags$td(code("s(age, by = group)")), tags$td("Groups may age in completely different ways (as age \u00d7 group in step 5)."))
                 )),
-                p(class = "small-note", "How to decide: compare all five (button below). If G is within 2 AIC of the best, there is no clear evidence that the groups age differently: report one curve. Otherwise the best structure says how they differ: GS or GI, around a shared pattern; S or I, independently. Within 2 AIC, prefer the simpler structure (G, then GS, S, GI, I). In every structure the group main effect is included, so the curves can differ in level as well.")
+                p(class = "small-note", "Compare all five (button below). Within 2 AIC, prefer the simpler structure (G, GS, S, GI, I). If G is within 2 AIC of the best, report one curve.")
               )),
             actionButton("gamm_run_groups", "Compare group structures (ML, same records)", class = "btn-default", icon = icon("layer-group")),
             uiOutput("gamm_engine_note_groups"),
@@ -158,13 +157,12 @@ gamm_tab_ui <- function() {
             tableOutput("gamm_check_summary"),
             tags$details(class = "info-more", tags$summary("Details: basis dimension (k) check"),
               div(class = "info-more-body",
-                p(class = "small-note", "For each smooth: k' (the largest edf allowed), the edf used, the k-index (below 1 suggests pattern left in the residuals along that term) and its p-value. 'k may be too low' needs all three: a small p-value, a k-index below 1 and an edf close to k'."),
+                p(class = "small-note", "k may be too low only when all three hold: edf close to k', k-index below 1 and a small p-value."),
                 tableOutput("gamm_kcheck_table"))),
             tags$details(class = "info-more", tags$summary("Details: concurvity between fixed terms"),
               div(class = "info-more-body",
-                p(class = "small-note", "For each smooth, how far it can be reproduced by the most similar other fixed term (0 = not at all, 1 = completely). 'Estimate' is the typical value, 'Worst' the worst case. Above 0.8 the two terms' separate effects are poorly identified."),
+                p(class = "small-note", "How far each smooth can be mimicked by another term (0 = not at all, 1 = completely). Above 0.8, their separate effects are poorly identified."),
                 tableOutput("gamm_concurvity_table"))),
-            p(class = "small-note", "The estimates, test statistics and p-values of every term are on the Model output tab."),
             save_button("save_gamm_check"))
         ),
         fluidRow(

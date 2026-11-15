@@ -9,7 +9,7 @@ gamm_tab_ui <- function() {
       start_with = "press Fit GAMM with the default settings and read the curve and summary.",
       then = "follow the GAMM guide on Model output: is a curve needed, do ALR or AFR matter (Selective disappearance), do groups differ (Groups), is the model adequate (Checks), and where does the trait change (Ageing rate).",
       tip = "Save results as you go; they appear in step 6's report and methods draft.",
-      further = "fit a random slope or random smooth per individual before trusting an age-dependent proxy effect, or add a terminal-record effect."),
+      further = "fit a random smooth per individual before trusting an age-dependent proxy effect, or add a terminal-record effect."),
     fluidRow(box(width = 12, status = "info", solidHeader = FALSE, uiOutput("gamm_data_note"))),
     tabBox(width = 12, id = "gamm_tabs",
       # ------------------------------------------------------------------ Fit

@@ -91,7 +91,7 @@ output$gamm_individual_note <- renderUI({
   msg <- if (identical(input$gamm_individual, "fs") && stats::median(per) < 4) "Most individuals have fewer than 4 records: use a random intercept and slope instead."
          else if (identical(input$gamm_individual, "fs") && length(per) > 300) sprintf("A random smooth for %s individuals can take several minutes to fit.", format(length(per), big.mark = ","))
          else if (identical(input$gamm_individual, "none")) "Without individual random effects, intervals are too narrow."
-         else if (mean(per >= 3) >= 0.5 && length(per) >= 30) "Most individuals have 3+ records: also fit a random slope, especially before interpreting an age-dependent proxy."
+         else if (mean(per >= 3) >= 0.5 && length(per) >= 30) "Most individuals have 3+ records: also fit a random slope or smooth; use a random smooth before interpreting an age-dependent proxy."
          else NULL
   if (is.null(msg)) NULL else p(class = "small-note", msg)
 })

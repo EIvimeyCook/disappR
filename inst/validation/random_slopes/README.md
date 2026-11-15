@@ -53,3 +53,10 @@ standardised age); all 4,050 fits converged. Interaction declared (Model 4 > Mod
 selective disappearance: no selection 76% / 68% / 0%; intercept + 92% / 56% / 0%; intercept - 88% / 48% / 4%. With
 age-dependent selection (slope or shape linked to lifespan): 92-100% with every random structure.
 (`random_slope_shape_nine_scenarios.txt`, `random_slope_shape_nine_scenarios.png`)
+
+## The GAMM step (`tests/scripts/gamm_proxy_false_positives.R`)
+
+Same simulation with no selective disappearance (250 individuals), step 7's proxy comparison: the age-dependent ALR
+form, s(age, by = ALR), was preferred in 12/12 datasets with a random intercept, 7/12 with a random intercept and
+slope, and 0/8 with a random smooth per individual. The app's GAMM guide therefore asks for a random smooth per
+individual before an age-dependent proxy effect is interpreted.

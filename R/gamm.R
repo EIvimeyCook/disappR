@@ -747,7 +747,7 @@ gamm_guide <- function(r, o, poly = NULL, groups = NULL, proxy = NULL) {
     agedep <- nrow(sml) && any(grepl("^ti\\(|:\\.(ALR|LS|AFR)_c$", sml$Smooth) & is.finite(sml$P) & sml$P < 0.05)
     out[[length(out) + 1]] <- item("4. Does selective disappearance or appearance shape the curve?",
       paste0(paste(bits[nzchar(bits)], collapse = ". "), ".",
-             if (agedep && identical(s$individual, "ri")) " Caution: with a random intercept only, individuals that simply age differently can produce an age-dependent proxy effect; refit with 'Random intercept and slope' (or a random smooth) before interpreting it." else ""),
+             if (agedep && s$individual %in% c("ri", "rs")) " Caution: individuals that simply age differently can produce this effect with a random intercept or slope; refit with 'Random smooth per individual' and compare again before interpreting it." else ""),
       if (is.null(proxy)) "Press 'Compare proxy forms' (Selective disappearance tab) to test whether the proxy matters and whether its effect changes with age."
       else paste(c("Comparison:", unlist(proxy$texts), gamm_proxy_refit(proxy, prox, pf, r$afr_form %||% "none")), collapse = " "))
   }

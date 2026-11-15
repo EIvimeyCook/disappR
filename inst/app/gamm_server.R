@@ -508,7 +508,7 @@ output$gamm_proxy_tables <- renderUI({
   lapply(names(z$tables), function(p) {
     id <- paste0("gamm_proxy_tab_", p)
     output[[id]] <- renderTable(z$tables[[p]][, c("Model", "AIC", "dAIC", "Weight", "edf", "Records", "Status")], striped = TRUE, spacing = "xs")
-    tagList(h5(strong(p)), tableOutput(id),
+    tagList(h5(strong(p)), div(style = "overflow-x:auto;", tableOutput(id)),
             p(class = "small-note", "Marginal-likelihood AIC, as in step 5."))
   })
 })

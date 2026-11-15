@@ -3824,7 +3824,20 @@ server <- function(input, output, session) {
       saved_results(lst)
     }
   }))
-  observeEvent(input$saved_clear, disappr_guard("input$saved_clear", saved_results(list())))
+  # clearing cannot be undone, so it asks first and names how many results go
+  observeEvent(input$saved_clear, disappr_guard("input$saved_clear", {
+    n <- length(saved_results())
+    if (!n) return(invisible(NULL))
+    showModal(modalDialog(title = sprintf("Delete all %d saved result%s?", n, if (n == 1) "" else "s"),
+      p("They will be removed from the summary, the reports and the methods draft. This cannot be undone."),
+      footer = tagList(modalButton("Cancel"),
+                       actionButton("saved_clear_confirm", sprintf("Delete all %d", n), class = "btn-danger")),
+      easyClose = TRUE))
+  }))
+  observeEvent(input$saved_clear_confirm, disappr_guard("input$saved_clear_confirm", {
+    saved_results(list())
+    removeModal()
+  }))
 
   output$saved_ui <- renderUI({
     lst <- saved_results()

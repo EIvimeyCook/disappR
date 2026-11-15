@@ -437,7 +437,19 @@ gamm_fit <- function(gd, s, method = s$method, structure = s$structure, proxy_fo
     if (identical(engine, "gamm4")) {
       args <- list(formula = stats::as.formula(f_g4), random = rf, family = famobj, data = dd, REML = !identical(method, "ML"))
       if (!is.null(wts)) args$weights <- wts
-      g4 <- do.call(gamm4::gamm4, args)
+      g4 <- tryCatch(do.call(gamm4::gamm4, args), error = function(e) {
+        # glmer's penalised IRLS can fail from its default start (e.g. negative binomial with random slopes): retry
+        # without the nAGQ = 0 initial step and with bobyqa, which usually converges
+        if (identical(fam, "gaussian") || !grepl("pwrssUpdate|PIRLS|Downdated|converge", conditionMessage(e))) stop(e)
+        ctrls <- list(lme4::glmerControl(optimizer = "bobyqa"), lme4::glmerControl(optimizer = "bobyqa", tolPwrss = 1e-5),
+                      lme4::glmerControl(optimizer = "Nelder_Mead", tolPwrss = 1e-4))
+        for (k in seq_along(ctrls)) {
+          args$control <- ctrls[[k]]
+          g <- tryCatch(do.call(gamm4::gamm4, args), error = function(e2) NULL)
+          if (!is.null(g)) { notes <<- c(notes, "gamm4 converged only with a looser PIRLS tolerance or another optimiser"); return(g) }
+        }
+        stop(e)
+      })
       mer <<- g4$mer
       return(g4$gam)
     }
@@ -1219,7 +1231,8 @@ gamm_proxy_comparison <- function(gd, s, progress = NULL) {
       age_dependent = sprintf("Age-dependent %s term best supported (other forms at least 2 AIC worse): the association between %s and the trait changes with age.", p, p),
       age_independent = sprintf("An %s term is supported (no-%s model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective %s.", p, p, if (p == "AFR") "appearance" else "disappearance"),
       none = sprintf("The model without %s is within 2 AIC of the best: no clear evidence of selective %s through %s.", p, if (p == "AFR") "appearance" else "disappearance", p),
-      sprintf("The %s comparison could not be completed.", p))
+      sprintf("The %s comparison could not be completed: %s did not fit (see Status). Try a simpler model (e.g. a random intercept) and compare again.", p,
+              { fl <- labs[!is.finite(tab$AIC)]; paste(paste0(tolower(substr(fl, 1, 1)), substring(fl, 2)), collapse = ", ") }))
     if (fast) out$texts[[p]] <- paste(out$texts[[p]], sprintf("(Fitted with gamm4 because of the many random-effect levels; the age-dependent form is s(age, by = %s), linear in %s.)", p, p))
   }
   out

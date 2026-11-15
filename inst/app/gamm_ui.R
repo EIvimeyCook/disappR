@@ -81,7 +81,7 @@ gamm_tab_ui <- function() {
             actionButton("gamm_run_poly", "Compare: no age, linear, quadratic, cubic and smooth", class = "btn-default", icon = icon("scale-balanced")),
             uiOutput("gamm_engine_note_poly"),
             uiOutput("gamm_poly_reading"),
-            tableOutput("gamm_poly_table"),
+            div(style = "overflow-x:auto;", tableOutput("gamm_poly_table")),
             save_button("save_gamm_poly"))
         ),
         fluidRow(
@@ -142,7 +142,7 @@ gamm_tab_ui <- function() {
             uiOutput("gamm_engine_note_groups"),
             uiOutput("gamm_groups_verdict"),
             fluidRow(
-              column(6, tableOutput("gamm_groups_table"),
+              column(6, div(style = "overflow-x:auto;", tableOutput("gamm_groups_table")),
                      h5(strong("Do the shapes differ from the reference group?")), tableOutput("gamm_diff_test_table"),
                      tableOutput("gamm_lrt_table")),
               column(6, plotOutput("gamm_diff_plot", height = 360))),

@@ -34,3 +34,13 @@ for both age terms.
 - Great tit laying date (Gaussian): random intercept, M2 - M4 = 9.4; with a random slope (SD 3.2, lowering the AIC by
   about 10), M2 - M4 = 6.4. Robust but weaker. A random shape term cannot be estimated: half the females have one
   record and 11% have three or more.
+
+## Are the interaction terms themselves 'significant'? (`interaction_terms_without_slopes.txt`)
+
+With no selective disappearance and random intercepts only, the interaction terms of Model 4 are jointly significant
+(Wald p < 0.05) in 88% of datasets and at least one is individually significant in 92% (median |z| 3.0 and 3.9): a
+false positive for the effect, not only a better fit. Their signs are random (linear term positive in 52%, quadratic in
+32%): unmodelled individual slopes make the standard errors far too small. The population trajectory at the mean ALR is
+unaffected (mean deviation from the truth 1.03% for Model 4, 1.05% for Model 2); the error lies in the ALR-specific
+trajectories, i.e. in the claim of age-dependent selective disappearance. With random slope and shape terms: 4% jointly
+significant, 8% for either term, median |z| 0.6 and 0.5.

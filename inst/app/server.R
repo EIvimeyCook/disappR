@@ -1939,7 +1939,7 @@ server <- function(input, output, session) {
         p(strong("Before fitting. "),
           sprintf("The selected models share %d of %d records with a trait value, from %d of %d individuals.",
                   pv$n_rows_used, pv$n_rows, pv$n_ids_used, pv$n_ids)),
-        if (length(pv$drop_by)) p(strong("Records not shared by every model: "), paste0(sub("\\.$", "", paste(pv$drop_by, collapse = "; ")), ".")) else NULL,
+        if (length(pv$drop_by)) p(strong("Records not shared by every model: "), paste0(paste(sub("\\.$", "", pv$drop_by), collapse = "; "), ".")) else NULL,
         p(strong("Settings. "),
           sprintf("%s with a %s link, %s ageing function, %s, random effects %s%s.", family_label(pv$family), link, pv$age_function,
                   if (isTRUE(pv$standardise)) "age and proxies standardised" else "raw scales", display_term(pv$random),

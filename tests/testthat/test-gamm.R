@@ -321,3 +321,14 @@ test_that("the guide asks for a refit when the proxy comparison supports another
   expect_length(gamm_proxy_refit(pc, "ALR", "ti", "linear"), 0)
   expect_length(gamm_proxy_refit(list(verdicts = c(ALR = "none")), "ALR", "linear", "none"), 0)
 })
+
+test_that("the memory advice warns only when the machine is short of memory", {
+  m <- system_memory_gb()
+  expect_true(is.na(m) || (is.numeric(m) && m > 0))
+  expect_gt(gamm_memory_need_gb(7126, 4904), gamm_memory_need_gb(1901, 648))
+  expect_identical(gamm_memory_advice(1901, 648, avail = 16)$level, "none")
+  expect_identical(gamm_memory_advice(7126, 4904, avail = 16)$level, "caveat")
+  w <- gamm_memory_advice(7126, 4904, avail = 2)
+  expect_identical(w$level, "warning"); expect_match(w$text, "Not enough memory")
+  expect_identical(gamm_memory_advice(7126, 4904, avail = NA_real_)$level, "caveat")   # unknown memory: caveat only
+})

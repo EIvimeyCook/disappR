@@ -1,5 +1,10 @@
 # disappR 0.25.2
 
+* **Memory caveat and warning for GAMMs** (build stamp 0.25.2-2026-11-15d). The app estimates the memory step 7's
+  comparisons need from the number of records and random-effect levels (calibrated on the great tit example: about
+  6 GB) and reads what the computer or server has free (container limit or free memory on Linux, as on hosting
+  services; macOS; Windows; `DISAPPR_MEMORY_GB` overrides it). Large datasets get a caveat on the Data tab and the GAMM
+  tab; when free memory is short, both show a warning and every GAMM fit or comparison repeats it before it starts.
 * **Release audit fixes** (build stamp 0.25.2-2026-11-15c; a browser crawl of all 273 controls, 10 simulated scenarios and 5 published datasets run
   through steps 1-7):
   - GAMM proxy comparison: when lme4's PIRLS fails to converge in a gamm4 fit (fly example: negative binomial, random

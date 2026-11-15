@@ -291,6 +291,69 @@ gamm_re_levels <- function(gd, s) {
   length(unique(gd$id[keep])) + sum(vapply(ut$re, function(v) length(unique(gd[[v]][keep])), numeric(1)))
 }
 
+# ---- memory -------------------------------------------------------------------------------------------------------
+# Memory the computer or server can still give R, in GB (NA when it cannot be read; the environment variable
+# DISAPPR_MEMORY_GB overrides it). On Linux, the smaller of the
+# container limit (cgroup v2 or v1, which is what hosting services such as shinyapps.io enforce) minus its use, and
+# MemAvailable; on macOS the free and inactive pages; on Windows the free physical memory.
+.disappr_mem_cache <- new.env(parent = emptyenv())
+system_memory_gb <- function(max_age = 60) {
+  ov <- suppressWarnings(as.numeric(Sys.getenv("DISAPPR_MEMORY_GB", "")))   # set by an administrator, or for testing
+  if (length(ov) == 1L && is.finite(ov) && ov > 0) return(ov)
+  hit <- get0("v", envir = .disappr_mem_cache, inherits = FALSE)
+  if (!is.null(hit) && as.numeric(difftime(Sys.time(), hit$t, units = "secs")) < max_age) return(hit$gb)
+  gb <- system_memory_read()
+  assign("v", list(gb = gb, t = Sys.time()), envir = .disappr_mem_cache)
+  gb
+}
+system_memory_read <- function() {
+  num <- function(x) suppressWarnings(as.numeric(x[1]))
+  rd <- function(f) if (file.exists(f)) tryCatch(num(readLines(f, n = 1L, warn = FALSE)), error = function(e) NA_real_) else NA_real_
+  out <- tryCatch({
+    sys <- Sys.info()[["sysname"]]
+    if (identical(sys, "Linux")) {
+      cand <- numeric(0)
+      mi <- if (file.exists("/proc/meminfo")) readLines("/proc/meminfo", warn = FALSE) else character(0)
+      av <- num(sub("^MemAvailable:\\s*([0-9]+).*", "\\1", grep("^MemAvailable:", mi, value = TRUE)))
+      if (is.finite(av)) cand <- c(cand, av / 1024^2)
+      for (p in list(c("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory.current"),
+                     c("/sys/fs/cgroup/memory/memory.limit_in_bytes", "/sys/fs/cgroup/memory/memory.usage_in_bytes"))) {
+        lim <- rd(p[1]); use <- rd(p[2])
+        if (is.finite(lim) && lim < 2^60 && is.finite(use)) cand <- c(cand, (lim - use) / 1024^3)
+      }
+      if (length(cand)) min(cand) else NA_real_
+    } else if (identical(sys, "Darwin")) {
+      vm <- system2("vm_stat", stdout = TRUE, stderr = FALSE)
+      pg <- num(sub(".*page size of ([0-9]+) bytes.*", "\\1", vm[1]))
+      pages <- function(k) num(gsub("[^0-9]", "", grep(k, vm, value = TRUE)))
+      sum(pages("Pages free"), pages("Pages inactive"), pages("Pages speculative"), na.rm = TRUE) * pg / 1024^3
+    } else if (identical(.Platform$OS.type, "windows")) {
+      x <- system2("powershell", c("-NoProfile", "-Command", shQuote("(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory")),
+                   stdout = TRUE, stderr = FALSE)
+      num(x[nzchar(trimws(x))][1]) / 1024^2
+    } else NA_real_
+  }, error = function(e) NA_real_, warning = function(w) NA_real_)
+  if (length(out) == 1L && is.finite(out) && out > 0) out else NA_real_
+}
+
+# Rough peak memory (GB) of step 7's comparisons, which hold a few models of n_rows records with n_levels random-effect
+# levels at once. Calibrated on the great tit example (7,126 records, 4,904 levels: 5.7 GB peak), with a 0.6 GB base
+# for R and its packages; it is a guide, not a guarantee.
+gamm_memory_need_gb <- function(n_rows, n_levels) 0.6 + 1.5e-7 * n_rows * n_levels
+
+# Advice on memory for the GAMM step: list(need, avail, level = "none" | "caveat" | "warning", text).
+gamm_memory_advice <- function(n_rows, n_levels, avail = system_memory_gb()) {
+  need <- gamm_memory_need_gb(n_rows, n_levels)
+  short <- is.finite(avail) && need > 0.8 * avail
+  level <- if (short) "warning" else if (need >= 2) "caveat" else "none"
+  text <- switch(level,
+    warning = sprintf("Not enough memory for GAMMs of these data: step 7's comparisons need roughly %s GB, and this machine has about %s GB free. They may stop or crash the app. Run step 7 on a computer with more memory (8 GB or more) or analyse a subset. Steps 1-6 are unaffected.",
+                      format_num(need, 2), format_num(avail, 2)),
+    caveat = sprintf("Large dataset for GAMMs: step 7's comparisons need roughly %s GB of memory and can take 10-30 minutes each. On a server with less memory, run step 7 locally. Steps 1-6 are unaffected.", format_num(need, 2)),
+    "")
+  list(need = need, avail = avail, level = level, text = text)
+}
+
 # Random-effect levels above which comparisons use gamm4 (GAMM_FAST_LEVELS; the environment variable
 # DISAPPR_GAMM_FAST_LEVELS overrides it for validation runs and tests).
 gamm_fast_threshold <- function() {

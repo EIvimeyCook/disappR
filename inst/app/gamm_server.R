@@ -8,6 +8,21 @@ GAMM_TIMEOUT <- 1200          # seconds before a single GAMM fit running in a se
 GAMM_COMPARE_TIMEOUT <- 3600  # comparisons fit several models by ML: they get an hour, with the elapsed time shown
 
 gamm_gd <- reactive(gamm_data(dat(), meta()))
+# Memory the GAMM comparisons of these data need against what this machine has free (shown on the Data tab and here)
+gamm_memory <- reactive({
+  gd <- safe_get(gamm_gd()); if (is.null(gd) || !nrow(gd)) return(NULL)
+  lv <- safe_get(gamm_re_levels(gd, gamm_settings())) %||% nlevels(gd$id)
+  gamm_memory_advice(nrow(gd), lv)
+})
+gamm_memory_box <- function() {
+  ma <- safe_get(gamm_memory()); if (is.null(ma) || identical(ma$level, "none")) return(NULL)
+  div(class = "caution-box", style = "margin-top:8px;", icon(if (identical(ma$level, "warning")) "triangle-exclamation" else "memory"), " ", ma$text)
+}
+# before a fit or comparison: warn (without stopping it) when the machine is short of memory
+gamm_memory_check <- function() {
+  ma <- safe_get(gamm_memory())
+  if (identical(ma$level, "warning")) notify(ma$text, type = "warning", duration = 15)
+}
 gamm_pretty <- function(x) {
   x <- sub("^s\\(id\\)$", "s(id): individual random intercept", x); x <- sub("^s\\(id,\\.age_c\\)$", "s(id, age): individual random slope", x)
   x <- sub("^s\\(age,id\\)$", "s(age, id): individual random smooths", x)
@@ -47,6 +62,7 @@ output$gamm_data_note <- renderUI({
   if (!gamm_has_mgcv()) return(div(class = "caution-box", "The GAMM step needs the mgcv package: install.packages(\"mgcv\")."))
   n_unk <- length(unique(gd$id[!is.finite(gd$LS)]))
   tagList(
+    gamm_memory_box(),
     fluidRow(
       metric_card("Records", format(nrow(gd), big.mark = ",")),
       metric_card("Individuals", format(nlevels(gd$id), big.mark = ",")),
@@ -163,6 +179,7 @@ gamm_groups_store <- reactiveVal(NULL)
 gamm_proxy_store <- reactiveVal(NULL)
 gamm_poly_store <- reactiveVal(NULL)
 observeEvent(input$gamm_fit, disappr_guard("input$gamm_fit", {
+  gamm_memory_check()
   gd <- safe_get(gamm_gd())
   if (is.null(gd) || !nrow(gd)) { notify("The data are not ready: check the Data tab.", type = "error"); return(invisible(NULL)) }
   s <- gamm_settings()
@@ -458,6 +475,7 @@ output$gamm_resid_plot <- renderPlot({
     facet_wrap(~panel, scales = "free", ncol = 2) + labs(x = NULL, y = NULL) + theme_disappR(11)
 })
 observeEvent(input$gamm_run_poly, disappr_guard("input$gamm_run_poly", {
+  gamm_memory_check()
   gd <- safe_get(gamm_gd())
   if (is.null(gd)) return(invisible(NULL))
   res <- gamm_run("gamm_parametric_reference", list(gd = gd, s = gamm_settings()), GAMM_COMPARE_TIMEOUT, "Fitting no age, linear, quadratic, cubic and smooth age (ML)")
@@ -494,6 +512,7 @@ output$gamm_proxy_terms_table <- renderTable({
   gamm_fmt(rows)
 }, striped = TRUE, spacing = "xs")
 observeEvent(input$gamm_run_proxy, disappr_guard("input$gamm_run_proxy", {
+  gamm_memory_check()
   gd <- safe_get(gamm_gd()); s <- gamm_settings()
   if (is.null(gd)) return(invisible(NULL))
   res <- gamm_run("gamm_proxy_comparison", list(gd = gd, s = s), GAMM_COMPARE_TIMEOUT, "Comparing proxy forms (up to 8 models, ML)")
@@ -550,6 +569,7 @@ output$gamm_groups_note <- renderUI({
   p(class = "small-note", "Compares structures G, GS, GI, S and I by AIC (ML, same records). Can take a minute.")
 })
 observeEvent(input$gamm_run_groups, disappr_guard("input$gamm_run_groups", {
+  gamm_memory_check()
   gd <- safe_get(gamm_gd()); s <- gamm_settings()
   if (is.null(gd) || !nzchar(s$group)) { notify("Choose a grouping variable on the Fit tab first.", type = "warning"); return(invisible(NULL)) }
   res <- gamm_run("gamm_group_comparison", list(gd = gd, s = s), GAMM_COMPARE_TIMEOUT, "Comparing group structures (6 models, ML)")

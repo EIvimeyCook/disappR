@@ -584,7 +584,9 @@ server <- function(input, output, session) {
                          if (!is.null(age_step_manual())) " (set)" else "")),
       metric_card("Records per individual", format_num(stats::median(im$n_trait)), "median"),
       metric_card("Trait type", fam$kind %||% (if (identical(fam$family, "gaussian")) "Continuous" else "Count"),
-                  paste("Suggested:", family_label(fam$family)))
+                  paste("Suggested:", family_label(fam$family))),
+      # step 7 needs much more memory than steps 1-6 for large data: say so where the data are described
+      if (exists("gamm_memory_box", inherits = TRUE)) column(12, gamm_memory_box()) else NULL
     )
   })
 

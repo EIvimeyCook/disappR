@@ -1,25 +1,301 @@
 "rep","sc","st","M4_vs_M2","M5_vs_M3","invalid"
 1,"none (no selective disappearance)","random intercept",180.43627455434,180.459402029839,0
 2,"none (no selective disappearance)","random intercept",69.3945034741264,68.9458486218791,0
+3,"none (no selective disappearance)","random intercept",0.605427328155201,0.623791113190237,0
+4,"none (no selective disappearance)","random intercept",27.398226533136,27.3327609906191,0
+5,"none (no selective disappearance)","random intercept",24.2259144459167,24.2014309873557,0
+6,"none (no selective disappearance)","random intercept",46.5648823610682,46.3207611282778,0
+7,"none (no selective disappearance)","random intercept",16.4423417098151,16.3785911175946,0
+8,"none (no selective disappearance)","random intercept",18.6357396344392,18.3301107234729,0
+9,"none (no selective disappearance)","random intercept",19.2822926694571,19.2532879871651,0
+10,"none (no selective disappearance)","random intercept",148.852213566759,148.785458960127,0
+11,"none (no selective disappearance)","random intercept",0.0201315789745422,-0.032310278598743,0
+12,"none (no selective disappearance)","random intercept",11.8123935700278,11.7392229342368,0
+13,"none (no selective disappearance)","random intercept",37.5351738971513,37.6152993891083,0
+14,"none (no selective disappearance)","random intercept",9.54037237993907,9.5078598444743,0
+15,"none (no selective disappearance)","random intercept",85.1541349456602,84.3309783405348,0
+16,"none (no selective disappearance)","random intercept",4.91154262408963,5.11757119375397,0
+17,"none (no selective disappearance)","random intercept",37.2774525440182,37.5067127811053,0
+18,"none (no selective disappearance)","random intercept",98.9253546655818,98.4114081478401,0
+19,"none (no selective disappearance)","random intercept",57.1210389451444,56.8099101010957,0
+20,"none (no selective disappearance)","random intercept",15.5775774290378,15.6587622718216,0
+21,"none (no selective disappearance)","random intercept",-1.8544952760567,-1.85980282083619,0
+22,"none (no selective disappearance)","random intercept",52.9977736101209,52.8727257091159,0
+23,"none (no selective disappearance)","random intercept",29.5461712332035,29.3767407406121,0
+24,"none (no selective disappearance)","random intercept",9.44939969026018,9.50143973032391,0
+25,"none (no selective disappearance)","random intercept",6.536471155654,6.50309563682094,0
 1,"intercept only (age-independent)","random intercept",180.474977855709,180.459428211849,0
 2,"intercept only (age-independent)","random intercept",69.4648105600645,68.9458345108505,0
+3,"intercept only (age-independent)","random intercept",0.599789034931746,0.623788080687518,0
+4,"intercept only (age-independent)","random intercept",27.4088055316606,27.3327690577353,0
+5,"intercept only (age-independent)","random intercept",24.2330976232042,24.2014478604397,0
+6,"intercept only (age-independent)","random intercept",46.5998405814462,46.3207632492849,0
+7,"intercept only (age-independent)","random intercept",16.4505793786957,16.3786004455105,0
+8,"intercept only (age-independent)","random intercept",18.6706945887418,18.3301183741569,0
+9,"intercept only (age-independent)","random intercept",19.2899099477436,19.2532914076801,0
+10,"intercept only (age-independent)","random intercept",148.86282934597,148.785476886515,0
+11,"intercept only (age-independent)","random intercept",0.0256283523267484,-0.0323121397159412,0
+12,"intercept only (age-independent)","random intercept",11.8230147163558,11.7392257223328,0
+13,"intercept only (age-independent)","random intercept",37.5449103243227,37.6153123073673,0
+14,"intercept only (age-independent)","random intercept",9.5448252910428,9.50786685392814,0
+15,"intercept only (age-independent)","random intercept",85.276127633857,84.3309766952298,0
+16,"intercept only (age-independent)","random intercept",4.88872283833189,5.11757128431782,0
+17,"intercept only (age-independent)","random intercept",37.2612043739282,37.5067292102467,0
+18,"intercept only (age-independent)","random intercept",99.012504864535,98.411390209927,0
+19,"intercept only (age-independent)","random intercept",57.1738136509739,56.8099412496595,0
+20,"intercept only (age-independent)","random intercept",15.5672410048501,15.6587646763001,0
+21,"intercept only (age-independent)","random intercept",-1.85514486174361,-1.85980370213656,0
+22,"intercept only (age-independent)","random intercept",53.0146664501081,52.8727372407448,0
+23,"intercept only (age-independent)","random intercept",29.5858931091207,29.376749481984,0
+24,"intercept only (age-independent)","random intercept",9.44501383174065,9.50144685692067,0
+25,"intercept only (age-independent)","random intercept",6.54296533535671,6.50309885704337,0
 1,"slope (age-dependent)","random intercept",417.505442434769,417.938097674152,0
 2,"slope (age-dependent)","random intercept",540.144981946061,537.893169252646,0
+3,"slope (age-dependent)","random intercept",629.172920291719,629.314621329191,0
+4,"slope (age-dependent)","random intercept",769.37324338199,768.785590987623,0
+5,"slope (age-dependent)","random intercept",298.396626964706,298.348916285962,0
+6,"slope (age-dependent)","random intercept",725.783833929861,724.527325420349,0
+7,"slope (age-dependent)","random intercept",537.36704016554,537.421348105534,0
+8,"slope (age-dependent)","random intercept",299.139905819342,299.945070759946,0
+9,"slope (age-dependent)","random intercept",580.927051677158,580.665924475208,0
+10,"slope (age-dependent)","random intercept",192.12194112892,192.141081712543,0
+11,"slope (age-dependent)","random intercept",379.642594766439,380.114632480378,0
+12,"slope (age-dependent)","random intercept",521.661156299611,522.401910748296,0
+13,"slope (age-dependent)","random intercept",695.684929764371,695.990859160287,0
+14,"slope (age-dependent)","random intercept",570.633848663951,570.844615591799,0
+15,"slope (age-dependent)","random intercept",855.393010064305,853.65036747761,0
+16,"slope (age-dependent)","random intercept",317.821753239805,316.684566154283,0
+17,"slope (age-dependent)","random intercept",702.067463752166,702.65812981988,0
+18,"slope (age-dependent)","random intercept",651.796896163665,650.917317931599,0
+19,"slope (age-dependent)","random intercept",317.046314489402,317.166932208158,0
+20,"slope (age-dependent)","random intercept",370.84962841087,370.150128267836,0
+21,"slope (age-dependent)","random intercept",582.517828526274,582.302512698705,0
+22,"slope (age-dependent)","random intercept",475.367753867009,474.431253897412,0
+23,"slope (age-dependent)","random intercept",390.334713154465,390.464415274342,0
+24,"slope (age-dependent)","random intercept",401.568546922601,401.667211446547,0
+25,"slope (age-dependent)","random intercept",617.511359860851,617.233647082729,0
 1,"shape (age-dependent)","random intercept",306.319909602869,306.58052838748,0
 2,"shape (age-dependent)","random intercept",617.497247530053,615.195465147393,0
+3,"shape (age-dependent)","random intercept",597.032370627414,596.958462748451,0
+4,"shape (age-dependent)","random intercept",823.083152212079,822.501368887722,0
+5,"shape (age-dependent)","random intercept",383.94670132803,383.859175229685,0
+6,"shape (age-dependent)","random intercept",707.240285369844,706.048249482374,0
+7,"shape (age-dependent)","random intercept",468.056553903225,468.199655438453,0
+8,"shape (age-dependent)","random intercept",292.197003561872,293.15537134996,0
+9,"shape (age-dependent)","random intercept",514.269605976631,513.936731492024,0
+10,"shape (age-dependent)","random intercept",143.484018690018,143.47287765301,0
+11,"shape (age-dependent)","random intercept",320.771429979053,321.121009658156,0
+12,"shape (age-dependent)","random intercept",498.877980848774,499.723988019701,0
+13,"shape (age-dependent)","random intercept",695.761623455342,695.999346323719,0
+14,"shape (age-dependent)","random intercept",514.851378358027,515.196723047455,0
+15,"shape (age-dependent)","random intercept",985.74283619444,983.211901907242,0
+16,"shape (age-dependent)","random intercept",276.992005632157,275.519517976107,0
+17,"shape (age-dependent)","random intercept",661.760609228608,662.453159033226,0
+18,"shape (age-dependent)","random intercept",796.28390630224,795.046138069869,0
+19,"shape (age-dependent)","random intercept",204.378016739902,204.667306011732,0
+20,"shape (age-dependent)","random intercept",286.998902701882,286.385658504973,0
+21,"shape (age-dependent)","random intercept",574.936447960143,574.598651919514,0
+22,"shape (age-dependent)","random intercept",556.731650716072,555.61675239967,0
+23,"shape (age-dependent)","random intercept",335.953600238972,336.236087380981,0
+24,"shape (age-dependent)","random intercept",392.508934430749,392.256180768556,0
+25,"shape (age-dependent)","random intercept",584.536431679284,584.248752139363,0
 1,"none (no selective disappearance)","+ random slope",98.6163474253772,98.5807660330393,0
 2,"none (no selective disappearance)","+ random slope",32.2575944365381,32.359962509945,0
+3,"none (no selective disappearance)","+ random slope",-1.45715558205848,-1.46449651200965,0
+4,"none (no selective disappearance)","+ random slope",15.1169364824891,15.1260637824962,0
+5,"none (no selective disappearance)","+ random slope",12.8476692798358,12.6761146231293,0
+6,"none (no selective disappearance)","+ random slope",33.35854872044,33.3076418878118,0
+7,"none (no selective disappearance)","+ random slope",-2.07603524487786,-2.03074452741566,0
+8,"none (no selective disappearance)","+ random slope",13.929740959662,13.1751823036175,0
+9,"none (no selective disappearance)","+ random slope",-0.538981425415841,-0.524282488207973,0
+10,"none (no selective disappearance)","+ random slope",58.1789878316631,57.9552350997183,0
+11,"none (no selective disappearance)","+ random slope",-2.22827797298669,-2.39259349604981,0
+12,"none (no selective disappearance)","+ random slope",3.76082049071556,3.82686824021948,0
+13,"none (no selective disappearance)","+ random slope",-1.25134378376242,-1.08677333441301,0
+14,"none (no selective disappearance)","+ random slope",-2.83405430764833,-2.70624334940658,0
+15,"none (no selective disappearance)","+ random slope",2.71772248911293,2.64343381431536,0
+16,"none (no selective disappearance)","+ random slope",-0.850265109518659,-0.559857218468096,0
+17,"none (no selective disappearance)","+ random slope",3.22004453371483,3.47283531252469,0
+18,"none (no selective disappearance)","+ random slope",18.902706849236,18.8722847243334,0
+19,"none (no selective disappearance)","+ random slope",7.42024718498578,7.32632984821248,0
+20,"none (no selective disappearance)","+ random slope",-0.930876901424199,-0.901230051749735,0
+21,"none (no selective disappearance)","+ random slope",-3.58512445317319,-3.56557467777748,0
+22,"none (no selective disappearance)","+ random slope",-0.756721893107169,-0.641335453285137,0
+23,"none (no selective disappearance)","+ random slope",14.4508094619814,14.413508906473,0
+24,"none (no selective disappearance)","+ random slope",19.0445746481273,19.0845949212598,0
+25,"none (no selective disappearance)","+ random slope",37.0003192342556,36.8991626565548,0
 1,"intercept only (age-independent)","+ random slope",98.6240667141319,98.5597506877748,0
 2,"intercept only (age-independent)","+ random slope",32.2263550811113,32.3505208678398,0
+3,"intercept only (age-independent)","+ random slope",-1.45924949866458,-1.46435175646911,0
+4,"intercept only (age-independent)","+ random slope",15.113127842058,15.137714383709,0
+5,"intercept only (age-independent)","+ random slope",12.848543523738,12.624777795827,0
+6,"intercept only (age-independent)","+ random slope",33.3472862461713,33.3066588629445,0
+7,"intercept only (age-independent)","+ random slope",-2.07612771668209,-2.02317928240518,0
+8,"intercept only (age-independent)","+ random slope",13.9095251113104,13.0170254363911,0
+9,"intercept only (age-independent)","+ random slope",-0.538010886361008,-0.516557179587835,0
+10,"intercept only (age-independent)","+ random slope",58.1791861777238,57.8898552113606,0
+11,"intercept only (age-independent)","+ random slope",-2.2295512513665,-2.42310463469039,0
+12,"intercept only (age-independent)","+ random slope",3.75393882227945,3.83223737121443,0
+13,"intercept only (age-independent)","+ random slope",-1.25030039098056,-1.05375127078878,0
+14,"intercept only (age-independent)","+ random slope",-2.83265819281951,-2.67499879313982,0
+15,"intercept only (age-independent)","+ random slope",2.70649828499154,2.63296807970619,0
+16,"intercept only (age-independent)","+ random slope",-0.842205701112107,-0.524987404329295,0
+17,"intercept only (age-independent)","+ random slope",3.22824218501046,3.5351614182,0
+18,"intercept only (age-independent)","+ random slope",18.8970724772225,18.8659231707352,0
+19,"intercept only (age-independent)","+ random slope",7.41392921009538,7.30065788248612,0
+20,"intercept only (age-independent)","+ random slope",-0.925192027330922,-0.899875481554773,0
+21,"intercept only (age-independent)","+ random slope",-3.58528813367593,-3.55307151965826,0
+22,"intercept only (age-independent)","+ random slope",-0.758600778601249,-0.637915369494294,0
+23,"intercept only (age-independent)","+ random slope",14.4427659739449,14.3938541710377,0
+24,"intercept only (age-independent)","+ random slope",19.050390179822,19.0911863975998,0
+25,"intercept only (age-independent)","+ random slope",37.0033233087888,36.8773500882089,0
 1,"slope (age-dependent)","+ random slope",140.336722012034,140.814914810529,0
 2,"slope (age-dependent)","+ random slope",59.6627923596388,57.975752632221,0
+3,"slope (age-dependent)","+ random slope",40.4595541525778,41.0933433851533,0
+4,"slope (age-dependent)","+ random slope",61.83084572605,61.5298405703579,0
+5,"slope (age-dependent)","+ random slope",43.2189618990888,43.4473360082775,0
+6,"slope (age-dependent)","+ random slope",77.7812801023465,76.7540229704464,0
+7,"slope (age-dependent)","+ random slope",40.9396446554747,41.2365160900372,0
+8,"slope (age-dependent)","+ random slope",35.0652119715814,36.4527472731206,0
+9,"slope (age-dependent)","+ random slope",44.1947127649037,44.2411438517229,0
+10,"slope (age-dependent)","+ random slope",73.0712788772653,73.2696083479605,0
+11,"slope (age-dependent)","+ random slope",28.89588081486,29.7816448284648,0
+12,"slope (age-dependent)","+ random slope",47.0372791567279,48.4718905621776,0
+13,"slope (age-dependent)","+ random slope",45.7266287122839,46.5676696230585,0
+14,"slope (age-dependent)","+ random slope",39.8644148359381,40.7306696938831,0
+15,"slope (age-dependent)","+ random slope",44.0160678018001,43.3026712863793,0
+16,"slope (age-dependent)","+ random slope",23.6184393062504,22.4229307439819,0
+17,"slope (age-dependent)","+ random slope",49.2385218415075,50.5216339851904,0
+18,"slope (age-dependent)","+ random slope",49.2383850304977,49.2770034117493,0
+19,"slope (age-dependent)","+ random slope",40.4594341866832,40.9736152368569,0
+20,"slope (age-dependent)","+ random slope",32.8995300091192,32.3228424875779,0
+21,"slope (age-dependent)","+ random slope",37.3417653423603,37.3874641009752,0
+22,"slope (age-dependent)","+ random slope",21.556225665081,21.0908045342658,0
+23,"slope (age-dependent)","+ random slope",53.0594493783865,53.5621707056998,0
+24,"slope (age-dependent)","+ random slope",69.2487287423428,69.5991242383316,0
+25,"slope (age-dependent)","+ random slope",75.7344291895861,75.792365777088,0
 1,"shape (age-dependent)","+ random slope",221.620509327906,222.012342121452,0
 2,"shape (age-dependent)","+ random slope",633.024507152615,631.44464306283,0
+3,"shape (age-dependent)","+ random slope",679.47450368775,679.971637144707,0
+4,"shape (age-dependent)","+ random slope",699.595990342023,699.322305284048,0
+5,"shape (age-dependent)","+ random slope",398.106250860874,398.610752728244,0
+6,"shape (age-dependent)","+ random slope",624.166970178077,623.356101645048,0
+7,"shape (age-dependent)","+ random slope",417.167964178785,417.620149333146,0
+8,"shape (age-dependent)","+ random slope",293.492386108745,295.179077142209,0
+9,"shape (age-dependent)","+ random slope",296.360289974495,296.469971054961,0
+10,"shape (age-dependent)","+ random slope",239.439545012458,239.598991620776,0
+11,"shape (age-dependent)","+ random slope",314.051977415802,314.888590163522,0
+12,"shape (age-dependent)","+ random slope",471.707054443599,473.395509253511,0
+13,"shape (age-dependent)","+ random slope",427.981111732013,428.850675243775,0
+14,"shape (age-dependent)","+ random slope",501.569976290673,502.686710652793,0
+15,"shape (age-dependent)","+ random slope",671.12411077963,669.921918631939,0
+16,"shape (age-dependent)","+ random slope",244.898635748614,243.544769943474,0
+17,"shape (age-dependent)","+ random slope",486.648158027107,488.137826251237,0
+18,"shape (age-dependent)","+ random slope",690.520028237232,690.385953257944,0
+19,"shape (age-dependent)","+ random slope",263.043582792685,263.861961185343,0
+20,"shape (age-dependent)","+ random slope",337.712177867412,337.444593739208,0
+21,"shape (age-dependent)","+ random slope",458.399833908203,458.331688298291,0
+22,"shape (age-dependent)","+ random slope",487.919180755132,487.668839544014,0
+23,"shape (age-dependent)","+ random slope",340.099775315226,340.825334485184,0
+24,"shape (age-dependent)","+ random slope",302.082300351387,302.243660697903,0
+25,"shape (age-dependent)","+ random slope",235.723935320355,236.015368996173,0
 1,"none (no selective disappearance)","+ random slope and shape",-0.306721990076767,-0.248959814220143,0
 2,"none (no selective disappearance)","+ random slope and shape",-1.21114240296447,-1.06308935719426,0
+3,"none (no selective disappearance)","+ random slope and shape",-3.85947137419134,-3.87866507186845,0
+4,"none (no selective disappearance)","+ random slope and shape",-3.25378301846649,-3.24935834429925,0
+5,"none (no selective disappearance)","+ random slope and shape",5.97008585468575,5.91996370934066,0
+6,"none (no selective disappearance)","+ random slope and shape",-3.78882641669043,-3.83842212752643,0
+7,"none (no selective disappearance)","+ random slope and shape",-2.66294171643676,-2.55731378273049,0
+8,"none (no selective disappearance)","+ random slope and shape",-0.515286139961972,-1.2156613736297,0
+9,"none (no selective disappearance)","+ random slope and shape",-2.53116920737375,-2.51755723230599,0
+10,"none (no selective disappearance)","+ random slope and shape",1.42575695996493,1.22854311457922,0
+11,"none (no selective disappearance)","+ random slope and shape",-2.41196104761184,-2.54574751455948,0
+12,"none (no selective disappearance)","+ random slope and shape",-3.09770609019324,-2.81023448632186,0
+13,"none (no selective disappearance)","+ random slope and shape",-3.01812057731149,-2.87473744445742,0
+14,"none (no selective disappearance)","+ random slope and shape",-3.72421485782252,-3.60113737037318,0
+15,"none (no selective disappearance)","+ random slope and shape",-3.95560821307299,-3.95202488033101,0
+16,"none (no selective disappearance)","+ random slope and shape",-3.02440686090995,-2.76850323013059,0
+17,"none (no selective disappearance)","+ random slope and shape",-3.56344088371407,-3.40034535800078,0
+18,"none (no selective disappearance)","+ random slope and shape",-1.60955062261201,-1.58792191660905,0
+19,"none (no selective disappearance)","+ random slope and shape",-3.64679759653518,-3.58507882525737,0
+20,"none (no selective disappearance)","+ random slope and shape",-2.87463496551936,-2.82679614445078,0
+21,"none (no selective disappearance)","+ random slope and shape",-3.28959760350699,-3.26473074319802,0
+22,"none (no selective disappearance)","+ random slope and shape",-1.48233424176578,-1.35344943757082,0
+23,"none (no selective disappearance)","+ random slope and shape",-3.5502864667942,-3.46471602969541,0
+24,"none (no selective disappearance)","+ random slope and shape",-3.26774453647522,-3.21275792300003,0
+25,"none (no selective disappearance)","+ random slope and shape",-1.01155498026492,-1.03250341766397,0
 1,"intercept only (age-independent)","+ random slope and shape",-0.30583487945114,-0.237537245935528,0
 2,"intercept only (age-independent)","+ random slope and shape",-1.20471565093612,-1.04825351574254,0
+3,"intercept only (age-independent)","+ random slope and shape",-3.85946025143494,-3.88088956716092,0
+4,"intercept only (age-independent)","+ random slope and shape",-3.25353307954356,-3.24221287324326,0
+5,"intercept only (age-independent)","+ random slope and shape",5.96805191856402,5.87645819290628,0
+6,"intercept only (age-independent)","+ random slope and shape",-3.78958571961994,-3.84159039417864,0
+7,"intercept only (age-independent)","+ random slope and shape",-2.66290428929642,-2.53829158059671,0
+8,"intercept only (age-independent)","+ random slope and shape",-0.515188745092019,-1.33377721475699,0
+9,"intercept only (age-independent)","+ random slope and shape",-2.53160878472409,-2.50722046342707,0
+10,"intercept only (age-independent)","+ random slope and shape",1.42535248149943,1.17783244865859,0
+11,"intercept only (age-independent)","+ random slope and shape",-2.4124199569851,-2.5687968358252,0
+12,"intercept only (age-independent)","+ random slope and shape",-3.09967665408476,-2.75666681961593,0
+13,"intercept only (age-independent)","+ random slope and shape",-3.01741429248068,-2.84627770917723,0
+14,"intercept only (age-independent)","+ random slope and shape",-3.7240646574719,-3.57227200085617,0
+15,"intercept only (age-independent)","+ random slope and shape",-3.95584970076743,-3.95026908200816,0
+16,"intercept only (age-independent)","+ random slope and shape",-3.0238176043058,-2.74275161272089,0
+17,"intercept only (age-independent)","+ random slope and shape",-3.5631738112279,-3.36494065063016,0
+18,"intercept only (age-independent)","+ random slope and shape",-1.60927609328792,-1.59898300506757,0
+19,"intercept only (age-independent)","+ random slope and shape",-3.64640663780301,-3.569439275896,0
+20,"intercept only (age-independent)","+ random slope and shape",-2.8737522358133,-2.82420377244853,0
+21,"intercept only (age-independent)","+ random slope and shape",-3.28982676465967,-3.25271304501075,0
+22,"intercept only (age-independent)","+ random slope and shape",-1.48202624918486,-1.35368246326107,0
+23,"intercept only (age-independent)","+ random slope and shape",-3.55025618099171,-3.4392109716282,0
+24,"intercept only (age-independent)","+ random slope and shape",-3.2676694824695,-3.19244886856904,0
+25,"intercept only (age-independent)","+ random slope and shape",-1.01197570652585,-1.03699029232666,0
 1,"slope (age-dependent)","+ random slope and shape",88.4756220830095,88.9633228602834,0
 2,"slope (age-dependent)","+ random slope and shape",42.4738297338845,40.8744591312716,0
+3,"slope (age-dependent)","+ random slope and shape",62.6038581168104,63.2247918140929,0
+4,"slope (age-dependent)","+ random slope and shape",67.6826139536788,67.3823000453849,0
+5,"slope (age-dependent)","+ random slope and shape",99.3177012088563,99.6188034244551,0
+6,"slope (age-dependent)","+ random slope and shape",62.2870738974452,61.2522189489318,0
+7,"slope (age-dependent)","+ random slope and shape",62.179593970046,62.5954620405391,0
+8,"slope (age-dependent)","+ random slope and shape",41.2196643823991,42.9755824082604,0
+9,"slope (age-dependent)","+ random slope and shape",68.9746769925259,68.9430062697284,0
+10,"slope (age-dependent)","+ random slope and shape",41.027097733946,41.2510583870317,0
+11,"slope (age-dependent)","+ random slope and shape",49.1712460810595,50.1088271114932,0
+12,"slope (age-dependent)","+ random slope and shape",62.1034245791961,63.5975253147408,0
+13,"slope (age-dependent)","+ random slope and shape",68.4948322689597,69.2898018226188,0
+14,"slope (age-dependent)","+ random slope and shape",72.1924844897876,73.0297385826925,0
+15,"slope (age-dependent)","+ random slope and shape",61.3644492995227,60.8359900995274,0
+16,"slope (age-dependent)","+ random slope and shape",38.5438181896679,37.3593225045624,0
+17,"slope (age-dependent)","+ random slope and shape",67.3862205686164,68.6385752125861,0
+18,"slope (age-dependent)","+ random slope and shape",60.3231202193856,60.4319052828287,0
+19,"slope (age-dependent)","+ random slope and shape",51.5683240724102,52.1762906656586,0
+20,"slope (age-dependent)","+ random slope and shape",52.1951563181938,51.6102378336436,0
+21,"slope (age-dependent)","+ random slope and shape",69.7961532792469,69.8667669377392,0
+22,"slope (age-dependent)","+ random slope and shape",44.6281066133379,44.1710644653504,0
+23,"slope (age-dependent)","+ random slope and shape",60.1168956141482,60.6422945275262,0
+24,"slope (age-dependent)","+ random slope and shape",79.4658283766985,79.7653118136514,0
+25,"slope (age-dependent)","+ random slope and shape",69.3375040465835,69.5616087602029,0
 1,"shape (age-dependent)","+ random slope and shape",48.3799323663407,48.636926681138,0
 2,"shape (age-dependent)","+ random slope and shape",59.2459860350136,57.469055314381,0
+3,"shape (age-dependent)","+ random slope and shape",54.4324700401921,54.865664513738,0
+4,"shape (age-dependent)","+ random slope and shape",70.7579549185539,70.4968743109857,0
+5,"shape (age-dependent)","+ random slope and shape",20.9747579826872,20.9962107909159,0
+6,"shape (age-dependent)","+ random slope and shape",57.6578992267387,56.6897409119483,0
+7,"shape (age-dependent)","+ random slope and shape",64.8473005167252,65.2668706572586,0
+8,"shape (age-dependent)","+ random slope and shape",43.4269396437085,44.9679779905491,0
+9,"shape (age-dependent)","+ random slope and shape",48.5102380672324,48.5723942131735,0
+10,"shape (age-dependent)","+ random slope and shape",40.1651991892577,40.3149279660574,0
+11,"shape (age-dependent)","+ random slope and shape",54.0460740190392,54.8793265633794,0
+12,"shape (age-dependent)","+ random slope and shape",68.1819495945165,69.9701855412568,0
+13,"shape (age-dependent)","+ random slope and shape",56.1131917087987,57.0741943786561,0
+14,"shape (age-dependent)","+ random slope and shape",54.0501639319991,55.1970289190867,0
+15,"shape (age-dependent)","+ random slope and shape",55.8976354695405,54.5095748518434,0
+16,"shape (age-dependent)","+ random slope and shape",41.0103675002247,39.3604285786714,0
+17,"shape (age-dependent)","+ random slope and shape",58.8429926235476,60.2266166998816,0
+18,"shape (age-dependent)","+ random slope and shape",38.9425996754362,38.6523303784925,0
+19,"shape (age-dependent)","+ random slope and shape",52.3443872187127,53.1437532943819,0
+20,"shape (age-dependent)","+ random slope and shape",52.6110454156151,52.1861049043,0
+21,"shape (age-dependent)","+ random slope and shape",46.1890748699589,46.0125984521146,0
+22,"shape (age-dependent)","+ random slope and shape",46.647098166206,46.1893525706473,0
+23,"shape (age-dependent)","+ random slope and shape",52.9295225380556,53.696365939526,0
+24,"shape (age-dependent)","+ random slope and shape",59.6681367854035,59.6409900715589,0
+25,"shape (age-dependent)","+ random slope and shape",39.8656790930982,40.1019560550703,0

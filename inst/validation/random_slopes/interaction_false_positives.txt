@@ -1,0 +1,17 @@
+100 datasets x 3 random structures in 10 min (25 replicates per scenario)
+
+                          Scenario           Random effects  n Model 4 beats Model 2 by >2 AIC (%) median dAIC (M2 - M4) Model 5 beats Model 3 by >2 AIC (%) fits flagged invalid
+ none (no selective disappearance)         random intercept 25                                  88                  24.2                                  88                    0
+ none (no selective disappearance)           + random slope 25                                  60                   3.8                                  60                    0
+ none (no selective disappearance) + random slope and shape 25                                   4                  -3.0                                   4                    0
+  intercept only (age-independent)         random intercept 25                                  88                  24.2                                  88                    0
+  intercept only (age-independent)           + random slope 25                                  60                   3.8                                  60                    0
+  intercept only (age-independent) + random slope and shape 25                                   4                  -3.0                                   4                    0
+             slope (age-dependent)         random intercept 25                                 100                 537.4                                 100                    0
+             slope (age-dependent)           + random slope 25                                 100                  44.2                                 100                    0
+             slope (age-dependent) + random slope and shape 25                                 100                  62.2                                 100                    0
+             shape (age-dependent)         random intercept 25                                 100                 514.3                                 100                    0
+             shape (age-dependent)           + random slope 25                                 100                 417.2                                 100                    0
+             shape (age-dependent) + random slope and shape 25                                 100                  52.9                                 100                    0
+
+In the first two scenarios a declared age-dependent selective disappearance is a false positive; in the last two it is a true one (power).

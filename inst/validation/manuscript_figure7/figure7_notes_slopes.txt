@@ -1,0 +1,8 @@
+Fly Model1_Naive: kept rescaled nlminb (log-likelihood raw BFGS -7188.86, raw nlminb -7464.16, rescaled BFGS -7188.86, rescaled nlminb -7188.86)
+Fly Model2_AddALR: kept rescaled nlminb (log-likelihood raw BFGS -7180.33, raw nlminb -Inf, rescaled BFGS -7180.33, rescaled nlminb -7180.33)
+Fly Model3_AddCenter: kept rescaled nlminb (log-likelihood raw BFGS -9707.56, raw nlminb -9707.10, rescaled BFGS -7185.11, rescaled nlminb -7185.09)
+Fly Model4_IntALR: kept raw BFGS (log-likelihood raw BFGS -7167.83, raw nlminb -Inf, rescaled BFGS -Inf, rescaled nlminb -Inf)
+Fly Model5_IntCenter: kept rescaled nlminb (log-likelihood raw BFGS -9707.29, raw nlminb -9706.36, rescaled BFGS -9702.41, rescaled nlminb -7169.58)
+Random effects: fly (1 | F0_ID) + diag(1 + a + I(a^2) | F0_ID:F1_ID); great tit diag(1 + a | female) + (1|year) + (1|area)
+Fly Model 4 random-effect SDs: F0_ID: SD 0.0177; F0_ID:F1_ID: SD 0.0017, 0.00382, 0.106
+Great tit Model 4 random-effect SDs: female: SD 3.2, 0.717; year: SD 5.36; area: SD 1.31

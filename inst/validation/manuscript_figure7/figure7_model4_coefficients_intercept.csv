@@ -1,0 +1,22 @@
+"Dataset","Term","Estimate","SE","z","p"
+"Fruit fly, Model 4 (ALR and age standardised)","(Intercept)",3.639,0.03671,99.14,0
+"Fruit fly, Model 4 (ALR and age standardised)","RepR2",0.002728,0.03086,0.09,0.93
+"Fruit fly, Model 4 (ALR and age standardised)","RepR3",-0.1206,0.03965,-3.04,0.00234
+"Fruit fly, Model 4 (ALR and age standardised)","RepR4",0.009321,0.03842,0.24,0.808
+"Fruit fly, Model 4 (ALR and age standardised)","Paternal_ageY",-0.02969,0.02501,-1.19,0.235
+"Fruit fly, Model 4 (ALR and age standardised)","Paternal_sperm_ageY",0.03151,0.02502,1.26,0.208
+"Fruit fly, Model 4 (ALR and age standardised)","ALR_scaled",0.1313,0.02017,6.51,7.6e-11
+"Fruit fly, Model 4 (ALR and age standardised)","poly(F1_Age, 2)1",-28.88,1.631,-17.71,3.39e-70
+"Fruit fly, Model 4 (ALR and age standardised)","poly(F1_Age, 2)2",-8.066,1.263,-6.39,1.69e-10
+"Fruit fly, Model 4 (ALR and age standardised)","ALR_scaled:poly(F1_Age, 2)1",6.229,1.196,5.21,1.92e-07
+"Fruit fly, Model 4 (ALR and age standardised)","ALR_scaled:poly(F1_Age, 2)2",3.819,0.9152,4.17,3.01e-05
+"Great tit, Model 4","(Intercept)",36.37,6.071,5.99,2.09e-09
+"Great tit, Model 4","f_min_age",-4.324,0.4471,-9.67,3.97e-22
+"Great tit, Model 4","f_ALR",-0.1765,0.1312,-1.34,0.179
+"Great tit, Model 4","I(f_min_age^2)",0.8019,0.1096,7.32,2.56e-13
+"Great tit, Model 4","loc_density",-0.3021,0.2776,-1.09,0.277
+"Great tit, Model 4","pred",3.431,1.86,1.84,0.065
+"Great tit, Model 4","f_status",-0.7208,0.1402,-5.14,2.72e-07
+"Great tit, Model 4","YR_FL",-0.6793,0.849,-0.8,0.424
+"Great tit, Model 4","f_min_age:f_ALR",0.1321,0.09702,1.36,0.173
+"Great tit, Model 4","f_ALR:I(f_min_age^2)",-0.05249,0.01615,-3.25,0.00116

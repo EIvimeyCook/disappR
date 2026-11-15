@@ -1,0 +1,11 @@
+"Dataset","Model","AIC","dAIC_vs_Model4","dAIC_vs_best","valid_Hessian"
+"Fruit fly fecundity","Model 1",14420.08,38.33,38.33,TRUE
+"Fruit fly fecundity","Model 2",14405.8,24.05,24.05,TRUE
+"Fruit fly fecundity","Model 3",14409.02,27.27,27.27,TRUE
+"Fruit fly fecundity","Model 4",14381.75,0,0,TRUE
+"Fruit fly fecundity","Model 5",14384.41,2.66,2.66,TRUE
+"Great tit laying date","Model 1",43415.8,11.77,11.77,TRUE
+"Great tit laying date","Model 2",43413.46,9.43,9.43,TRUE
+"Great tit laying date","Model 3",43457.32,53.29,53.29,TRUE
+"Great tit laying date","Model 4",43404.03,0,0,TRUE
+"Great tit laying date","Model 5",43452.65,48.62,48.62,TRUE

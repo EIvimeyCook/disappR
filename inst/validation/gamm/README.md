@@ -1,4 +1,4 @@
-# Validation of the GAMM step (step 7, disappR 0.25.0)
+# Validation of the GAMM step (step 7, disappR 0.25.1)
 
 Every result here comes from the real engines: mgcv (or gamm4) for the GAMMs and lme4 for the GLMMs. The 0.23 layer
 was validated on a Python re-implementation of a GAMM. That port modelled age-dependent selective disappearance
@@ -10,6 +10,7 @@ differently (`s(age, by = ALR)`) from the R code (`ti(age, ALR)`), so its result
 | `gamm_vs_glmm_results.txt`, `gamm_vs_glmm_replicates.csv` | `tests/scripts/gamm_vs_glmm.R` | GAMMs against the parametric models of step 5 on 240 simulated datasets with a known answer |
 | `gamm_vs_glmm_empirical.txt` | the same, `DISAPPR_GVG_REPS=0` | The same comparison on the bundled Gaussian examples |
 | `stress_results.txt` | `tests/scripts/gamm_stress.R` | Every bundled example, every out-of-sample dataset in `tests/stress_data`, and 31 awkward datasets |
+| `out_of_sample_results.txt` | `tests/scripts/gamm_out_of_sample.R` | The app's simulator (56 datasets with a known true trajectory) and the 13 parametric-study examples through every GAMM option |
 
 ## Replication (bundled examples `tsui_mass` and `brown_haematocrit`)
 
@@ -22,9 +23,9 @@ Run on the authors' data and `model1.R`.
 | Records / birds | — | 2,560 / 1,172 | 2,559 / 1,172 |
 | Age smooth | ageing in body mass | edf 3.05, F = 4.46, p = 0.002 | edf 3.03, F = 4.50, p = 0.002 |
 | Lifespan, per year | linear term | 0.0252 (SE 0.0055) | 0.0244 (SE 0.0055) |
-| Sex curves | G / GS / S chosen by AIC | S best; GS +4.5, G +4.3 | S best; G +5.7 by ML |
+| Sex curves | G / GS / S chosen by AIC | S best; GS +4.5, G +4.3 | S best, G +5.7 (mgcv: choose the bam engine); in fast mode, the default for these 1,172 birds, G best (GS and S cannot be fitted) |
 | Onset of decline | 4.7 years (limits 1–8.5) | — | final decline from 4.9 years (95% limits 3.5–14.8) |
-| Age × lifespan | reported as significant for body mass | `ti` p = 0.056 | not supported (ΔAIC +8.5); additive lifespan best |
+| Age × lifespan | reported as significant for body mass | `ti` p = 0.056 | supported: `s(age, by = LS)` best, linear lifespan +3.0 (marginal likelihood, fast mode); before 0.25.1 the mgcv comparison by conditional AIC found no support (`ti` +8.5) |
 
 - **Records:** one record differs because its observer is blank. disappR treats a blank as missing; the authors'
   `factor()` kept it as a level.
@@ -51,13 +52,15 @@ fits its version of Models 1, 2 and 4 by ML. "Age-dependent declared" means the 
 
 | Approach | Falsely age-dependent (no true age-dependence) | Power (true age-dependence) | Mean shape error |
 |---|---|---|---|
-| GAMM | 11% | 100% | 0.34 |
+| GAMM | 1.3% | 100% | 0.34 |
 | GLMM, function chosen by AIC | 30% | 100% | 0.37 |
 | GLMM, quadratic | 75% | 100% | 0.41 |
 
-The GAMM is the most reliable of the three. Its false-positive rate (11%) is still above 5%, as expected for a
-2-AIC rule on a term with several effective degrees of freedom. The 0.23 audit's 3% came from the Python port. A
-stricter rule (for example ΔAIC > 4) would lower it.
+The GAMM is the most reliable of the three. Up to 0.25.0 its false-positive rate was 11%: the proxy comparison used
+mgcv's AIC, which is conditional on the random effects. Since 0.25.1 it uses the marginal likelihood (as step 5's
+mixed models and gamm4 do), and the rate is 1.3% (3 of 240 datasets) with unchanged power. The conditional AIC also
+missed age-independent selective disappearance in simulated data (see Out-of-sample tests): the individual random
+intercepts absorb an individual-level term such as ALR almost for free.
 
 ## Performance
 
@@ -102,7 +105,7 @@ The break tests found and fixed these engine bugs:
   longer than 300 seconds is stopped with a message.
 - **Age-dependent proxy terms need mgcv.** With more than 1,500 individuals they are left out of the proxy
   comparison, because gamm4 cannot fit `ti()`.
-- **False positives.** The rule that ΔAIC > 2 declares age-dependent selective disappearance gives about 11% false
+- **False positives.** The rule that ΔAIC > 2 declares age-dependent selective disappearance gives about 1-2% false
   positives in the simulations.
 
 ## Fast comparisons (gamm4) against mgcv
@@ -115,7 +118,8 @@ The same simulations in fast mode (`fast/`, forced with `DISAPPR_GAMM_FAST_LEVEL
 
 | Approach | Falsely age-dependent | Power |
 |---|---|---|
-| GAMM, mgcv `ti()` (conditional AIC) | 11% | 100% |
+| GAMM, mgcv `ti()` (conditional AIC, up to 0.25.0) | 11% | 100% |
+| GAMM, mgcv `ti()` (marginal likelihood, 0.25.1) | 1.3% | 100% |
 | GAMM, gamm4 `s(age, by = ALR)` (marginal likelihood) | 1.9% | 100% |
 
 The simulated age-dependence is linear in ALR, which matches the `s(age, by = ALR)` form, so this design favours it.
@@ -129,7 +133,7 @@ Fast mode can change conclusions on real data. On the Tsui body-mass data:
 
 | Comparison | mgcv | gamm4 (fast mode) |
 |---|---|---|
-| Lifespan | linear best; `ti` +8.5 AIC | `s(age, by = LS)` best; linear +3.0 AIC |
+| Lifespan | linear best; `ti` +8.5 AIC (conditional AIC, up to 0.25.0) | `s(age, by = LS)` best; linear +3.0 AIC |
 | Sex | S best; G +5.7 | G best; GI +4.0 |
 
 The gamm4 lifespan result agrees with the paper's reported age × lifespan effect.

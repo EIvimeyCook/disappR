@@ -1217,7 +1217,7 @@ gamm_proxy_comparison <- function(gd, s, progress = NULL) {
     out$verdicts[[p]] <- v
     out$texts[[p]] <- switch(v,
       age_dependent = sprintf("Age-dependent %s term best supported (other forms at least 2 AIC worse): the association between %s and the trait changes with age.", p, p),
-      age_independent = sprintf("A %s term is supported (no-%s model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective %s.", p, p, if (p == "AFR") "appearance" else "disappearance"),
+      age_independent = sprintf("An %s term is supported (no-%s model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective %s.", p, p, if (p == "AFR") "appearance" else "disappearance"),
       none = sprintf("The model without %s is within 2 AIC of the best: no clear evidence of selective %s through %s.", p, if (p == "AFR") "appearance" else "disappearance", p),
       sprintf("The %s comparison could not be completed.", p))
     if (fast) out$texts[[p]] <- paste(out$texts[[p]], sprintf("(Fitted with gamm4 because of the many random-effect levels; the age-dependent form is s(age, by = %s), linear in %s.)", p, p))

@@ -3,3 +3,4 @@ inst/app/.DS_Store
 .Rproj.user
 Rplots.pdf
 **/Rplots.pdf
+.Rhistory

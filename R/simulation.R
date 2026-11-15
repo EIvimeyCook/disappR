@@ -163,7 +163,7 @@ simulate_toy_data <- function(cfg = list()) {
     # Lifespan and the three coefficients are jointly normal with the Methods' correlation matrix (Eq. 2): each
     # coefficient correlated rho_j with lifespan and uncorrelated with the others. Given lifespan, the coefficients'
     # correlation matrix is I - rho rho'; its Cholesky factor correlates the noise (diagonal, and so the same draws as
-    # before 0.25.1, whenever at most one correlation is non-zero).
+    # before 0.25.2, whenever at most one correlation is non-zero).
     U <- E %*% chol(diag(3) - outer(rho, rho))
     B <- sapply(1:3, function(j) mu_b[j] + sd_b[j] * (rho[j] * z_ls + U[, j]))
     B[, 1] <- B[, 1] + (if (sa_level) sa_dir * 0.5 * sd_b[1] else 0) * z_afr

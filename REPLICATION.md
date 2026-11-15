@@ -6,7 +6,7 @@ fecundity and great tit laying date, Models 1-5) are reproduced exactly by the a
 (`tests/scripts/manuscript_replication.R`, output in `inst/validation/manuscript_replication.txt`). Four values in
 the manuscript text differ by 0.1-0.7 from what the authors' code gives today (fly Model 3; great tit Models 2, 3
 and 5): the text should be updated from the code. The paper simulation of step 1 (Methods Eq. 1-4) offers the
-Methods' 27 scenarios through the lifespan correlations of the intercept, slope and shape (0.25.1).
+Methods' 27 scenarios through the lifespan correlations of the intercept, slope and shape (0.25.2).
 
 Each example ships with the column mapping and model settings that correspond to the published analysis. The
 table below compares what the paper reported with what the app returns on the bundled data using those
@@ -34,7 +34,7 @@ its row is gone.
 | **Bouwhuis 2009** — great tit recruits | Cross-sectional peak 3.45 yr; individual-level peak 2.80 yr; ALR +0.04 (selective disappearance); ALR × age not significant; post-peak slope −0.11 | Peak **3.48** → **2.80** once ALR is fitted; ALR **+0.062**; Model 2 first (Model 4 +3.4, Model 1 +7.5); post-peak slope **−0.105** | **Quantitative match** |
 | **Bouwhuis 2009** — laying date (Sanghvi et al. 2026, MEE, Figure 7C; not analysed in the 2009 paper) | Gaussian; Model 4 best (ΔAIC for Models 1, 2, 3, 5 = 11.8, 9.5, 53.7, 48.7 in the manuscript text; 11.77, 9.43, 53.29, 48.62 from the authors' code on the same data today) | Model 4 first; ΔAIC **11.77, 9.43, 53.29, 48.62** (the example opens on laying date) | **Exact match to the authors' code**; the manuscript text's values for Models 2, 3 and 5 come from an earlier run |
 | **Bouwhuis 2009** — clutch / brood / fledglings | +0.52/−0.06, +0.62/−0.10, +0.63/−0.11; no ALR effect on any of the three | **+0.499/−0.058, +0.594/−0.096, +0.637/−0.109**; ALR −0.035, −0.026, +0.034 (all negligible); Models 1, 2 and 5 within 4 AIC | **Quantitative match** |
-| **Sanghvi 2025** — fly fecundity (Sanghvi et al. 2026, MEE, Figure 7A) | Zero-inflated negative binomial; lowest AIC for Model 4 (ΔAIC for Models 1, 2, 3, 5 = 38.4, 24.1, 28.0, 2.7 in the manuscript text; 38.34, 24.05, 27.27, 2.67 from the authors' code on the same data today) | Model 4 first; ΔAIC **38.33, 24.05, 27.28, 2.67** (0.25.1, `tests/scripts/manuscript_replication.R`) | **Exact match to the authors' code**; the manuscript text's Model 3 value (28.0) comes from an earlier run |
+| **Sanghvi 2025** — fly fecundity (Sanghvi et al. 2026, MEE, Figure 7A) | Zero-inflated negative binomial; lowest AIC for Model 4 (ΔAIC for Models 1, 2, 3, 5 = 38.4, 24.1, 28.0, 2.7 in the manuscript text; 38.34, 24.05, 27.27, 2.67 from the authors' code on the same data today) | Model 4 first; ΔAIC **38.33, 24.05, 27.28, 2.67** (0.25.2, `tests/scripts/manuscript_replication.R`) | **Exact match to the authors' code**; the manuscript text's Model 3 value (28.0) comes from an earlier run |
 
 ## How these checks were made
 

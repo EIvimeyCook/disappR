@@ -1,13 +1,11 @@
-# disappR 0.25.1
+# disappR 0.25.2
 
-* **Engine and app must match.** The engine carries a build stamp, and the app refuses to start, with instructions,
-  when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
-  a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
-* `launch_app.R` and `run_app()` also offer gamm4.
+* **New build stamp** (0.25.2-2026-11-15). Earlier 0.25.1 copies shared one stamp, so the app could not tell an engine
+  from an earlier copy, installed or loaded in R, from the current one; it now stops with instructions if it finds one.
 * **Paper simulation: the Methods' 27 scenarios.** Step 1's paper simulation can now set the lifespan correlations of
   the intercept, slope and shape separately (each -0.5, 0 or 0.5), as in the manuscript's simulations, including
   correlations with the shape and mixed signs. Lifespan and the three coefficients are drawn as in the Methods (Eq. 2):
-  each coefficient correlated with lifespan and uncorrelated with the others. Up to 0.25.0 the 'both' scenario gave
+  each coefficient correlated with lifespan and uncorrelated with the others. Up to 0.25.1 the 'both' scenario gave
   the intercept and slope a correlation of 0.25 with each other; every other existing scenario simulates exactly the
   same data as before.
 * **The manuscript's empirical results are reproduced exactly** (fly fecundity and great tit laying date, Models 1-5;
@@ -16,6 +14,19 @@
   precision estimate, so every fit was rightly rejected); empirical checks S1 and S5a expected Model 1 or 4/6 where
   Model 5 or 4 is correct (the manuscript's Figure 5B), and S3's data contained the age-dependent selective
   disappearance its label excluded.
+* **Validation of the interaction models** (`inst/validation/random_slopes/`): without random slopes for every age
+  term, the age x ALR interaction is falsely supported (and its terms falsely significant) in about 90% of simulated
+  datasets without selective disappearance; with random slope and curvature terms in about 4%, with full power. Both
+  empirical analyses of the methods paper remain supported with random slopes (`inst/validation/manuscript_figure7/`).
+* R CMD check: MASS declared in Suggests; the duplicate top-level CITATION and the validation image folders are left
+  out of the package build. `CITATION.cff` gives the current version. `.Rhistory` removed from the repository.
+
+# disappR 0.25.1
+
+* **Engine and app must match.** The engine carries a build stamp, and the app refuses to start, with instructions,
+  when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
+  a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
+* `launch_app.R` and `run_app()` also offer gamm4.
 * The A4 hazard models no longer stop on data with only one or two ages (the age-dependent trait effect cannot be
   estimated there, so no age-specific odds ratios are given).
 * **GAMM proxy comparison by marginal-likelihood AIC.** The comparison of no, linear, smooth and age-dependent ALR,

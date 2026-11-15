@@ -44,3 +44,12 @@ false positive for the effect, not only a better fit. Their signs are random (li
 unaffected (mean deviation from the truth 1.03% for Model 4, 1.05% for Model 2); the error lies in the ALR-specific
 trajectories, i.e. in the claim of age-dependent selective disappearance. With random slope and shape terms: 4% jointly
 significant, 8% for either term, median |z| 0.6 and 0.5.
+
+## The methods paper's nine scenarios (`dev/random_slope_shape_simulation_chunk.R`)
+
+The Rmd chunk written for the methods paper (its own simulation code, not the app's engine): 9 of the 27 scenarios, 100
+individuals, 25 replicates, models 1-6 with a random intercept, + random slope, + random slope and shape (uncorrelated,
+standardised age); all 4,050 fits converged. Interaction declared (Model 4 > Model 2 by >2 AIC) without age-dependent
+selective disappearance: no selection 76% / 68% / 0%; intercept + 92% / 56% / 0%; intercept - 88% / 48% / 4%. With
+age-dependent selection (slope or shape linked to lifespan): 92-100% with every random structure.
+(`random_slope_shape_nine_scenarios.txt`, `random_slope_shape_nine_scenarios.png`)

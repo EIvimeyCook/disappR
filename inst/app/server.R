@@ -38,6 +38,11 @@ server <- function(input, output, session) {
   read_toy_inputs <- function() {
     individual <- identical(input$toy_afr_mode, "individual")
     sd_type <- input$toy_sd_type %||% "both"
+    # paper simulation with the Methods' correlation grid: the three lifespan correlations, and the kind of selective
+    # disappearance they imply (for the expectations shown with the simulated data)
+    grid <- identical(input$toy_trait, "paper") && isTRUE(input$toy_paper_grid)
+    rho <- if (grid) suppressWarnings(as.numeric(c(input$toy_rho_int %||% "0.5", input$toy_rho_slope %||% "0.5", input$toy_rho_shape %||% "0"))) else rep(NA_real_, 3)
+    if (grid) sd_type <- if (any(rho[2:3] != 0)) (if (rho[1] != 0) "both" else "dependent") else if (rho[1] != 0) "independent" else "none"
     sa_type <- if (individual) (input$toy_sa_type %||% "none") else "none"
     list(
       trait = input$toy_trait %||% "mass",
@@ -45,7 +50,7 @@ server <- function(input, output, session) {
       shape = input$toy_shape %||% "default",
       strength = input$toy_strength %||% "dramatic",
       sd_type = sd_type,
-      sd_dir = if (identical(sd_type, "none")) 1 else num_input(input$toy_sd_dir, 1),
+      sd_dir = if (identical(sd_type, "none")) 1 else if (grid) (if (any(rho < 0) && !any(rho > 0)) -1 else 1) else num_input(input$toy_sd_dir, 1),
       rate_var = input$toy_rate_var %||% "low",
       mean_ls = min(30, max(3, round(num_input(input$toy_mean_ls, 20)))),
       missingness = input$toy_missingness %||% "complete",
@@ -53,7 +58,8 @@ server <- function(input, output, session) {
       sa_type = sa_type,
       sa_dir = if (identical(sa_type, "none")) 1 else num_input(input$toy_sa_dir, 1),
       diet = isTRUE(input$toy_diet), groups = isTRUE(input$toy_groups),
-      n_id = min(2000, max(30, round(num_input(input$toy_n, 300)))), seed = round(num_input(input$toy_seed, 42))
+      n_id = min(2000, max(30, round(num_input(input$toy_n, 300)))), seed = round(num_input(input$toy_seed, 42)),
+      rho_int = rho[1], rho_slope = rho[2], rho_shape = rho[3]
     )
   }
   toy_cfg <- reactiveVal(TOY_DEFAULTS)

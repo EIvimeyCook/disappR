@@ -1,0 +1,12 @@
+fly (zinb, Quadratic; 1901 records, 648 individuals): best M4
+  Model 1: dAIC app  38.33 | authors' code  38.34 | manuscript text  38.4
+  Model 2: dAIC app  24.05 | authors' code  24.05 | manuscript text  24.1
+  Model 3: dAIC app  27.28 | authors' code  27.27 | manuscript text  28.0
+  Model 5: dAIC app   2.67 | authors' code   2.67 | manuscript text   2.7
+bouwhuis (gaussian, Quadratic; 7126 records, 4935 individuals): best M4
+  Model 1: dAIC app  11.77 | authors' code  11.77 | manuscript text  11.8
+  Model 2: dAIC app   9.43 | authors' code   9.43 | manuscript text   9.5
+  Model 3: dAIC app  53.29 | authors' code  53.29 | manuscript text  53.7
+  Model 5: dAIC app  48.62 | authors' code  48.62 | manuscript text  48.7
+
+The app reproduces the manuscript's empirical model comparisons (to 0.05 AIC of the authors' code).

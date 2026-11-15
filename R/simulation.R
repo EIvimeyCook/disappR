@@ -30,7 +30,10 @@ SELECTION_TYPES <- c("None" = "none", "Age-independent" = "independent", "Age-de
 TOY_DEFAULTS <- list(trait = "mass", form = "Quadratic", shape = "default", strength = "dramatic", sd_type = "both", sd_dir = 1,
                      rate_var = "low", mean_ls = 20, missingness = "complete",
                      afr_mode = "same", sa_type = "none", sa_dir = 1, diet = FALSE, groups = FALSE,
-                     n_id = 300, seed = 42)
+                     n_id = 300, seed = 42,
+                     # paper simulation only: the lifespan correlations of the intercept, slope and shape, each -0.5, 0
+                     # or 0.5 as in the Methods' 27 scenarios; NA = set by the selective-disappearance choice
+                     rho_int = NA_real_, rho_slope = NA_real_, rho_shape = NA_real_)
 
 # Parameters of each simulated form on the scaled time u. mu: population coefficients (intercept
 # first); s_rate: lifespan- or AFR-linked SD of the first ageing coefficient at dramatic strength;
@@ -155,9 +158,14 @@ simulate_toy_data <- function(cfg = list()) {
   if (paper) {
     mu_b <- c(600, 9, -0.3)
     sd_b <- abs(mu_b) * 0.2
-    rho <- c(if (sd_level) 0.5 * sd_dir else 0, if (sd_rate) 0.5 * sd_dir else 0, 0)
+    rho <- paper_rho(cfg)
     E <- matrix(stats::rnorm(n * 3), n, 3)
-    B <- sapply(1:3, function(j) mu_b[j] + sd_b[j] * (rho[j] * z_ls + sqrt(1 - rho[j]^2) * E[, j]))
+    # Lifespan and the three coefficients are jointly normal with the Methods' correlation matrix (Eq. 2): each
+    # coefficient correlated rho_j with lifespan and uncorrelated with the others. Given lifespan, the coefficients'
+    # correlation matrix is I - rho rho'; its Cholesky factor correlates the noise (diagonal, and so the same draws as
+    # before 0.25.1, whenever at most one correlation is non-zero).
+    U <- E %*% chol(diag(3) - outer(rho, rho))
+    B <- sapply(1:3, function(j) mu_b[j] + sd_b[j] * (rho[j] * z_ls + U[, j]))
     B[, 1] <- B[, 1] + (if (sa_level) sa_dir * 0.5 * sd_b[1] else 0) * z_afr
     B[, 2] <- B[, 2] + (if (sa_rate) sa_dir * 0.5 * sd_b[2] else 0) * z_afr
     LS_raw <- 25 + 5 * z_ls
@@ -250,6 +258,16 @@ simulate_toy_data <- function(cfg = list()) {
 
 # Typical-individual trajectory implied by the simulation (population mean coefficients),
 # marginalised over the diet covariate in the same way as the app's model predictions.
+# Correlations of lifespan with the intercept, slope and shape in the paper simulation: those given (rho_int,
+# rho_slope, rho_shape, the Methods' 27-scenario grid) or, if not given, 0.5 in the direction chosen for the
+# intercept (age-independent), the slope (age-dependent) or both.
+paper_rho <- function(cfg) {
+  r <- suppressWarnings(as.numeric(c(cfg$rho_int %||% NA, cfg$rho_slope %||% NA, cfg$rho_shape %||% NA)))
+  if (length(r) == 3 && all(is.finite(r))) return(pmax(-0.5, pmin(0.5, r)))
+  d <- if (isTRUE(as.numeric(cfg$sd_dir) < 0)) -1 else 1
+  c(if (cfg$sd_type %in% c("independent", "both")) 0.5 * d else 0, if (cfg$sd_type %in% c("dependent", "both")) 0.5 * d else 0, 0)
+}
+
 toy_true_curve <- function(truth, age) {
   X <- if (isTRUE(truth$paper) || is.null(truth$form)) cbind(1, age, age^2) else cbind(1, toy_form_basis(truth$form, age / truth$cc, truth$ref))
   base <- as.numeric(X %*% truth$mu_b)
@@ -285,15 +303,18 @@ toy_truth_text <- function(cfg) {
   paper <- identical(cfg$trait, "paper")
   form <- if (paper) "Quadratic" else cfg$form
   trait <- names(TOY_TRAITS)[TOY_TRAITS == cfg$trait]
-  mag <- if (paper) "|\u03c1| = 0.5 as in the Methods" else if (identical(cfg$strength, "dramatic")) "dramatic strength" else "moderate strength"
+  pr <- if (paper) paper_rho(cfg) else NULL
+  custom <- paper && all(is.finite(suppressWarnings(as.numeric(c(cfg$rho_int, cfg$rho_slope, cfg$rho_shape)))))
+  mag <- if (custom) sprintf("lifespan correlations of the intercept, slope and shape %s, %s and %s (the Methods' scenario grid)", format(pr[1]), format(pr[2]), format(pr[3]))
+         else if (paper) "|\u03c1| = 0.5 as in the Methods" else if (identical(cfg$strength, "dramatic")) "dramatic strength" else "moderate strength"
   L <- if (paper) 25 else cfg$mean_ls
   dir_txt <- function(d) if (isTRUE(as.numeric(d) < 0)) "negative" else "positive"
   sel_lab <- function(x) tolower(names(SELECTION_TYPES)[SELECTION_TYPES == x])
   individual_afr <- identical(cfg$afr_mode, "individual")
   sim <- paste0("Simulated: ", trait, "; ", tolower(form), " ageing",
                 if (!paper) paste0(" (", tolower(toy_shape_label(form, cfg$shape)), ")") else "",
-                "; selective disappearance: ", sel_lab(cfg$sd_type),
-                if (cfg$sd_type != "none") paste0(" (", dir_txt(cfg$sd_dir), ")") else "",
+                if (!custom) paste0("; selective disappearance: ", sel_lab(cfg$sd_type),
+                                    if (cfg$sd_type != "none") paste0(" (", dir_txt(cfg$sd_dir), ")") else "") else "",
                 "; AFR ", if (individual_afr) paste0("individual-specific, selective appearance: ", sel_lab(cfg$sa_type),
                                                      if (cfg$sa_type != "none") paste0(" (", dir_txt(cfg$sa_dir), ")") else "")
                 else "the same for everyone",

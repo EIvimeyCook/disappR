@@ -745,7 +745,12 @@ fit_model_suite <- function(dat, meta, models = MODEL_IDS, age_function = "Quadr
          paste0("Models fitted by maximum likelihood on the same complete-case rows.",
                 if (n_excluded > 0) sprintf(" %d fit(s) with an invalid Hessian were excluded from the ranking.", n_excluded) else "")
        } else if (nrow(aic)) {
-         "Every fitted model has an invalid (non-positive-definite or singular) Hessian: simplify the random effects, zero-inflation or fixed effects, or tick 'Include fits with invalid Hessians' to inspect them."
+         paste0("Every fitted model has an invalid (non-positive-definite or singular) Hessian: ",
+                switch(rs %||% "none",
+                       correlated_all = , uncorrelated_all = "the random slopes for every age term are probably more than these data support. Choose 'Correlated intercept and slope: (1 + age | ID)' or 'Random intercept: (1 | ID)' under random effects and fit again. ",
+                       correlated = , uncorrelated = "the random slope is probably more than these data support. Choose 'Random intercept: (1 | ID)' under random effects and fit again. ",
+                       "simplify the zero-inflation or fixed effects. "),
+                "Or tick 'Include fits with invalid Hessians' to inspect them.")
        } else "No model could be fitted (see the fitting status).",
        validity = validity, n_excluded = n_excluded, include_invalid = isTRUE(include_invalid),
        random_request = rs_request, random_structure = rs, random_note = random_note, random_advice = advice,

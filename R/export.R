@@ -684,7 +684,7 @@ methods_text <- function(entries) {
         if (isTRUE(g$olre) && (g$family %||% "") %in% c("poisson", "binomial")) " An observation-level random effect accounted for overdispersion (Harrison 2014)." else "",
         if (isTRUE(g$ar1) && isTRUE(g$rho > 0)) sprintf(" Residuals followed a first-order autoregressive process within individuals (rho = %s).", format_num(g$rho, 2)) else "",
         grp,
-        if (has("GAMM selective disappearance")) " Forms of each proxy (none, linear, smooth and age-dependent) were compared by AIC under maximum likelihood on the same records." else "",
+        if (has("GAMM selective disappearance")) " Forms of each proxy (none, linear, smooth and age-dependent) were fitted by maximum likelihood on the same records and compared by the AIC of the marginal likelihood (random effects and smoothing penalties integrated out)." else "",
         if (has("GAMM derivatives")) " Ageing was located from the first derivative of the population curve (random effects set to zero), with simultaneous 95% intervals from 2,000 draws of the coefficients (Simpson 2018); ages where the interval excluded zero were treated as periods of significant change, and the peak and onset of the final decline were given 95% limits from 1,000 draws." else "",
         if (has("GAMM checks")) " Basis dimensions were checked with k-index tests, concurvity between fixed terms was inspected, and residuals were checked against fitted values, age and simulated (randomised quantile) residuals." else "",
         if (has("GAMM against polynomials")) " The smooth was compared with linear, quadratic and cubic functions of age by AIC." else "",

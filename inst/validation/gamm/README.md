@@ -85,6 +85,8 @@ times slower for these models.
 | Stress and break tests (`stress_results.txt`) | 144 fits succeed, 40 return an intended plain message, no error escapes the engine |
 | Replication (`replication_results.txt`) | runs without errors; results above |
 | Full unit suite | passes except `test-combinations.R:142` (a beta-binomial cubic fit with an invalid Hessian in step 5) |
+| Every example through steps 1-7 (`tests/scripts/app_examples_test.R`) | all 27 examples and the 7 other published traits of the multi-trait files, with each trait's published settings |
+| Out-of-sample tests (`out_of_sample_results.txt`) | 56 simulated datasets and 13 parametric-study examples under every GAMM option: no errors, no broken invariants |
 
 The `test-combinations.R:142` failure also occurs on unmodified 0.24.9 in this environment (glmmTMB 1.1.15.2,
 OpenBLAS), so it predates the GAMM step.
@@ -96,6 +98,48 @@ The break tests found and fixed these engine bugs:
 - Data with a single individual gave a contrasts error. They now get a plain message.
 - `gamm4` reports deviance explained as `numeric(0)`, which broke the reading and the comparison tables.
 - A `chol` error escaped mgcv's random-effect tests in `summary()`.
+
+## Out-of-sample tests (`out_of_sample_results.txt`, `tests/scripts/gamm_out_of_sample.R`)
+
+Data the GAMM step was not built or tuned on, run as a user would, through every post-fit function (tables, model
+output, guide, checks, curves, derivative, peak, residuals, cautions, R code) with invariants checked (finite curves,
+intervals containing the fit, R code that parses). Fits run under the app's time limits.
+
+**A. The app's simulator, 56 datasets with a known true trajectory**: every trait type (Gaussian, Poisson, negative
+binomial, zero-inflated, the paper's simulation) and age function; selective disappearance none, age-independent,
+age-dependent or both, in both directions; selective appearance; four missingness patterns; grouped data with a diet
+covariate. All 56 fit, with no errors.
+
+| Check | Result |
+|---|---|
+| Age-independent selective disappearance: ALR term in the simulated direction, p < 0.05 | 23 of 23 datasets |
+| Age-dependent selective disappearance, median mean \|D\| from the true curve | linear ALR 9.8%; `ti(age, ALR)` 2.7%; best GLMM (Model 4) 1.4% |
+| Proxy comparison names the simulated kind of selective disappearance | 15 of 18 (marginal-likelihood AIC) |
+
+The tests found that the proxy comparison, then by mgcv's conditional AIC, could miss strong age-independent selective
+disappearance: on one dataset the model without ALR was 1.4 AIC worse while the marginal log-likelihood differed by 100.
+The individual random intercepts absorb an individual-level term almost for free. Since 0.25.1 the comparison uses the
+marginal likelihood (`gamm_marginal_aic()`, identical to lme4's AIC for the same model), and the guide asks for a refit
+when the comparison supports another proxy form than the one fitted. A linear ALR term does not correct age-dependent
+selective disappearance (9.8% from the truth); the age-dependent form does (2.7%). The three misses are borderline:
+two age-independent datasets called age-dependent (for one, step 5 also chose Model 4) and one dataset without
+selection called age-independent (for it, step 5 also chose Model 4).
+
+**B. The 13 examples analysed with parametric models (steps 1-6)**, each through 16-22 GAMM settings: ALR linear,
+smooth, `s(age, by = ALR)` and `ti(age, ALR)`; no proxy; known lifespan; AFR; random slopes; no individual effect;
+terminal record; observation-level random effect; k = 5; the bam and gamm4 engines; no covariates or random terms;
+numeric covariates as smooths; structures GS, GI, S and I on a categorical covariate; and the shape, proxy and group
+comparisons. No errors and no broken invariants; no fit beyond 300 s and no comparison beyond 1,800 s (the slowest,
+the great tit proxy comparison on 7,341 records, took 12 minutes under load).
+
+| Agreement with step 5 (Model 2 against the default GAMM) | Result |
+|---|---|
+| ALR effect in the same direction | 13 of 13 examples; never opposite and significant |
+| Correlation of the population curves | median 0.97 |
+
+The two low correlations are not GAMM failures: for the seed-beetle fecundity data (r = 0.19) the quadratic GLMM on the
+log scale explodes at the oldest ages (beyond 10^8 eggs a day), and for the chipmunk data (r = -0.09) both curves rise
+but the smooth (edf 4.8) has a different shape from the quadratic, as the shape comparison also prefers.
 
 ## Known limitations
 

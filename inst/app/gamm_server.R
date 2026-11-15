@@ -3,7 +3,8 @@
 # run_with_progress, add_saved, nothing_to_save, step4_child). It reads nothing else from steps 1-6 and writes only
 # its own outputs (gamm_*), downloads (download_gamm_*) and saved results (section "7 GAMM").
 
-GAMM_TIMEOUT <- 300           # seconds before a single GAMM fit running in a separate R process is stopped
+GAMM_TIMEOUT <- 1200          # seconds before a single GAMM fit running in a separate R process is stopped (large data with
+                              # random slopes can take ten minutes: the great tit example, 4,848 females, 625 s with gamm4)
 GAMM_COMPARE_TIMEOUT <- 3600  # comparisons fit several models by ML: they get an hour, with the elapsed time shown
 
 gamm_gd <- reactive(gamm_data(dat(), meta()))
@@ -31,7 +32,7 @@ gamm_run <- function(what, args, timeout = GAMM_TIMEOUT, message = NULL) {
       if (!is.null(message)) setProgress(value = min(0.95, 0.1 + el / 300), detail = sprintf("%d s elapsed; large data can take several minutes.", round(el)))
       if (el > timeout) {
         p$kill()
-        return(list(ok = FALSE, message = sprintf("Stopped after %d minutes. Simplify the model (smaller k, a random intercept instead of individual smooths, a linear instead of a ti proxy term) or choose the bam engine.", round(timeout / 60))))
+        return(list(ok = FALSE, message = sprintf("Stopped after %d minutes. Simplify the model (smaller k, a random intercept instead of random slopes or smooths, a linear instead of a ti proxy term) or choose the bam engine.", round(timeout / 60))))
       }
     }
     tryCatch(p$get_result(), error = function(e) list(ok = FALSE, message = paste("The separate R process stopped:", conditionMessage(e))))
@@ -72,7 +73,10 @@ observeEvent(data_sig(), disappr_guard("gamm family suggestion", {
   } else NULL
   fam <- ex_fam %||% safe_get(integrity()$family$family)
   if (!is.null(fam)) updateSelectInput(session, "gamm_family", selected = gamm_suggest_family(fam))
-  if (!identical(input$data_source, "example")) {
+  # an example's own GAMM preset wins (applied at the end of this file); otherwise, examples included, the default
+  # follows the data, so a setting chosen for the previous dataset is not carried over
+  ex_ind <- if (identical(input$data_source, "example")) safe_get(example_trait_preset(current_example(), input$col_trait %||% "")$gamm$individual) else NULL
+  if (is.null(ex_ind)) {
     rs <- safe_get(default_random_structure(dat()))
     if (!is.null(rs)) updateSelectInput(session, "gamm_individual", selected = if (identical(rs, "none")) "ri" else "rs")
   }
@@ -162,7 +166,7 @@ observeEvent(input$gamm_fit, disappr_guard("input$gamm_fit", {
   gd <- safe_get(gamm_gd())
   if (is.null(gd) || !nrow(gd)) { notify("The data are not ready: check the Data tab.", type = "error"); return(invisible(NULL)) }
   s <- gamm_settings()
-  r <- withProgress(message = "Fitting the GAMM", value = 0.3, gamm_run("gamm_fit", list(gd = gd, s = s)))
+  r <- gamm_run("gamm_fit", list(gd = gd, s = s), message = "Fitting the GAMM")
   r$signature <- gamm_sig()
   gamm_store(r)
   gamm_groups_store(NULL); gamm_proxy_store(NULL); gamm_poly_store(NULL)

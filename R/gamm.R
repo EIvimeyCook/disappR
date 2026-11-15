@@ -761,7 +761,7 @@ gamm_guide <- function(r, o, poly = NULL, groups = NULL, proxy = NULL) {
     agedep <- nrow(sml) && any(grepl("^ti\\(|:\\.(ALR|LS|AFR)_c$", sml$Smooth) & is.finite(sml$P) & sml$P < 0.05)
     out[[length(out) + 1]] <- item("4. Does selective disappearance or appearance shape the curve?",
       paste0(paste(bits[nzchar(bits)], collapse = ". "), ".",
-             if (agedep && s$individual %in% c("ri", "rs")) " Caution: individuals that simply age differently can produce this effect with a random intercept or slope; refit with 'Random smooth per individual' and compare again before interpreting it." else ""),
+             if (agedep && s$individual %in% c("ri", "rs") && !any(unlist(proxy$verdicts) %in% "age_dependent")) " Caution: individuals that simply age differently can produce this effect with a random intercept or slope; refit with 'Random smooth per individual' and compare again before interpreting it." else ""),
       if (is.null(proxy)) "Press 'Compare proxy forms' (Selective disappearance tab) to test whether the proxy matters and whether its effect changes with age."
       else paste(c("Comparison:", unlist(proxy$texts), gamm_proxy_refit(proxy, prox, pf, r$afr_form %||% "none")), collapse = " "))
   }
@@ -1233,6 +1233,10 @@ gamm_proxy_comparison <- function(gd, s, progress = NULL) {
       none = sprintf("The model without %s is within 2 AIC of the best: no clear evidence of selective %s through %s.", p, if (p == "AFR") "appearance" else "disappearance", p),
       sprintf("The %s comparison could not be completed: %s did not fit (see Status). Try a simpler model (e.g. a random intercept) and compare again.", p,
               { fl <- labs[!is.finite(tab$AIC)]; paste(paste0(tolower(substr(fl, 1, 1)), substring(fl, 2)), collapse = ", ") }))
+    if (identical(v, "age_dependent"))
+      out$texts[[p]] <- paste(out$texts[[p]], if ((s$individual %||% "ri") %in% c("ri", "rs", "none"))
+        "Before interpreting it, refit with 'Random smooth per individual' and compare again (individuals that simply age differently can produce this), and check step 3's sampling diagnostics (missingness linked to age or to the trait can too)."
+        else "Before interpreting it, check step 3's sampling diagnostics: missingness linked to age or to the trait can produce this.")
     if (fast) out$texts[[p]] <- paste(out$texts[[p]], sprintf("(Fitted with gamm4 because of the many random-effect levels; the age-dependent form is s(age, by = %s), linear in %s.)", p, p))
   }
   out

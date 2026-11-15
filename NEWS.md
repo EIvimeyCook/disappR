@@ -1,5 +1,16 @@
 # disappR 0.25.2
 
+* **Release audit fixes** (a browser crawl of all 273 controls, 10 simulated scenarios and 5 published datasets run
+  through steps 1-7):
+  - GAMM proxy comparison: when lme4's PIRLS fails to converge in a gamm4 fit (fly example: negative binomial, random
+    slopes), the fit is retried with bobyqa and a looser tolerance, so the comparison completes. A comparison that still
+    fails names the model that did not fit.
+  - An age-dependent proxy verdict now asks for a random smooth per individual and a look at step 3's sampling
+    diagnostics before it is interpreted.
+  - Step 5: when every model has an invalid Hessian, the message names the simpler random-effects option to choose.
+  - 'Clear all' saved results asks for confirmation; code and GAMM downloads write a note instead of failing when
+    nothing is fitted; the GAMM settings guide is a numbered list; wide GAMM tables scroll; the gamm4 note mentions
+    theta only for negative binomial models; two wording slips fixed.
 * **GAMM step (7): shorter, self-guiding wording** (build stamp 0.25.2-2026-11-15b). The help boxes, tab guide, notes
   and generated guide were rewritten to say what to fit, why and how to read it, each in one place (about half the
   text). The guide now warns when an age-dependent proxy effect is found with a random intercept only, and asks for a

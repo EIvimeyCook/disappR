@@ -1148,7 +1148,7 @@ gamm_group_comparison <- function(gd, s, progress = NULL) {
   for (i in seq_along(structs)) {
     if (is.function(progress)) progress(i, length(structs) + 1, names(structs)[[i]])
     fits[[structs[[i]]]] <- if (fast && structs[[i]] %in% c("GS", "S"))
-      list(ok = FALSE, message = "not fitted (gamm4 cannot fit it; choose the bam engine to include it)")
+      list(ok = FALSE, message = "not fitted (needs mgcv: bam engine)")
     else gamm_fit(gd, s, method = "ML", structure = structs[[i]], rows = rows)
   }
   tab <- gamm_compare_table(fits, names(structs))

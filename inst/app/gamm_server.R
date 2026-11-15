@@ -772,7 +772,7 @@ gamm_fast_text <- function() {
       tags$li("AIC comes from gamm4's marginal likelihood; it is somewhat more cautious about extra smooth terms than mgcv."),
       tags$li("The age-dependent proxy form is s(age, by = proxy); ti(age, proxy) is not available."),
       tags$li("Group structures GS and S are left out (G, GI and I are compared)."),
-      tags$li("Negative binomial: theta is held at the fitted model's estimate.")),
+      if (identical(safe_get(gamm_settings()$family), "nb")) tags$li("Negative binomial: theta is held at the fitted model's estimate.")),
     p("To use mgcv anyway, choose the bam engine under Advanced options (slow). The methods draft records which was used."))
 }
 gamm_fast_box <- function() div(class = "caution-box", style = "margin-top:8px;", icon("bolt"),

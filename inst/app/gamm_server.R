@@ -79,7 +79,12 @@ observeEvent(data_sig(), disappr_guard("gamm family suggestion", {
 }), ignoreInit = FALSE)
 output$gamm_family_hint <- renderUI({
   fam <- safe_get(integrity()$family$family); m <- safe_get(meta())
-  hint <- if (!is.null(fam)) sprintf("Suggested for this trait: %s.", gamm_family_label(gamm_suggest_family(fam))) else NULL
+  ex_fam <- if (identical(input$data_source, "example")) {
+    ex <- safe_get(current_example()); tp <- safe_get(example_trait_preset(ex, input$col_trait %||% ""))
+    tp$gamm$family %||% tp$family %||% safe_get(ex$family)
+  } else NULL
+  hint <- if (!is.null(ex_fam)) sprintf("Set to the published analysis: %s.", gamm_family_label(gamm_suggest_family(ex_fam)))
+          else if (!is.null(fam)) sprintf("Suggested for this trait: %s.", gamm_family_label(gamm_suggest_family(fam))) else NULL
   tri <- if (identical(input$gamm_family, "binomial") && !isTRUE(m$has_trials))
     "Binomial without a trials column: the trait must be 0/1 (for proportions, set the trials column in step 5)." else NULL
   if (is.null(hint) && is.null(tri)) return(NULL)

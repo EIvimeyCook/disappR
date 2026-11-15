@@ -36,6 +36,7 @@ Imports:
     utils
 Suggests:
     callr,
+    MASS,
     DHARMa,
     glmmTMB,
     lmerTest,

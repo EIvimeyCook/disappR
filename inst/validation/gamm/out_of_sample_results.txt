@@ -56,7 +56,7 @@
   mass       Quadratic              SD both        +1 groups+diet | gam 3993 rec  16s | mean |D|%: with proxy   6.8, without   6.8, ti   0.2, GLMM M4    0.3 | ALR +1.43 (p <0.001)
   count_pois Cubic                  SD independent -1 groups+diet | gam 4027 rec  21s | mean |D|%: with proxy   9.1, without     9, GLMM M4   10.4 | ALR -0.0139 (p 0.005)
 
-  56 of 56 simulated datasets fitted (24 min).
+  56 of 56 simulated datasets fitted (0 min).
   With selective disappearance through lifespan (38 datasets): the ALR term brings the GAMM closer to the true curve in 33.
   Age-independent selective disappearance (23 datasets): ALR term in the simulated direction and p < 0.05 in 23.
   GAMM with proxy minus best GLMM, mean |D| percentage points: median 0.25, range -1.30 to 34.10 (negative: the GAMM is closer).
@@ -64,3 +64,298 @@
   Proxy comparison (marginal-likelihood AIC) gave the simulated kind of selective disappearance in 15 of 18 datasets (other: independent mass -> age_dependent; none count_nb -> age_independent; independent mass -> age_dependent).
 
 ==== B. Parametric-study examples through every GAMM option ====
+  fly
+    default (ALR linear)                     ok         9.3s bam, 1901 rec, AIC 15961.0
+    ALR smooth                               ok        13.6s bam, 1901 rec, AIC 15947.0
+    ALR vc s(age, by = ALR)                  ok         8.8s bam, 1901 rec, AIC 15808.6
+    ALR ti(age, ALR)                         ok        11.8s bam, 1901 rec, AIC 15803.4
+    no proxy                                 ok        11.0s bam, 1901 rec, AIC 16017.3
+    random slopes                            ok        50.8s bam, 1901 rec, AIC 15847.2
+    no individual effect                     ok         0.2s gam, 1901 rec, AIC 15957.7
+    terminal record                          ok         9.8s bam, 1901 rec, AIC 15874.5
+    observation-level RE                     ok        10.4s bam, 1901 rec, AIC 15961.0
+    k = 5                                    ok        11.9s bam, 1901 rec, AIC 15961.0
+    engine bam                               ok        12.9s bam, 1901 rec, AIC 15961.0
+    engine gamm4                             ok        11.0s bam, 1901 rec, AIC 15961.0
+    no covariates or random intercepts       ok         6.9s bam, 1901 rec, AIC 15974.8
+    known lifespan (LS) smooth               ok        10.7s bam, 1883 rec, AIC 15769.0
+    group Rep, GS                            ok        16.2s bam, 1901 rec, AIC 15885.4
+    group Rep, GI                            ok        10.6s bam, 1901 rec, AIC 15851.5
+    group Rep, S                             ok         4.4s bam, 1901 rec, AIC 15886.1
+    group Rep, I                             ok         7.5s bam, 1901 rec, AIC 15885.6
+    shape comparison                           31.5s best: Cubic age
+    proxy comparison                           67.0s Age-dependent ALR term best supported (other forms at least 2 AIC worse): the association between ALR and the trait changes with age. (Fitted with gamm4 because
+    groups comparison                         188.5s GI is best supported and G is more than 2 AIC worse: the groups appear to age differently. (Fitted with gamm4 because of the many random-effect levels; structur
+    agreement with step 5 (Model 2): ALR coefficient GLMM +0.056, GAMM +0.024 (p <0.001), same direction; population curves correlate r = 0.967
+  bichet
+    default (ALR linear)                     ok        22.6s gam, 1023 rec, AIC 4475.3
+    ALR smooth                               ok        30.3s gam, 1023 rec, AIC 4470.7
+    ALR vc s(age, by = ALR)                  ok        43.1s gam, 1023 rec, AIC 4472.8
+    ALR ti(age, ALR)                         ok        85.7s gam, 1023 rec, AIC 4471.1
+    no proxy                                 ok        25.4s gam, 1023 rec, AIC 4475.4
+    random slopes                            ok       180.4s gam, 1023 rec, AIC 4489.6
+    no individual effect                     ok         1.2s gam, 1023 rec, AIC 4475.3
+    terminal record                          ok        21.6s gam, 1023 rec, AIC 4475.3
+    observation-level RE                     ok        38.9s gam, 1023 rec, AIC 4475.3
+    k = 5                                    ok        12.1s gam, 1023 rec, AIC 4475.3
+    engine bam                               ok         1.1s bam, 1023 rec, AIC 4475.1
+    engine gamm4                             ok         0.6s gamm4, 1023 rec, AIC 4525.7
+    no covariates or random intercepts       ok        14.5s gam, 1023 rec, AIC 4752.4
+    AFR linear + ALR linear                  ok        10.9s gam, 1023 rec, AIC 4476.4
+    group sex, GS                            ok       178.6s gam, 1023 rec, AIC 4475.6
+    group sex, GI                            ok        35.9s gam, 1023 rec, AIC 4475.4
+    group sex, S                             ok        31.2s gam, 1023 rec, AIC 4477.9
+    group sex, I                             ok        34.2s gam, 1023 rec, AIC 4476.6
+    shape comparison                            0.8s best: Linear age
+    proxy comparison                            4.6s The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR. (Fitted with gamm4 because of the many random-effec
+    groups comparison                           2.3s One curve (G) is best supported: no clear evidence that the groups age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS a
+    agreement with step 5 (Model 2): ALR coefficient GLMM -0.255, GAMM -0.0503 (p 0.126), same direction; population curves correlate r = 1.000
+  bichet_marmot
+    default (ALR linear)                     ok         1.2s gam, 169 rec, AIC 1557.3
+    ALR smooth                               ok         2.2s gam, 169 rec, AIC 1559.0
+    ALR vc s(age, by = ALR)                  ok         0.6s gam, 169 rec, AIC 1559.3
+    ALR ti(age, ALR)                         ok         2.9s gam, 169 rec, AIC 1533.6
+    no proxy                                 ok         0.3s gam, 169 rec, AIC 1559.0
+    random slopes                            ok         1.6s gam, 169 rec, AIC 1453.9
+    no individual effect                     ok         0.0s gam, 169 rec, AIC 1898.7
+    terminal record                          ok         0.2s gam, 169 rec, AIC 1557.3
+    observation-level RE                     ok         3.4s gamm4, 169 rec, AIC 1372.4
+    k = 5                                    ok         0.4s gam, 169 rec, AIC 1556.2
+    engine bam                               ok         0.0s bam, 169 rec, AIC 1556.9
+    engine gamm4                             ok         1.4s gamm4, 169 rec, AIC 1643.6
+    no covariates or random intercepts       ok         0.3s gam, 169 rec, AIC 1599.9
+    AFR linear + ALR linear                  ok         0.3s gam, 169 rec, AIC 1557.0
+    group sex, GS                            ok         1.2s gam, 169 rec, AIC 1546.4
+    group sex, GI                            ok         0.9s gam, 169 rec, AIC 1548.4
+    group sex, S                             ok         0.5s gam, 169 rec, AIC 1545.1
+    group sex, I                             ok         0.3s gam, 169 rec, AIC 1547.1
+    shape comparison                            1.8s best: Smooth of age
+    proxy comparison                            5.3s A ALR term is supported (no-ALR model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective disappearance. Age-dependen
+    groups comparison                           3.3s S is best supported and G is more than 2 AIC worse: the groups appear to age differently.
+    agreement with step 5 (Model 2): ALR coefficient GLMM +0.374, GAMM +0.16 (p 0.001), same direction; population curves correlate r = 0.962
+  moullec_swift
+    default (ALR linear)                     ok         3.6s bam, 2069 rec, AIC 13668.7
+    ALR smooth                               ok         2.4s bam, 2069 rec, AIC 13668.7
+    ALR vc s(age, by = ALR)                  ok         1.6s bam, 2069 rec, AIC 13664.6
+    ALR ti(age, ALR)                         ok         1.9s bam, 2069 rec, AIC 13664.6
+    no proxy                                 ok         1.1s bam, 2069 rec, AIC 13667.9
+    random slopes                            ok         5.4s bam, 2069 rec, AIC 13612.8
+    no individual effect                     ok         1.1s gam, 2069 rec, AIC 13793.9
+    terminal record                          ok         1.7s bam, 2069 rec, AIC 13669.9
+    observation-level RE                     ok         1.2s bam, 2069 rec, AIC 13668.7
+    k = 5                                    ok         1.4s bam, 2069 rec, AIC 13750.4
+    engine bam                               ok         3.1s bam, 2069 rec, AIC 13668.7
+    engine gamm4                             ok         1.3s gamm4, 2069 rec, AIC 13839.9
+    no covariates or random intercepts       ok         0.9s bam, 2069 rec, AIC 14739.4
+    known lifespan (LS) smooth               ok         1.2s bam, 2069 rec, AIC 13670.3
+    AFR linear + ALR linear                  ok         0.8s bam, 2069 rec, AIC 13664.3
+    group sex, GS                            ok         0.8s bam, 2069 rec, AIC 13670.5
+    group sex, GI                            ok         2.2s bam, 2069 rec, AIC 13668.7
+    group sex, S                             ok         2.8s bam, 2069 rec, AIC 13677.5
+    group sex, I                             ok         0.7s bam, 2069 rec, AIC 13678.1
+    shape comparison                            2.8s best: Smooth of age
+    proxy comparison                           10.0s The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR. (Fitted with gamm4 because of the many random-effec
+    groups comparison                           6.4s One curve (G) is best supported: no clear evidence that the groups age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS a
+    agreement with step 5 (Model 2): ALR coefficient GLMM -0.0807, GAMM -0.0273 (p 0.667), same direction; population curves correlate r = 0.700
+  pasztor_apollo
+    default (ALR linear)                     ok         9.7s bam, 3150 rec, AIC -5553.4
+    ALR smooth                               ok        10.3s bam, 3150 rec, AIC -5553.3
+    ALR vc s(age, by = ALR)                  ok         9.7s bam, 3150 rec, AIC -5563.1
+    ALR ti(age, ALR)                         ok         9.8s bam, 3150 rec, AIC -5586.5
+    no proxy                                 ok         5.9s bam, 3150 rec, AIC -5550.3
+    random slopes                            ok        33.1s bam, 3150 rec, AIC -6132.3
+    no individual effect                     ok         0.5s gam, 3150 rec, AIC -3959.7
+    terminal record                          ok         7.2s bam, 3150 rec, AIC -5553.4
+    observation-level RE                     ok         4.0s bam, 3150 rec, AIC -5553.4
+    k = 5                                    ok         4.8s bam, 3150 rec, AIC -5457.9
+    engine bam                               ok         4.0s bam, 3150 rec, AIC -5553.4
+    engine gamm4                             ok         1.0s gamm4, 3150 rec, AIC -4570.7
+    no covariates or random intercepts       ok         4.3s bam, 3173 rec, AIC -5554.7
+    group sex, GS                            ok         6.0s bam, 3150 rec, AIC -5659.9
+    group sex, GI                            ok        16.4s bam, 3150 rec, AIC -5670.9
+    group sex, S                             ok         3.5s bam, 3150 rec, AIC -5671.6
+    group sex, I                             ok         4.3s bam, 3150 rec, AIC -5672.9
+    shape comparison                            2.7s best: Smooth of age
+    proxy comparison                           10.5s A ALR term is supported (no-ALR model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective disappearance. (Fitted with
+    groups comparison                          12.7s GI is best supported and G is more than 2 AIC worse: the groups appear to age differently. (Fitted with gamm4 because of the many random-effect levels; structur
+    agreement with step 5 (Model 2): ALR coefficient GLMM +0.0118, GAMM +0.00203 (p 0.002), same direction; population curves correlate r = 0.977
+  wynn
+    default (ALR linear)                     ok        24.2s gam, 2689 rec, AIC 27234.1
+    ALR smooth                               ok        22.4s gam, 2689 rec, AIC 27234.4
+    ALR vc s(age, by = ALR)                  ok        15.7s gam, 2689 rec, AIC 27237.2
+    ALR ti(age, ALR)                         ok        23.2s gam, 2689 rec, AIC 27239.0
+    no proxy                                 ok        10.8s gam, 2689 rec, AIC 27232.4
+    random slopes                            ok        26.0s gam, 2689 rec, AIC 27234.4
+    no individual effect                     ok         2.1s gam, 2689 rec, AIC 27249.0
+    terminal record                          ok        11.4s gam, 2689 rec, AIC 27234.1
+    observation-level RE                     ok        33.4s gam, 2689 rec, AIC 27234.1
+    k = 5                                    ok        15.1s gam, 2689 rec, AIC 27234.2
+    engine bam                               ok         0.7s bam, 2689 rec, AIC 27223.5
+    engine gamm4                             ok         1.0s gamm4, 2689 rec, AIC 27244.7
+    no covariates or random intercepts       ok         2.1s gam, 2689 rec, AIC 27229.4
+    AFR linear + ALR linear                  ok        12.6s gam, 2689 rec, AIC 27236.3
+    group season, GS                         ok        39.7s gam, 2689 rec, AIC 27235.8
+    group season, GI                         ok        37.7s gam, 2689 rec, AIC 27234.2
+    group season, S                          ok        19.3s gam, 2689 rec, AIC 27235.8
+    group season, I                          ok         9.6s gam, 2689 rec, AIC 27235.9
+    shape comparison                           80.2s best: No age effect
+    proxy comparison                          192.2s The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR. The model without AFR is within 2 AIC of the best: 
+    groups comparison                         247.5s One curve (G) is best supported: no clear evidence that the groups age differently.
+    agreement with step 5 (Model 2): ALR coefficient GLMM -3.88, GAMM -0.827 (p 0.261), same direction; population curves correlate r = 1.000
+  sanghvi_female
+    default (ALR linear)                     ok         9.6s bam, 5997 rec, AIC 27030.6
+    ALR smooth                               ok         9.7s bam, 5997 rec, AIC 27035.6
+    ALR vc s(age, by = ALR)                  ok         4.5s bam, 5997 rec, AIC 26409.2
+    ALR ti(age, ALR)                         ok         9.6s bam, 5997 rec, AIC 25797.4
+    no proxy                                 ok         9.8s bam, 5997 rec, AIC 27037.9
+    random slopes                            ok        20.7s bam, 5997 rec, AIC 25790.0
+    no individual effect                     ok         0.3s gam, 5997 rec, AIC 28159.0
+    terminal record                          ok         9.7s bam, 5997 rec, AIC 26160.7
+    observation-level RE                     ok         4.3s bam, 5997 rec, AIC 27030.6
+    k = 5                                    ok         6.5s bam, 5997 rec, AIC 27157.8
+    engine bam                               ok         4.1s bam, 5997 rec, AIC 27030.6
+    engine gamm4                             ok         5.5s bam, 5997 rec, AIC 27030.6
+    no covariates or random intercepts       ok         4.5s bam, 5997 rec, AIC 27063.0
+    known lifespan (LS) smooth               ok         3.5s bam, 5997 rec, AIC 27034.9
+    group DevT, GS                           ok         4.5s bam, 5997 rec, AIC 26940.6
+    group DevT, GI                           ok         3.7s bam, 5997 rec, AIC 26945.2
+    group DevT, S                            ok         4.0s bam, 5997 rec, AIC 26941.6
+    group DevT, I                            ok         4.8s bam, 5997 rec, AIC 26941.9
+    shape comparison                           85.3s best: Smooth of age
+    proxy comparison                          366.0s Age-dependent ALR term best supported (other forms at least 2 AIC worse): the association between ALR and the trait changes with age. (Fitted with gamm4 because
+    groups comparison                         363.4s GI is best supported and G is more than 2 AIC worse: the groups appear to age differently. (Fitted with gamm4 because of the many random-effect levels; structur
+    agreement with step 5 (Model 2): ALR coefficient GLMM -0.653, GAMM -0.149 (p <0.001), same direction; population curves correlate r = 0.193
+  allain
+    default (ALR linear)                     ok        22.7s gam, 481 rec, AIC 1453.6
+    ALR smooth                               ok         8.5s gam, 481 rec, AIC 1445.7
+    ALR vc s(age, by = ALR)                  ok         9.0s gam, 481 rec, AIC 1444.0
+    ALR ti(age, ALR)                         ok         9.9s gam, 481 rec, AIC 1444.4
+    no proxy                                 ok        14.3s gam, 481 rec, AIC 1455.2
+    random slopes                            ok        27.7s gam, 481 rec, AIC 1449.7
+    no individual effect                     ok         0.1s gam, 481 rec, AIC 1445.7
+    terminal record                          ok         8.1s gam, 481 rec, AIC 1454.5
+    observation-level RE                     ok         6.0s gamm4, 481 rec, AIC 1446.8
+    k = 5                                    ok         5.6s gam, 481 rec, AIC 1453.8
+    engine bam                               ok         0.8s bam, 481 rec, AIC 1446.6
+    engine gamm4                             ok         1.6s gamm4, 481 rec, AIC 1458.6
+    no covariates or random intercepts       ok         7.3s gam, 481 rec, AIC 1460.4
+    known lifespan (LS) smooth               ok        13.3s gam, 459 rec, AIC 1391.6
+    AFR linear + ALR linear                  ok        14.0s gam, 481 rec, AIC 1451.9
+    group season, GS                         ok        64.5s gam, 481 rec, AIC 1455.5
+    group season, GI                         ok        11.5s gam, 481 rec, AIC 1454.9
+    group season, S                          ok         2.7s gam, 481 rec, AIC 1448.2
+    group season, I                          ok        18.3s gam, 481 rec, AIC 1450.5
+    shape comparison                           19.4s best: Smooth of age
+    proxy comparison                           28.7s A ALR term is supported (no-ALR model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective disappearance. Age-dependen
+    groups comparison                          94.3s GS is best supported and G is more than 2 AIC worse: the groups appear to age differently.
+    agreement with step 5 (Model 2): ALR coefficient GLMM -0.0821, GAMM -0.00681 (p 0.099), same direction; population curves correlate r = -0.092
+  bouwhuis
+    default (ALR linear)                     ok       125.5s gamm4, 7126 rec, AIC 43417.5
+    ALR smooth                               ok       125.2s gamm4, 7126 rec, AIC 43418.8
+    ALR vc s(age, by = ALR)                  ok       142.4s gamm4, 7126 rec, AIC 43422.6
+    ALR ti(age, ALR)                         ok       377.1s bam, 7126 rec, AIC 41867.5
+    no proxy                                 ok        91.5s gamm4, 7126 rec, AIC 43415.8
+    random slopes                            ok       604.9s gamm4, 7126 rec, AIC 43410.0
+    no individual effect                     ok         0.1s bam, 7126 rec, AIC 43629.5
+    terminal record                          ok        87.6s gamm4, 7126 rec, AIC 43417.5
+    observation-level RE                     ok        86.4s gamm4, 7126 rec, AIC 43417.5
+    k = 5                                    ok        85.4s gamm4, 7126 rec, AIC 43417.6
+    engine bam                               ok       186.1s bam, 7126 rec, AIC 41874.6
+    engine gamm4                             ok        88.4s gamm4, 7126 rec, AIC 43417.5
+    no covariates or random intercepts       ok         0.9s gamm4, 7126 rec, AIC 49583.2
+    AFR linear + ALR linear                  ok        86.4s gamm4, 7126 rec, AIC 43411.9
+    group f_status, GS                       ok       195.0s bam, 7126 rec, AIC 41874.9
+    group f_status, GI                       ok        81.3s gamm4, 7126 rec, AIC 43420.7
+    group f_status, S                        ok       158.5s bam, 7126 rec, AIC 41871.5
+    group f_status, I                        ok        90.7s gamm4, 7126 rec, AIC 43425.3
+    shape comparison                          441.0s best: Cubic age
+    proxy comparison                          739.4s The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR. (Fitted with gamm4 because of the many random-effec
+    groups comparison                         357.6s One curve (G) is best supported: no clear evidence that the groups age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS a
+    agreement with step 5 (Model 2): ALR coefficient GLMM -0.164, GAMM -0.131 (p 0.027), same direction; population curves correlate r = 0.982
+  warner
+    default (ALR linear)                     ok         3.5s bam, 1839 rec, AIC 3237.6
+    ALR smooth                               ok         1.4s bam, 1839 rec, AIC 3237.6
+    ALR vc s(age, by = ALR)                  ok         0.7s bam, 1839 rec, AIC 3240.3
+    ALR ti(age, ALR)                         ok         3.0s bam, 1839 rec, AIC 3240.3
+    no proxy                                 ok         1.3s bam, 1839 rec, AIC 3239.5
+    random slopes                            ok         5.7s bam, 1839 rec, AIC 3062.0
+    no individual effect                     ok         0.4s gam, 1839 rec, AIC 4421.4
+    terminal record                          ok         0.7s bam, 1839 rec, AIC 3237.6
+    observation-level RE                     ok         0.7s bam, 1839 rec, AIC 3237.6
+    k = 5                                    ok         0.8s bam, 1839 rec, AIC 3238.6
+    engine bam                               ok         0.7s bam, 1839 rec, AIC 3237.6
+    engine gamm4                             ok         0.5s gamm4, 1839 rec, AIC 3769.4
+    no covariates or random intercepts       ok         2.4s bam, 1928 rec, AIC 3786.0
+    AFR linear + ALR linear                  ok         2.8s bam, 1839 rec, AIC 3238.0
+    shape comparison                            1.3s best: Cubic age
+    proxy comparison                            4.6s The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR. (Fitted with gamm4 because of the many random-effec
+    agreement with step 5 (Model 2): ALR coefficient GLMM -0.034, GAMM -0.0181 (p 0.082), same direction; population curves correlate r = 0.940
+  mckennaell_breeding
+    default (ALR linear)                     ok        14.1s bam, 3173 rec, AIC 2327.1
+    ALR smooth                               ok         9.1s bam, 3173 rec, AIC 2304.1
+    ALR vc s(age, by = ALR)                  ok        15.4s bam, 3173 rec, AIC 2329.3
+    ALR ti(age, ALR)                         ok        20.9s bam, 3173 rec, AIC 2269.8
+    no proxy                                 ok        16.5s bam, 3173 rec, AIC 2339.0
+    random slopes                            ok        38.3s bam, 3173 rec, AIC 2327.1
+    no individual effect                     ok         1.6s gam, 3173 rec, AIC 2645.8
+    terminal record                          ok        13.9s bam, 3173 rec, AIC 2327.1
+    observation-level RE                     ok        82.1s gamm4, 3173 rec, AIC 2446.0
+    k = 5                                    ok        12.8s bam, 3173 rec, AIC 2326.9
+    engine bam                               ok        14.3s bam, 3173 rec, AIC 2327.1
+    engine gamm4                             ok        46.3s gamm4, 3173 rec, AIC 2444.0
+    no covariates or random intercepts       ok        13.7s bam, 3173 rec, AIC 2431.8
+    group BredYearling, GS                   ok        16.5s bam, 3173 rec, AIC 2321.0
+    group BredYearling, GI                   ok        14.1s bam, 3173 rec, AIC 2325.9
+    group BredYearling, S                    ok        13.4s bam, 3173 rec, AIC 2322.4
+    group BredYearling, I                    ok        15.5s bam, 3173 rec, AIC 2324.1
+    shape comparison                          127.4s best: Quadratic age
+    proxy comparison                          299.8s A ALR term is supported (no-ALR model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective disappearance. (Fitted with
+    groups comparison                         327.7s I is best supported and G is more than 2 AIC worse: the groups appear to age differently. (Fitted with gamm4 because of the many random-effect levels; structure
+    agreement with step 5 (Model 2): ALR coefficient GLMM +0.404, GAMM +0.161 (p <0.001), same direction; population curves correlate r = 1.000
+  mckennaell_weight
+    default (ALR linear)                     ok        15.4s bam, 2317 rec, AIC 1932.0
+    ALR smooth                               ok         4.9s bam, 2317 rec, AIC 1932.4
+    ALR vc s(age, by = ALR)                  ok         2.0s bam, 2317 rec, AIC 1935.2
+    ALR ti(age, ALR)                         ok         3.2s bam, 2317 rec, AIC 1923.4
+    no proxy                                 ok         6.2s bam, 2317 rec, AIC 1931.5
+    random slopes                            ok        12.6s bam, 2317 rec, AIC 1891.9
+    no individual effect                     ok         4.6s gam, 2317 rec, AIC 2520.3
+    terminal record                          ok         6.9s bam, 2317 rec, AIC 1932.0
+    observation-level RE                     ok         6.2s bam, 2317 rec, AIC 1932.0
+    k = 5                                    ok         1.2s bam, 2317 rec, AIC 1931.5
+    engine bam                               ok         2.0s bam, 2317 rec, AIC 1932.0
+    engine gamm4                             ok         0.6s gamm4, 2317 rec, AIC 2400.4
+    no covariates or random intercepts       ok         0.7s bam, 2317 rec, AIC 4199.4
+    AFR linear + ALR linear                  ok         2.7s bam, 2317 rec, AIC 1932.5
+    group OffspringSex, GS                   ok         4.8s bam, 2317 rec, AIC 1933.5
+    group OffspringSex, GI                   ok         1.4s bam, 2317 rec, AIC 1932.0
+    group OffspringSex, S                    ok         1.4s bam, 2317 rec, AIC 1935.0
+    group OffspringSex, I                    ok         6.4s bam, 2317 rec, AIC 1935.6
+    shape comparison                            1.4s best: Cubic age
+    proxy comparison                            5.9s A ALR term is supported (no-ALR model at least 2 AIC worse), but not an age-dependent one: consistent with age-independent selective disappearance. (Fitted with
+    groups comparison                           4.4s One curve (G) is best supported: no clear evidence that the groups age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS a
+    agreement with step 5 (Model 2): ALR coefficient GLMM +0.0319, GAMM +0.0148 (p 0.044), same direction; population curves correlate r = 0.992
+  szejnersigal_activity
+    default (ALR linear)                     ok         1.5s gam, 414 rec, AIC 6498.1
+    ALR smooth                               ok         4.7s gam, 414 rec, AIC 6498.2
+    ALR vc s(age, by = ALR)                  ok         1.0s gam, 414 rec, AIC 6482.4
+    ALR ti(age, ALR)                         ok         6.9s gam, 414 rec, AIC 6483.7
+    no proxy                                 ok         0.2s gam, 414 rec, AIC 6497.6
+    random slopes                            ok         3.7s gam, 414 rec, AIC 6464.5
+    no individual effect                     ok         0.0s gam, 414 rec, AIC 6639.6
+    terminal record                          ok         0.3s gam, 414 rec, AIC 6484.5
+    observation-level RE                     ok         0.3s gam, 414 rec, AIC 6498.1
+    k = 5                                    ok         0.7s gam, 414 rec, AIC 6525.0
+    engine bam                               ok         0.1s bam, 414 rec, AIC 6497.9
+    engine gamm4                             ok         0.3s gamm4, 414 rec, AIC 6550.1
+    no covariates or random intercepts       ok         0.3s gam, 414 rec, AIC 6498.1
+    known lifespan (LS) smooth               ok         0.3s gam, 414 rec, AIC 6498.3
+    shape comparison                            1.1s best: Smooth of age
+    proxy comparison                           13.4s The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR.
+    agreement with step 5 (Model 2): ALR coefficient GLMM -48.3, GAMM -3.9 (p 0.484), same direction; population curves correlate r = 0.840
+
+  13 examples (0 min). ALR effect in the same direction as the GLMM in 13 of 13; opposite and significant in the GAMM in 0.
+  GAMM vs GLMM population curves: median correlation 0.967 (lowest -0.092, allain).
+  Fits or comparisons beyond the time limit (300 s per fit, 1800 s per comparison): none.
+
+Out-of-sample GAMM tests finished: no errors, no broken invariants.

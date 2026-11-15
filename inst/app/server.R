@@ -3334,7 +3334,7 @@ server <- function(input, output, session) {
       content = function(file) {
         con <- file(file, open = "w", encoding = "UTF-8")
         on.exit(close(con), add = TRUE)
-        writeLines(code_text(), con)
+        writeLines(safe_get(code_text()) %||% "# Fit the models first (step 5): this file then holds their R code.", con)
       }
     )
   }

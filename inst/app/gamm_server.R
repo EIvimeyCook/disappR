@@ -590,11 +590,15 @@ output$gamm_diff_plot <- renderPlot(gamm_diff_obj())
 output$gamm_code <- renderText(paste(gamm_code(gamm_res()), collapse = "\n"))
 output$download_gamm_code <- downloadHandler(
   filename = function() "disappR_gamm.R",
-  content = function(con) writeLines(enc2utf8(gamm_code(gamm_res())), con, useBytes = TRUE))
+  content = function(con) {
+    r <- safe_get(gamm_res())
+    writeLines(enc2utf8(if (is.null(r)) "# Fit a GAMM first (step 7, Fit tab): this file then holds its R code." else gamm_code(r)), con, useBytes = TRUE)
+  })
 output$download_gamm_data <- downloadHandler(
   filename = function() "disappR_gamm_data.csv",
   content = function(con) {
-    d <- gamm_res()$data
+    d <- safe_get(gamm_res()$data)
+    if (is.null(d)) d <- data.frame(Note = "Fit a GAMM first (step 7, Fit tab).")
     utils::write.csv(d[, setdiff(names(d), c(".age_c", ".grp_o")), drop = FALSE], con, row.names = FALSE)
   })
 

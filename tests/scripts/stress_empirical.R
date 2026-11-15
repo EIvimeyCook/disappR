@@ -230,6 +230,9 @@ sim_case <- function(seed, n = 400, mean_ls = 12, type = "null", extra = list())
     diet <- NA_character_
     y <- switch(type,
       null        = lvl - 0.15 * a - 0.01 * a^2 + stats::rnorm(length(a)),
+      # trait-dependent missingness without selective disappearance: the null trajectory (it used the default branch,
+      # whose slope depends on lifespan, i.e. age-dependent selective disappearance)
+      mnar        = lvl - 0.15 * a - 0.01 * a^2 + stats::rnorm(length(a)),
       threshold   = lvl + ifelse(ls[i] >= stats::median(ls), -0.05, -0.45) * a + stats::rnorm(length(a)),
       quad_alr    = 10 + 3 * (1 - zls[i]^2) + stats::rnorm(1, 0, 0.7) - 0.2 * a + stats::rnorm(length(a)),
       slopes      = lvl + (-0.2 + 0.25 * stats::rnorm(1)) * a + stats::rnorm(length(a)),
@@ -268,7 +271,9 @@ sim_check <- function(label, d, expect, age_function = "Linear", covars = charac
 }
 
 sim_check("S0 no selective disappearance", sim_case(1, type = "null"), "M1", age_function = "Quadratic")
-sim_check("S1 threshold (non-linear) SD", sim_case(2, type = "threshold"), c("M4", "M6"))
+# Models 4 and 5 both model age-dependent selective disappearance; with complete sampling mean age tracks lifespan, so
+# either can rank first (the manuscript's flowchart: 'Models 4 and 5 should give a similar fit')
+sim_check("S1 threshold (non-linear) SD", sim_case(2, type = "threshold"), c("M4", "M5", "M6"))
 s2 <- sim_case(3, type = "quad_alr")
 r2 <- sim_check("S2 U-shaped SD, linear ALR only", s2, c("M1", "M2", "M4"))
 note("S2: with a U-shaped lifespan effect the linear ALR term finds nothing; ALR^2 (among = 'same', or an extra term) is needed, and the ALR-bin means in Visual diagnosis are the diagnostic")
@@ -276,7 +281,9 @@ sim_check("S3 trait-dependent missingness, no true SD", sim_case(4, mean_ls = 14
 note("S3: MNAR missingness makes M3/M5 win with no true selective disappearance - the missingness drivers table is the safeguard")
 sim_check("S4 diet x age interaction + SD", sim_case(5, n = 500, type = "cov"), c("M4", "M6"),
           covars = "diet", cov_age = "diet")
-sim_check("S5a random slopes unlinked to LS (random intercept)", sim_case(6, type = "slopes"), "M1")
+# with random-intercept models only, the interaction models absorb slope heterogeneity unlinked to lifespan and rank
+# first (Sanghvi et al. 2026, Figure 5B); with random slopes all models fit about equally well (Figure 5E, S5b)
+sim_check("S5a random slopes unlinked to LS (random intercept)", sim_case(6, type = "slopes"), c("M4", "M5", "M6"))
 sim_check("S5b random slopes unlinked to LS (correlated slope)", sim_case(6, type = "slopes"), "M1",
           random_slope = "correlated")
 sim_check("S7 binary trait with age-dependent SD", sim_case(8, n = 600, type = "binary"), c("M4", "M6"))

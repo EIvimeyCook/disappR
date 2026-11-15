@@ -688,6 +688,8 @@ gamm_proxy_refit <- function(proxy, prox, pf, afr_form) {
 gamm_guide <- function(r, o, poly = NULL, groups = NULL, proxy = NULL) {
   s <- r$settings
   sm <- o$smooth; pr <- o$parametric
+  if (is.list(proxy) && !is.data.frame(proxy) && !isTRUE(proxy$ok)) proxy <- NULL     # a comparison that did not run
+  if (is.list(groups) && !is.data.frame(groups) && !isTRUE(groups$ok)) groups <- NULL
   item <- function(q, a, nxt = "") list(question = q, answer = a, next_step = nxt)
   out <- list()
   # 1. is there an age effect at all?

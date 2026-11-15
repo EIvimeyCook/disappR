@@ -245,6 +245,11 @@ test_that("the guided reading and the check summary answer for the fitted model"
   gc <- list(ok = TRUE, verdict = "test", table = data.frame(Model = c("G", "GI"), AIC = c(100, 110)))
   g3 <- gamm_guide(r, o, poly = pr, groups = gc)
   expect_match(g3[[3]]$next_step, "supports structure G, not the GI fitted here")
+  # a comparison that did not run is treated as not run: no empty "Comparison:" line
+  g4 <- gamm_guide(r, o, poly = pr, groups = list(ok = FALSE, message = "x"), proxy = list(ok = FALSE, message = "x"))
+  q4 <- Filter(function(x) startsWith(x$question, "4."), g4)
+  if (length(q4)) expect_false(grepl("^Comparison:\\s*$", q4[[1]]$next_step))
+  expect_match(g4[[3]]$next_step, "Compare group structures")
   cs <- gamm_check_summary(r, gamm_kcheck(r), gamm_concurvity(r), NULL)
   expect_true(all(c("Basis size (k)", "Concurvity", "Correlation within individuals", "Data at old ages", "Convergence") %in% cs$Check))
   expect_true(attr(cs, "overall") %in% c("good", "caution", "problem"))

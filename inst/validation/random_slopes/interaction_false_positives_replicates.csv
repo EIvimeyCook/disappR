@@ -1,0 +1,25 @@
+"rep","sc","st","M4_vs_M2","M5_vs_M3","invalid"
+1,"none (no selective disappearance)","random intercept",180.43627455434,180.459402029839,0
+2,"none (no selective disappearance)","random intercept",69.3945034741264,68.9458486218791,0
+1,"intercept only (age-independent)","random intercept",180.474977855709,180.459428211849,0
+2,"intercept only (age-independent)","random intercept",69.4648105600645,68.9458345108505,0
+1,"slope (age-dependent)","random intercept",417.505442434769,417.938097674152,0
+2,"slope (age-dependent)","random intercept",540.144981946061,537.893169252646,0
+1,"shape (age-dependent)","random intercept",306.319909602869,306.58052838748,0
+2,"shape (age-dependent)","random intercept",617.497247530053,615.195465147393,0
+1,"none (no selective disappearance)","+ random slope",98.6163474253772,98.5807660330393,0
+2,"none (no selective disappearance)","+ random slope",32.2575944365381,32.359962509945,0
+1,"intercept only (age-independent)","+ random slope",98.6240667141319,98.5597506877748,0
+2,"intercept only (age-independent)","+ random slope",32.2263550811113,32.3505208678398,0
+1,"slope (age-dependent)","+ random slope",140.336722012034,140.814914810529,0
+2,"slope (age-dependent)","+ random slope",59.6627923596388,57.975752632221,0
+1,"shape (age-dependent)","+ random slope",221.620509327906,222.012342121452,0
+2,"shape (age-dependent)","+ random slope",633.024507152615,631.44464306283,0
+1,"none (no selective disappearance)","+ random slope and shape",-0.306721990076767,-0.248959814220143,0
+2,"none (no selective disappearance)","+ random slope and shape",-1.21114240296447,-1.06308935719426,0
+1,"intercept only (age-independent)","+ random slope and shape",-0.30583487945114,-0.237537245935528,0
+2,"intercept only (age-independent)","+ random slope and shape",-1.20471565093612,-1.04825351574254,0
+1,"slope (age-dependent)","+ random slope and shape",88.4756220830095,88.9633228602834,0
+2,"slope (age-dependent)","+ random slope and shape",42.4738297338845,40.8744591312716,0
+1,"shape (age-dependent)","+ random slope and shape",48.3799323663407,48.636926681138,0
+2,"shape (age-dependent)","+ random slope and shape",59.2459860350136,57.469055314381,0

@@ -332,3 +332,17 @@ test_that("the memory advice warns only when the machine is short of memory", {
   expect_identical(w$level, "warning"); expect_match(w$text, "Not enough memory")
   expect_identical(gamm_memory_advice(7126, 4904, avail = NA_real_)$level, "caveat")   # unknown memory: caveat only
 })
+
+test_that("random-effect SDs are read from gam.vcomp in every mgcv version's format", {
+  tab <- matrix(c(0.6, 0.48, 0.31, 0.28, 0.39, 0.29, 1.27, 0.58, 0.33), 3, dimnames = list(c("s(age)", "s(id)", "scale"), c("std.dev", "lower", "upper")))
+  old <- gamm_vcomp_table(tab)                                                   # mgcv <= 1.9-3: a matrix
+  expect_identical(old$Term, c("s(id)", "scale")); expect_equal(old$SD, c(0.48, 0.31)); expect_equal(old$Upper, c(0.58, 0.33))
+  new <- structure(list(all = NULL, vc = tab, rank = 3, rank.hess = 3, conf.lev = 0.95), class = "gam.vcomp")   # mgcv >= 1.9-4
+  expect_identical(gamm_vcomp_table(new), old)
+  new_all <- new; new_all$all <- c(0.6, 0.48)                                    # $all present (linked components) and unnamed
+  expect_identical(gamm_vcomp_table(new_all), old)
+  sds <- c("s(age)" = 0.6, "s(id)" = 0.48, scale = 0.31)
+  expect_equal(gamm_vcomp_table(list(vc = sds, all = sds))$SD, c(0.48, 0.31))   # no Hessian: named vectors
+  expect_equal(gamm_vcomp_table(structure(unname(sds), class = "gam.vcomp"), c("s(age)", "s(id)"))$Term, c("s(id)", "scale"))
+  expect_identical(nrow(gamm_vcomp_table(NULL)), 0L)
+})

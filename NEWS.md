@@ -1,5 +1,8 @@
 # disappR 0.25.2
 
+* **mgcv 1.9-4 and later** (build stamp 0.25.2-2026-11-18). `mgcv::gam.vcomp()` now returns a classed list whose
+  `$vc` holds the table of standard deviations; the GAMM step read `$all` and failed with these versions (random-effect
+  table and four unit tests). The table is now read from every version's format (`gamm_vcomp_table()`, with tests).
 * **Memory caveat and warning for GAMMs** (build stamp 0.25.2-2026-11-15d). The app estimates the memory step 7's
   comparisons need from the number of records and random-effect levels (calibrated on the great tit example: about
   6 GB) and reads what the computer or server has free (container limit or free memory on Linux, as on hosting

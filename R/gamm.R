@@ -1373,10 +1373,24 @@ gamm_vcomp <- function(r) {
   vc <- NULL
   utils::capture.output(vc <- tryCatch(suppressWarnings(mgcv::gam.vcomp(r$fit, rescale = FALSE)), error = function(e) NULL))
   if (is.null(vc)) return(data.frame())
-  m <- if (is.list(vc)) vc$all else vc
-  if (is.null(dim(m))) return(data.frame(Term = names(m), SD = as.numeric(m), Lower = NA_real_, Upper = NA_real_))
-  out <- data.frame(Term = rownames(m), SD = m[, 1], Lower = if (ncol(m) >= 3) m[, 2] else NA_real_,
-                    Upper = if (ncol(m) >= 3) m[, 3] else NA_real_, stringsAsFactors = FALSE, row.names = NULL)
+  # mgcv up to 1.9-3 returns a matrix (std.dev, lower, upper), or without a usable Hessian a list(vc, all) of named
+  # vectors; mgcv 1.9-4 and later return a "gam.vcomp" list whose $vc holds that matrix (or vector) and whose $all is
+  # NULL or the linked components. $vc is the table in every version.
+  gamm_vcomp_table(vc, names(r$fit$sp))
+}
+# The standard deviations (and 95% limits) of gam.vcomp's result as a table, whichever mgcv version produced it.
+gamm_vcomp_table <- function(vc, sp_names = character(0)) {
+  m <- if (is.list(vc)) (if (!is.null(vc$vc)) vc$vc else vc$all) else vc
+  if (is.null(m) || !length(m)) return(data.frame())
+  m <- unclass(m)
+  if (is.null(dim(m))) {
+    nm <- names(m)
+    if (is.null(nm)) nm <- if (length(m) == length(sp_names) + 1L) c(sp_names, "scale") else if (length(m) == length(sp_names)) sp_names else NULL
+    if (is.null(nm)) return(data.frame())
+    m <- matrix(as.numeric(m), ncol = 1, dimnames = list(nm, "std.dev"))
+  }
+  out <- data.frame(Term = rownames(m), SD = as.numeric(m[, 1]), Lower = if (ncol(m) >= 3) as.numeric(m[, 2]) else NA_real_,
+                    Upper = if (ncol(m) >= 3) as.numeric(m[, 3]) else NA_real_, stringsAsFactors = FALSE, row.names = NULL)
   out[grepl("id|re_|scale", out$Term), , drop = FALSE]
 }
 

@@ -1581,7 +1581,7 @@ gamm_code <- function(r, file = "disappR_gamm_data.csv") {
     fitline,
     "summary(fit)",
     "k.check(fit)                       # basis dimension: k-index well below 1 with a small p-value means k is too low",
-    "concurvity(fit, full = TRUE)",
+    "try(print(concurvity(fit, full = FALSE)))   # concurvity between pairs of terms, as the app reports it; try() keeps the script going if mgcv cannot compute it",
     "plot(fit, pages = 1, shade = TRUE, seWithMean = TRUE)",
     "",
     "# Optional: derivatives of the age smooth with simultaneous intervals, and model checks (gratia)",

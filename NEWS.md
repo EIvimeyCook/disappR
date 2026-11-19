@@ -1,5 +1,20 @@
 # disappR 0.25.2
 
+* **Fixes from an independent review** (build stamp 0.25.2-2026-11-19):
+  - The random-effects description dropped age² (and age³) for the "every age term" structures in the step 5 results
+    header, the saved model comparison and the auto-written methods: it now names every term of the ageing function, as
+    fitted (for example `(1 + age + age² | ID)`). The fits themselves were correct.
+  - The downloaded visual-section script no longer stops when the grouping proxy takes one value (every individual with
+    the same ALR, as in a fixed-length study); it skips those figures with a message.
+  - The downloaded GAMM script computes concurvity as the app does (`full = FALSE`, inside `try()`), so rank-deficient
+    fits (the Brown haematocrit example) no longer stop it.
+  - The family suggestion recommends beta for continuous proportions (values between 0 and 1 that are not counts out of
+    trials, such as haematocrit) and keeps binomial with a trials column for successes out of trials; with exact 0s or 1s
+    it explains the rescaling beta needs.
+  - A caveat, in the help text and above the figures, when AFR groups are used while AFR and ALR are correlated: AFR
+    differences can then reflect selective disappearance.
+  - Non-linear exponential fits no longer print R² messages to the console.
+  - DESCRIPTION: 27 empirical examples from 17 studies; README: gamm4 in the optional packages.
 * **mgcv 1.9-4 and later** (build stamp 0.25.2-2026-11-18). `mgcv::gam.vcomp()` now returns a classed list whose
   `$vc` holds the table of standard deviations; the GAMM step read `$all` and failed with these versions (random-effect
   table and four unit tests). The table is now read from every version's format (`gamm_vcomp_table()`, with tests).

@@ -12,10 +12,24 @@ suggest_family <- function(trait, age = NULL) {
   v <- trait[ok]
   if (length(v) < 10) return(list(family = "gaussian", kind = "Unknown", text = "Too few trait values to assess the distribution."))
   is_count <- all(v >= 0) && all(abs(v - round(v)) < 1e-8)
-  # Proportions (values within 0-1 that are not all 0 or 1): binomial with a trials column.
+  # Proportions (values within 0-1 that are not all 0 or 1). Successes out of trials take values k/n with small n (0.25, 2/3,
+  # 0.8): binomial with a trials column. A continuous proportion (haematocrit, a body-composition fraction) has no trials:
+  # beta, with binomial as the alternative when trials exist.
   if (!is_count && all(v >= 0) && all(v <= 1)) {
-    return(list(family = "binomial", kind = "Proportion (0-1)", zeros = mean(v == 0), dispersion = NA_real_,
-                text = "Proportion trait (values between 0 and 1): binomial mixed models. Choose the number of trials (for example clutch size or the number of eggs laid) under 'Weights' below the error family on the Modelling tab, so that each proportion is weighted by its sample size; without it the proportions cannot be fitted as binomial and the Gaussian option is the fallback. If the proportions are more variable than binomial sampling allows, use the beta-binomial family."))
+    u <- unique(v)
+    small_frac <- vapply(u, function(x) any(abs(x * (1:50) - round(x * (1:50))) < 1e-6), logical(1))
+    if (mean(small_frac) >= 0.9) {
+      return(list(family = "binomial", kind = "Proportion (0-1)", zeros = mean(v == 0), dispersion = NA_real_,
+                  text = "Proportion trait whose values look like successes out of trials (such as 2 of 5): binomial mixed models. Choose the number of trials (for example clutch size or the number of eggs laid) under 'Weights' below the error family; without it a proportion is treated as a single trial. A continuous proportion with no trials would be modelled with the beta family."))
+    }
+    if (any(v %in% c(0, 1))) {
+      # beta needs values strictly inside (0, 1) and the fit refuses 0 and 1, so it cannot be the default here
+      return(list(family = "gaussian", kind = "Continuous proportion (0-1)", zeros = mean(v == 0), dispersion = NA_real_,
+                  text = sprintf("Continuous proportion (values between 0 and 1 that are not counts out of trials) with %d value(s) of exactly 0 or 1. The beta family suits such traits but needs values strictly between 0 and 1: rescale the trait as (y(n - 1) + 0.5) / n, where n is the number of records (Smithson & Verkuilen 2006), and choose beta. Gaussian is the starting point until then.",
+                                 sum(v %in% c(0, 1)))))
+    }
+    return(list(family = "beta", kind = "Continuous proportion (0-1)", zeros = 0, dispersion = NA_real_,
+                text = "Continuous proportion (values strictly between 0 and 1 that are not counts out of trials, such as haematocrit): beta mixed models (glmmTMB). If the values are successes out of a known number of trials, choose binomial and the trials column instead."))
   }
   if (!is_count) return(list(family = "gaussian", kind = "Continuous",
                              text = paste0("Continuous trait: Gaussian mixed models (lme4).",

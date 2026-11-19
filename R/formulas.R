@@ -370,7 +370,7 @@ model_info_content <- function(m, s, meta = NULL) {
   list(title = paste0(model_label(m), " \u00b7 ", mm$name), meaning = mm$text,
        attributes = c(Purpose = mm$purpose %||% "", `Lifespan proxy` = mm$proxy,
                       `Selective disappearance` = mm$dis, `Selective appearance` = mm$app),
-       spec = spec, random = if (is.null(meta)) "(1 | ID)" else random_display(meta, s$random_slope),
+       spec = spec, random = if (is.null(meta)) "(1 | ID)" else random_display(meta, s$random_slope, basis_label(fn)),
        family = paste0(family_label(fam), if (fam %in% ZI_FAMILIES) paste0("; zero inflation ", s$zi %||% "~1") else "",
                        if (!identical(normalise_disp(s$disp), "constant") && fam %in% DISPERSION_FAMILIES) paste0("; ", disp_text(s$disp)) else ""),
        ageing = fn, extra = extra[[m]] %||% character(0), r_formula = r_formula)

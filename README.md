@@ -101,7 +101,7 @@ still runs with fewer analyses, and the *Start here* page lists any that are
 missing, apart from `callr`, which `run_app()` reports in the R console.
 
 ```r
-install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance", "see", "codetools", "callr", "mgcv"))
+install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance", "see", "codetools", "callr", "mgcv", "gamm4"))
 ```
 
 | Package | Enables |

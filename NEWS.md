@@ -1,3 +1,182 @@
+# disappR 0.25.2
+
+* **mgcv 1.9-4 and later** (build stamp 0.25.2-2026-11-18). `mgcv::gam.vcomp()` now returns a classed list whose
+  `$vc` holds the table of standard deviations; the GAMM step read `$all` and failed with these versions (random-effect
+  table and four unit tests). The table is now read from every version's format (`gamm_vcomp_table()`, with tests).
+* **Memory caveat and warning for GAMMs** (build stamp 0.25.2-2026-11-15d). The app estimates the memory step 7's
+  comparisons need from the number of records and random-effect levels (calibrated on the great tit example: about
+  6 GB) and reads what the computer or server has free (container limit or free memory on Linux, as on hosting
+  services; macOS; Windows; `DISAPPR_MEMORY_GB` overrides it). Large datasets get a caveat on the Data tab and the GAMM
+  tab; when free memory is short, both show a warning and every GAMM fit or comparison repeats it before it starts.
+* **Release audit fixes** (build stamp 0.25.2-2026-11-15c; a browser crawl of all 273 controls, 10 simulated scenarios and 5 published datasets run
+  through steps 1-7):
+  - GAMM proxy comparison: when lme4's PIRLS fails to converge in a gamm4 fit (fly example: negative binomial, random
+    slopes), the fit is retried with bobyqa and a looser tolerance, so the comparison completes. A comparison that still
+    fails names the model that did not fit.
+  - An age-dependent proxy verdict now asks for a random smooth per individual and a look at step 3's sampling
+    diagnostics before it is interpreted.
+  - Step 5: when every model has an invalid Hessian, the message names the simpler random-effects option to choose.
+  - Examples no longer inherit the previous dataset's GAMM random effects (the great tit example opened after simulated
+    data kept random slopes, a 10-minute fit); a single GAMM fit gets 20 minutes, with the elapsed time shown. For
+    examples, the family hint names the published analysis's family.
+  - 'Clear all' saved results asks for confirmation; code and GAMM downloads write a note instead of failing when
+    nothing is fitted; the GAMM settings guide is a numbered list; wide GAMM tables scroll; the gamm4 note mentions
+    theta only for negative binomial models; two wording slips fixed.
+* **GAMM step (7): shorter, self-guiding wording** (build stamp 0.25.2-2026-11-15b). The help boxes, tab guide, notes
+  and generated guide were rewritten to say what to fit, why and how to read it, each in one place (about half the
+  text). The guide now warns when an age-dependent proxy effect is found with a random intercept only, and asks for a
+  random smooth per individual before it is interpreted. In the paper simulation with no selective disappearance (250
+  individuals), the age-dependent ALR form was preferred in 12/12 datasets with a random intercept, 7/12 with a random
+  slope and 0/8 with a random smooth per individual.
+* **New build stamp** (0.25.2-2026-11-15). Earlier 0.25.1 copies shared one stamp, so the app could not tell an engine
+  from an earlier copy, installed or loaded in R, from the current one; it now stops with instructions if it finds one.
+* **Paper simulation: the Methods' 27 scenarios.** Step 1's paper simulation can now set the lifespan correlations of
+  the intercept, slope and shape separately (each -0.5, 0 or 0.5), as in the manuscript's simulations, including
+  correlations with the shape and mixed signs. Lifespan and the three coefficients are drawn as in the Methods (Eq. 2):
+  each coefficient correlated with lifespan and uncorrelated with the others. Up to 0.25.1 the 'both' scenario gave
+  the intercept and slope a correlation of 0.25 with each other; every other existing scenario simulates exactly the
+  same data as before.
+* **The manuscript's empirical results are reproduced exactly** (fly fecundity and great tit laying date, Models 1-5;
+  `tests/scripts/manuscript_replication.R`, run as test tier 6b).
+* Test fixes: the beta-binomial combination test simulated data without extra-binomial variation (no finite
+  precision estimate, so every fit was rightly rejected); empirical checks S1 and S5a expected Model 1 or 4/6 where
+  Model 5 or 4 is correct (the manuscript's Figure 5B), and S3's data contained the age-dependent selective
+  disappearance its label excluded.
+* **Validation of the interaction models** (`inst/validation/random_slopes/`): without random slopes for every age
+  term, the age x ALR interaction is falsely supported (and its terms falsely significant) in about 90% of simulated
+  datasets without selective disappearance; with random slope and curvature terms in about 4%, with full power. Both
+  empirical analyses of the methods paper remain supported with random slopes (`inst/validation/manuscript_figure7/`).
+* R CMD check: MASS declared in Suggests; the duplicate top-level CITATION and the validation image folders are left
+  out of the package build. `CITATION.cff` gives the current version. `.Rhistory` removed from the repository.
+
+# disappR 0.25.1
+
+* **Engine and app must match.** The engine carries a build stamp, and the app refuses to start, with instructions,
+  when it finds an engine of another build: for example an older disappR 0.25.0 still installed or loaded in R. Such
+  a mismatch gave errors like "unused argument (n_proxy = ...)" in the GAMM step.
+* `launch_app.R` and `run_app()` also offer gamm4.
+* The A4 hazard models no longer stop on data with only one or two ages (the age-dependent trait effect cannot be
+  estimated there, so no age-specific odds ratios are given).
+* **GAMM proxy comparison by marginal-likelihood AIC.** The comparison of no, linear, smooth and age-dependent ALR,
+  lifespan or AFR terms used mgcv's AIC, which is conditional on the random effects: the individual random intercepts
+  absorb a property of the individual such as ALR, so strong age-independent selective disappearance could show no
+  AIC gain (out-of-sample tests on simulated data). It now uses the AIC of the marginal likelihood, as step 5's mixed
+  models and gamm4 do (identical to lme4's AIC for the same model). The group and shape comparisons, which compare
+  smooth structures, keep mgcv's AIC, as in the published analyses they replicate.
+* The GAMM guide asks for a refit when the proxy comparison supports another form than the one fitted (for example an
+  age-dependent ALR term when a linear one was fitted: under age-dependent selective disappearance a linear term leaves
+  the curve biased in shape, about 10% from the truth in the simulations against 1-3% with the age-dependent term).
+* The exported step-5 R script runs to the end when no covariates are mapped (its figure section selected a column
+  named "").
+* **Choosing a trait applies the paper's model for it.** In bundled files with several traits (Tsui et al. 2026 body
+  mass, oxidative status and blood files; the Sanghvi et al. 2021 flight file), picking another trait on the Data tab
+  sets that trait's published covariates, the step-5 family and the GAMM settings of step 7 (family, k, lifespan as
+  linear or smooth, group curves), so each published model can be rerun without looking up its settings.
+* **Six more Tsui et al. 2026 examples** (oxidative status, haematocrit and white blood cells, malaria, provisioning,
+  annual reproductive success, annual survival), with the published GAMM settings. With wing length, tarsus and fat
+  score (in the body-mass file), 12 of the paper's 13 GAMMs can be run; all 12 replicate the authors' code
+  (inst/validation/gamm/README.md).
+* A GAMM without an individual random effect is no longer sent to gamm4 because of the number of individuals.
+* **Seed-beetle examples** (Sanghvi et al. 2021, Evol. Ecol.): flight ability and flight propensity of virgins with
+  curves by sex, and daily fecundity of mated females with curves by developmental density, all with known lifespan.
+  The published group comparisons replicate (inst/validation/gamm/README.md). Example GAMM settings can now set the
+  grouping variable and structure.
+* **Ages on a continuous scale no longer freeze the hazard panel.** With ages computed from dates (the elephant
+  example), the life table had hundreds of age classes and its frailty test ran for hours. Above 60 classes it now uses
+  about 40 equal intervals, the frailty model is skipped on very large person-occasion tables (the GLM test stands),
+  and disappearances are counted among the individuals at risk at the start of each interval (unchanged for ages on
+  the sampling grid).
+
+# disappR 0.25.0
+
+**Step 7: GAMMs.** Generalized additive mixed models of ageing (mgcv), as a new, optional step after the summary. It
+reads the data mapped on the Data tab and changes nothing in steps 1-6. It returns the GAMM layer held back in 0.24.0,
+rebuilt and corrected.
+
+* **Guidance for users of parametric models.** Model output opens with a step-by-step reading of the fit: does the
+  trait change with age at all, is a curve needed or would a straight line or polynomial do, do groups age differently
+  and which structure fits (with a prompt to refit when the comparison prefers another), do the proxies matter and
+  does their effect change with age, and what is the pattern. "Is a smooth needed?" compares no age term, linear,
+  quadratic and cubic age and the smooth (one shared age effect, ML, same records). Checks are traffic lights (basis
+  size, concurvity, dispersion, residual correlation within individuals, data at old ages, convergence) with what each
+  means and what to do. The Groups tab explains G, GS, GI, S and I. The proxy settings say what linear, smooth,
+  s(age, by = proxy) and ti(age, proxy) mean. Comparisons now run for up to an hour with the elapsed time shown,
+  instead of stopping at 300 s. The Individuals tab was removed: its variance components are on Model output.
+* **Model output tab.** The counterpart of step 5's Model output: model statistics (family, engine, records,
+  individuals, edf, REML/ML score, log-likelihood, AIC, deviance explained, adjusted R², scale); fixed smooth terms
+  (edf, Ref.df, F or chi-squared, p, shape) and parametric terms (estimate, SE, t or z, p), each with a plain
+  description; random effects with SD, variance and 95% limits (mgcv) and a flag for SDs near zero; optional mgcv
+  random-effect tests; a plain reading and a "Save to summary" button. The estimates moved here from the Checks tab.
+* **What it does.**
+  - A penalised smooth of age, with individual random intercepts, uncorrelated intercepts and slopes (centred age),
+    or a random smooth per individual. Mapped random intercepts (year, cohort, observer) and covariates are included,
+    as are covariate interactions; numeric covariates can enter as smooths.
+  - Selective disappearance through ALR or known lifespan, and selective appearance through AFR, each linear, smooth or
+    age-dependent (`ti(age, proxy)`). An optional terminal-record effect.
+  - Nine families: Gaussian, Gaussian with variance changing with age (gaulss), Gamma, beta, Poisson, negative binomial,
+    zero-inflated Poisson, Tweedie and binomial. `gam` or `bam` is chosen automatically by data size. Optional AR1
+    errors.
+  - Sub-tabs:
+    - **Fit:** the population curve with simultaneous or pointwise intervals, the number of individuals at each age,
+      the true curve for simulated data, a plain-language reading and automatic cautions.
+    - **Ageing rate:** the first derivative, periods of significant change, and peak and onset with limits from
+      1,000 draws.
+    - **Selective disappearance:** none, linear, smooth and age-dependent proxy forms compared by AIC; the curve with
+      and without proxy terms; curves for short-lived, median and long-lived individuals when the proxy is
+      age-dependent.
+    - **Groups:** Pedersen et al.'s (2019) G, GS, GI, S and I, difference smooths and difference curves.
+    - **Checks:** k-check, concurvity between fixed terms, residuals against fitted values and age, simulated quantile
+      residuals, lag-1 autocorrelation, and a comparison with polynomial age.
+    - **Individuals.**
+    - **R code**, with the model's data to download.
+  - Results save to the summary with explicit verdicts, and the methods draft describes them.
+* **Corrections to the 0.23 layer.**
+  - Model comparisons now fit every model to the same records. Before, records of individuals with an unknown lifespan
+    were dropped from some models and not others, so AICs compared different data.
+  - Every group structure now includes the group main effect. Before, the one-curve model G had none, so groups that
+    differed only in level were reported as ageing differently.
+  - Groups are fixed effects (`sz`, `by` and linked smooths), no longer `fs` random smooths estimated from two or three
+    levels.
+  - Covariates and random terms that do not vary are left out with a note. Before, a one-level covariate made every fit
+    fail.
+  - Intervals include smoothing-parameter uncertainty. Concurvity is measured between fixed terms only (a proxy is
+    always fully concurved with the individual random intercept).
+  - Tweedie works without mgcv attached.
+  - Fits run in a separate R process with a time limit (callr).
+  - The likelihood-ratio tests between proxy forms were dropped: with penalised random effects their deviance
+    differences can be negative.
+* **Shared code.** GAMM settings no longer enter the fingerprints of step 1-6 saved results, so changing a GAMM
+  setting never makes a step 1-6 result look new.
+* **New examples.**
+  - Tsui et al. 2026 (Seychelles warbler body mass; Zenodo, CC BY 4.0).
+  - Brown et al. 2021 (Seychelles warbler haematocrit; Dryad, CC0).
+  - Cooper et al. 2021 (superb fairy-wren females: offspring and survival; males: offspring sired; Dryad, CC0).
+    These are the first non-Gaussian GAMM examples.
+  - Lalande et al. 2022 (Asian elephant body mass by sex; Dryad, CC0).
+  - Each carries its published GAMM settings, applied on the GAMM tab when the example is chosen.
+  - `dev/prepare_gamm_examples.R` rebuilds the files from the deposits.
+  - `dev/gamm_literature_scoping.md` records the search that found the studies.
+* **Validation** (`inst/validation/gamm/`):
+  - replication of both studies from the authors' code;
+  - GAMMs against GLMMs on simulated data through the real engines (`tests/scripts/gamm_vs_glmm.R`, tier 10);
+  - stress and break tests on every example, every out-of-sample dataset and 31 awkward datasets
+    (`tests/scripts/gamm_stress.R`).
+* **Fast comparisons.** Above 300 random-effect levels, the proxy, group and polynomial comparisons are fitted with
+  gamm4 (lme4's sparse random effects): the haematocrit proxy comparison went from about 30 minutes to 10 s. The
+  age-dependent proxy form is then `s(age, by = proxy)`, and group structures GS and S are not fitted.
+  - A note under each comparison button says when this will happen. A pop-up explains the switch the first time
+    (what changes, why, and how to use mgcv instead), and a note stays with the results.
+  - The methods draft records the method used.
+  - In simulations, fast mode flagged age-dependent selective disappearance that was not there in 1.9% of datasets,
+    against 11% for mgcv with `ti()`. Both had 100% power.
+* **Guidance.**
+  - A "How do I choose the GAMM?" panel.
+  - A hint under the proxy settings.
+  - A "Suggested next steps" card after each fit.
+* **Varying-coefficient proxy form** `s(age, by = proxy)`, the smooth analogue of Model 4, as a choice on the Fit
+  tab.
+* mgcv is an optional package, and gamm4 is optional for large data.
+
 # disappR 0.24.9
 
 * Test fix: a unit test still expected the old wording of the random-term advice ("without random slopes"); it now

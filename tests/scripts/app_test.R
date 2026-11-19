@@ -20,7 +20,14 @@ touch <- function(output_env, names) {
 }
 
 # outputs the server defines (0.24.6: five names of removed outputs dropped; audit Part H checks this list)
-all_outputs <- c("store_plot_pick_ui", "store_pred_plot", "trait_ages_note", "toy_status", "mapping_ui", "censor_value_ui", "data_metrics", "integrity_table",
+# step 7 (GAMM) outputs, defined in inst/app/gamm_server.R
+gamm_outputs <- c("gamm_data_note", "gamm_scale_ui", "gamm_engine_note_proxy", "gamm_engine_note_groups", "gamm_engine_note_poly", "gamm_proxy_hint", "gamm_next_ui", "gamm_family_hint", "gamm_individual_note", "gamm_group_ui", "gamm_truth_ui", "gamm_formula_ui",
+                  "gamm_reading_ui", "gamm_cautions_ui", "gamm_curve_plot", "gamm_support_plot", "gamm_deriv_plot", "gamm_periods_table",
+                  "gamm_peak_table", "gamm_n_proxy_ui", "gamm_out_stats", "gamm_out_param", "gamm_out_smooth", "gamm_out_random", "gamm_out_formula", "gamm_output_reading", "gamm_re_test_note", "gamm_kcheck_table", "gamm_concurvity_table",
+                  "gamm_resid_note", "gamm_resid_plot", "gamm_poly_table", "gamm_proxy_terms_table", "gamm_proxy_verdict", "gamm_proxy_tables",
+                  "gamm_naive_plot", "gamm_groups_note", "gamm_groups_verdict", "gamm_groups_table", "gamm_diff_test_table", "gamm_lrt_table",
+                  "gamm_diff_plot", "gamm_guide_ui", "gamm_check_overall", "gamm_check_summary", "gamm_poly_reading", "gamm_code")
+all_outputs <- c(gamm_outputs, "store_plot_pick_ui", "store_pred_plot", "trait_ages_note", "toy_status", "mapping_ui", "censor_value_ui", "data_metrics", "integrity_table",
                  "visual_scale_advice", "a3_cap_warning", "model_rowset_warning", "coef_re_flags",
                  "integrity_extra", "dist_var_ui", "dist_plot", "data_preview",
                  "visual_proxy_ui", "a1_plot", "bin_diff_plot", "a2_plot", "toy_card_visual",
@@ -76,6 +83,69 @@ shiny::testServer(app, {
   session$setInputs(pred_as_lines = FALSE)
   r <- current_models()
   cat("Toy (Gaussian) best model:", r$aic$Model[[1]], "\n")
+  # --- step 7: GAMMs on the same simulated data (diet as a group, family as a random intercept, known lifespan) ---
+  if (requireNamespace("mgcv", quietly = TRUE)) {
+    n_saved0 <- length(saved_results())
+    session$setInputs(save_models = 1)                                  # a step-5 result, saved before any GAMM setting changes
+    n_saved1 <- length(saved_results())
+    session$setInputs(gamm_family = "gaussian", gamm_k = 8, gamm_individual = "ri", gamm_proxy = "ALR", gamm_proxy_form = "ti",
+                      gamm_afr_form = "linear", gamm_terminal = TRUE, gamm_group = "cv_diet", gamm_structure = "GS",
+                      gamm_show_data = "points", gamm_show_truth = TRUE)
+    session$setInputs(gamm_fit = 1)
+    gr <- gamm_store()
+    if (!isTRUE(gr$ok)) problems <<- c(problems, paste("GAMM fit:", gr$message)) else cat("GAMM fitted:", gr$formula, "\n")
+    touch(output, gamm_outputs)
+    for (sd in c("bins", "means", "none")) { session$setInputs(gamm_show_data = sd, gamm_age_bins = 5, gamm_n_proxy = 5); touch(output, c("gamm_curve_plot", "gamm_curve_note", "gamm_n_proxy_ui")) }
+    session$setInputs(gamm_run_proxy = 1, gamm_run_groups = 1, gamm_run_poly = 1)
+    touch(output, c("gamm_proxy_verdict", "gamm_proxy_tables", "gamm_groups_verdict", "gamm_groups_table", "gamm_diff_test_table",
+                    "gamm_lrt_table", "gamm_poly_table", "gamm_naive_plot"))
+    if (!isTRUE(gamm_proxy_store()$ok)) problems <<- c(problems, "GAMM proxy comparison failed")
+    if (!isTRUE(gamm_groups_store()$ok)) problems <<- c(problems, "GAMM group comparison failed")
+    if (!is.data.frame(gamm_poly_store())) problems <<- c(problems, "GAMM polynomial comparison failed")
+    session$setInputs(gamm_run_re_test = 1)
+    touch(output, c("gamm_re_test_note", "gamm_re_test_table"))
+    if (!isTRUE(gamm_re_test_store()$ok)) problems <<- c(problems, paste("GAMM random-effect test:", gamm_re_test_store()$message))
+    for (sid in c("save_gamm_curve", "save_gamm_output", "save_gamm_deriv", "save_gamm_check", "save_gamm_groups", "save_gamm_proxy", "save_gamm_poly"))
+      do.call(session$setInputs, stats::setNames(list(1), sid))
+    n_saved2 <- length(saved_results())
+    if (n_saved2 - n_saved1 != 7) problems <<- c(problems, sprintf("GAMM saves: %d of 7 saved", n_saved2 - n_saved1))
+    # changing a GAMM setting must not make a step 1-6 result look new (the settings fingerprint is scoped by step)
+    session$setInputs(gamm_k = 12)
+    session$setInputs(save_models = 2)
+    if (length(saved_results()) != n_saved2) problems <<- c(problems, "a GAMM setting changed the fingerprint of a step-5 result")
+    if (!any(grepl("GAMM", unlist(lapply(saved_results(), `[[`, "title"))))) problems <<- c(problems, "no GAMM result in the summary")
+    mt <- tryCatch(paste(methods_text(Filter(function(e) startsWith(e$section, "7"), saved_results()))$paragraphs, collapse = " "), error = function(e) paste("ERROR", conditionMessage(e)))
+    if (!grepl("generalized additive mixed models", mt)) problems <<- c(problems, paste("GAMM methods paragraph missing:", substr(mt, 1, 200)))
+    gcode <- tryCatch(paste(gamm_code(gamm_store()), collapse = "\n"), error = function(e) "")
+    if (inherits(tryCatch(parse(text = gcode), error = function(e) e), "error")) problems <<- c(problems, "GAMM R code does not parse")
+    # fast mode (gamm4) for comparisons, forced here: the notes and the disclaimer must render, and the results say so
+    Sys.setenv(DISAPPR_GAMM_FAST_LEVELS = "0")
+    session$setInputs(gamm_structure = "I", gamm_proxy_form = "ti")
+    if (!grepl("needs mgcv", paste(capture.output(print(output$gamm_engine_note_groups)), collapse = " ")))
+      problems <<- c(problems, "fast mode: no note that a ti model needs mgcv")
+    session$setInputs(gamm_proxy_form = "vc")                         # gamm4 can fit every model of the comparisons
+    touch(output, c("gamm_engine_note_proxy", "gamm_engine_note_groups", "gamm_engine_note_poly"))
+    session$setInputs(gamm_run_proxy = 2, gamm_run_groups = 2, gamm_run_poly = 2, gamm_fast_more = 1)
+    touch(output, c("gamm_proxy_verdict", "gamm_proxy_tables", "gamm_groups_verdict", "gamm_groups_table", "gamm_engine_note_poly", "gamm_poly_table"))
+    if (!isTRUE(gamm_proxy_store()$fast)) problems <<- c(problems, "fast mode: the proxy comparison did not use gamm4")
+    if (!isTRUE(gamm_groups_store()$fast)) problems <<- c(problems, "fast mode: the group comparison did not use gamm4")
+    if (!identical(attr(gamm_poly_store(), "engine"), "gamm4")) problems <<- c(problems, "fast mode: the polynomial comparison did not use gamm4")
+    if (!grepl("gamm4", paste(capture.output(print(output$gamm_proxy_verdict)), collapse = " "))) problems <<- c(problems, "fast mode: no note with the proxy results")
+    session$setInputs(save_gamm_proxy = 2)
+    mt <- tryCatch(paste(methods_text(Filter(function(e) startsWith(e$section, "7"), saved_results()))$paragraphs, collapse = " "), error = function(e) "")
+    if (!grepl("gamm4", mt, fixed = TRUE)) problems <<- c(problems, "fast mode: the methods draft does not mention gamm4")
+    Sys.unsetenv("DISAPPR_GAMM_FAST_LEVELS")
+    # every individual option and family that suits the data, and the groups switched off
+    for (ind in c("rs", "fs")) {
+      session$setInputs(gamm_individual = ind, gamm_group = "", gamm_proxy_form = "linear", gamm_terminal = FALSE, gamm_fit = 10 + match(ind, c("rs", "fs")))
+      if (!isTRUE(gamm_store()$ok)) problems <<- c(problems, paste("GAMM individual", ind, ":", gamm_store()$message))
+      touch(output, c("gamm_curve_plot", "gamm_out_random", "gamm_guide_ui", "gamm_check_summary", "gamm_cautions_ui", "gamm_diff_plot"))
+    }
+    session$setInputs(gamm_individual = "ri", gamm_proxy = "LS", gamm_ar1 = TRUE, gamm_fit = 20)
+    if (!isTRUE(gamm_store()$ok)) problems <<- c(problems, paste("GAMM AR1/LS:", gamm_store()$message))
+    touch(output, gamm_outputs)
+    session$setInputs(gamm_ar1 = FALSE, gamm_proxy = "ALR", gamm_k = 10)
+  }
   session$setInputs(facet_var = "diet", n_bins = 12)
   touch(output, c("a1_plot", "bin_diff_plot", "a2_plot"))
   session$setInputs(visual_proxy = "AFR",

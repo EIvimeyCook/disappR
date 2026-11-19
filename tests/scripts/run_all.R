@@ -6,9 +6,13 @@
 #   4 app server (reactive behaviour)              tests/scripts/app_test.R
 #   5 stress (out-of-sample data)                  tests/scripts/stress_test.R
 #   6 empirical replication and simulations        tests/scripts/stress_empirical.R
+#   6b the manuscript's empirical results          tests/scripts/manuscript_replication.R
 #   7 sweep of the 0.20.9-0.20.19 changes          tests/scripts/sweep_0_20.R
 #   8 complex scenarios (0.22.7)                   tests/scripts/complex_scenarios.R
 #   9 trait-specific ALR/AFR snapshot (0.24.2)     tests/scripts/trait_ages_snapshot.R
+#  10 GAMMs against GLMMs (step 7)                tests/scripts/gamm_vs_glmm.R
+#  11 GAMM stress and break tests (step 7)       tests/scripts/gamm_stress.R
+#  12 GAMM replication of published studies      tests/scripts/gamm_replication.R   (slow; set DISAPPR_GAMM_REPLICATION=1)
 # Each tier runs in a fresh R process; the script exits with status 1 if any tier fails.
 # From an R console (RStudio included), with the working directory at the package root:
 #   source("tests/scripts/run_all.R")
@@ -34,9 +38,14 @@ res["robustness"] <- run("3 robustness", "tests/scripts/robustness_suite.R")
 res["app"] <- run("4 app server", "tests/scripts/app_test.R")
 res["stress"] <- run("5 stress", "tests/scripts/stress_test.R")
 res["empirical"] <- run("6 empirical and simulations", "tests/scripts/stress_empirical.R")
+res["manuscript"] <- run("6b manuscript empirical results (Sanghvi et al. 2026)", "tests/scripts/manuscript_replication.R")
 res["sweep"] <- run("7 sweep of the 0.20.9-0.20.19 changes", "tests/scripts/sweep_0_20.R")
 res["complex"] <- run("8 complex scenarios", "tests/scripts/complex_scenarios.R")
 res["trait_ages"] <- run("9 trait-specific ALR/AFR snapshot", "tests/scripts/trait_ages_snapshot.R")
+res["gamm_vs_glmm"] <- run("10 GAMMs against GLMMs", "tests/scripts/gamm_vs_glmm.R")
+res["gamm_stress"] <- run("11 GAMM stress and break tests", "tests/scripts/gamm_stress.R")
+if (nzchar(Sys.getenv("DISAPPR_GAMM_REPLICATION"))) res["gamm_replication"] <- run("12 GAMM replication", "tests/scripts/gamm_replication.R") else
+  cat("\n===== 12 GAMM replication: skipped (set DISAPPR_GAMM_REPLICATION=1) =====\n")
 cat("\nSummary:", paste(names(res), ifelse(res, "passed", "FAILED"), sep = ": ", collapse = "; "), "\n")
 if (!all(res)) {
   if (interactive()) stop("Some test tiers failed: ", paste(names(res)[!res], collapse = ", "), call. = FALSE)

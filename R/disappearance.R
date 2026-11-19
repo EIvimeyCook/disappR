@@ -515,9 +515,12 @@ disappearance_models <- function(ia) {
                row_for(m3, "change_z", "Change since the previous occasion", nrow(xc), sum(xc$event)))
   p_age <- if (!is.null(m1) && !is.null(m2)) hazard_lrt(paste("event ~", base_rhs, "+ trait_z"), paste("event ~", base_rhs, "+ trait_z + trait_z:age_c"), x, 1)$p else NA_real_
   ages <- as.numeric(stats::quantile(x$age, c(0.1, 0.5, 0.9), names = FALSE))
-  or_at <- if (!is.null(m2)) {
-    cf <- hazard_fixef(m2)
-    vc <- as.matrix(stats::vcov(m2))
+  cf2 <- if (!is.null(m2)) tryCatch(hazard_fixef(m2), error = function(e) NULL) else NULL
+  vc2 <- if (!is.null(m2)) tryCatch(as.matrix(stats::vcov(m2)), error = function(e) NULL) else NULL
+  terms2 <- c("trait_z", "trait_z:age_c")
+  # with one or two ages the interaction cannot be estimated (dropped as aliased): no age-specific odds ratios then
+  or_at <- if (all(terms2 %in% names(cf2)) && all(terms2 %in% rownames(vc2)) && all(is.finite(cf2[terms2]))) {
+    cf <- cf2; vc <- vc2
     ac <- (ages - mean(x$age)) / (if (stats::sd(x$age) > 0) stats::sd(x$age) else 1)
     data.frame(Age = ages, Odds_ratio = exp(cf[["trait_z"]] + cf[["trait_z:age_c"]] * ac),
                Lower_95 = exp(cf[["trait_z"]] + cf[["trait_z:age_c"]] * ac - 1.96 * sqrt(vc["trait_z", "trait_z"] + ac^2 * vc["trait_z:age_c", "trait_z:age_c"] + 2 * ac * vc["trait_z", "trait_z:age_c"])),
@@ -570,9 +573,20 @@ life_table <- function(dat, meta, step = meta$age_step) {
   end <- if (known) ifelse(is.finite(im$lifespan), im$lifespan, im$last_recorded) else im$last_recorded
   dead <- if (known) is.finite(im$lifespan) & !cens else !cens & im$last_recorded < max(dat$age) - 1e-8
   ages <- seq(min(start), max(end), by = step)
+  # Ages recorded on a fine, continuous scale (for example dates turned into ages) give hundreds of age classes, each
+  # with a handful of events, and the frailty model below then takes hours. Above 60 classes the life table uses
+  # about 40 equal intervals instead (0.25.1); the interval used is returned as 'step'.
+  widened <- FALSE
+  if (length(ages) > 60) {
+    step <- (max(end) - min(start)) / 40
+    ages <- seq(min(start), max(end), by = step)
+    widened <- TRUE
+  }
   rows <- lapply(ages, function(a) {
     at_risk <- sum(start <= a + 1e-8 & end >= a - 1e-8)
-    events <- sum(dead & end >= a - 1e-8 & end < a + step - 1e-8)
+    # events among the individuals at risk at the start of the interval (identical for ages on the sampling grid; with
+    # widened intervals an individual can enter and disappear within one interval)
+    events <- sum(dead & start <= a + 1e-8 & end >= a - 1e-8 & end < a + step - 1e-8)
     if (at_risk == 0) return(NULL)
     q <- events / at_risk
     z <- 1.96
@@ -600,6 +614,9 @@ life_table <- function(dat, meta, step = meta$age_step) {
     })
     do.call(rbind, rows_i)
   }, error = function(e) NULL)
+  # the frailty GLMM is skipped on very large person-occasion tables, where it would take many minutes: the GLM
+  # test above then stands
+  if (is.data.frame(po) && (nrow(po) > 30000 || nrow(po) * length(unique(po$Age)) > 2e5)) po <- NULL
   if (is.data.frame(po) && nrow(po) && length(unique(po$Age)) > 1) {
     po$Age <- factor(po$Age)
     lr <- tryCatch(hazard_lrt("event ~ 1", "event ~ Age", po, nlevels(po$Age) - 1), error = function(e) NULL)
@@ -608,7 +625,8 @@ life_table <- function(dat, meta, step = meta$age_step) {
       hazard_model <- lr$type
     } else if (!is.null(lr)) hazard_model <- lr$type
   }
-  list(ok = TRUE, table = lt, overall = overall, p_constant = p_const, lifespan_known = known, step = step, hazard_model = hazard_model)
+  list(ok = TRUE, table = lt, overall = overall, p_constant = p_const, lifespan_known = known, step = step, hazard_model = hazard_model,
+       widened = widened)
 }
 
 # A5: trait against occasions before death (known LS) or before the last record, by lifespan tercile.

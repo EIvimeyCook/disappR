@@ -111,7 +111,10 @@ combo_data_extra <- function(family, seed = 23, n = 60) {
       nbinom1 = stats::rnbinom(k, size = exp(eta) / 1.5, mu = exp(eta)),
       zip = stats::rpois(k, exp(eta)) * stats::rbinom(k, 1, 0.75),
       zinb = , zinb1 = stats::rnbinom(k, size = 2, mu = exp(eta)) * stats::rbinom(k, 1, 0.75),
-      binomial = , betabinomial = stats::rbinom(k, 10, p) / 10,
+      binomial = stats::rbinom(k, 10, p) / 10,
+      # beta-binomial data need extra-binomial variation: with plain binomial data its precision parameter has no
+      # finite estimate (it runs to ~1e53) and every fit has a singular Hessian, which the app rightly rejects
+      betabinomial = stats::rbinom(k, 10, stats::rbeta(k, p * 8, (1 - p) * 8)) / 10,
       binary = stats::rbinom(k, 1, p),
       gaussian = 25 * exp(-0.04 * age) + 0.8 * q + stats::rnorm(k, 0, 0.6),
       stats::rpois(k, exp(eta)))

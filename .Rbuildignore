@@ -5,3 +5,7 @@
 ^REPLICATION\.md$
 ^launch_app\.R$
 ^CITATION\.cff$
+^dev$
+^CITATION$
+^inst/validation/gamm/screenshots$
+^inst/validation/gamm/figure_comparison$

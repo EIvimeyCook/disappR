@@ -7,3 +7,14 @@ test_that("the exported script parses and uses the shared engine when available"
   expect_match(code, "disappr_fit(x, models = ", fixed = TRUE)
   expect_equal(nrow(analysis_data_export(r)), nrow(r$data))
 })
+
+test_that("the exported script's figure section works without covariates (no c(\"\") column)", {
+  raw <- simulate_toy_data(list(n_id = 60, seed = 5))
+  b <- standardise_data(raw, toy_mapping(raw))
+  expect_length(b$meta$covars, 0)
+  r <- fit_model_suite(b$data, b$meta, c("M1", "M2"), "Quadratic", "gaussian")
+  code <- unlist(strsplit(paste(model_r_code(r, b$meta, source_label = "x.csv"), collapse = "\n"), "\n", fixed = TRUE))
+  expect_true(any(code == "covariates <- character(0)"))
+  expect_false(any(grepl('^covariates <- c\\(""\\)', code)))
+  expect_silent(parse(text = code))
+})

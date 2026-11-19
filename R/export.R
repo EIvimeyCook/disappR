@@ -223,7 +223,8 @@ plot_code_lines <- function(res, meta) {
     "library(ggplot2)",
     paste0("make_basis <- function(age) ", basis, "  # the same age transformation as above"),
     paste0("fits <- list(", paste(sprintf("%s = %s", q(model_label(fitted)), tolower(fitted)), collapse = ", "), ")"),
-    paste0("covariates <- c(", paste(q(covs), collapse = ", "), ")"),
+    # no covariates: an empty vector (q() of nothing would give c(""), a column that does not exist)
+    paste0("covariates <- ", if (length(covs)) paste0("c(", paste(q(covs), collapse = ", "), ")") else "character(0)"),
     "population_curve <- function(fit, dat, ages) {",
     "  ind <- dat[!duplicated(dat$id), , drop = FALSE]",
     "  fac <- covariates[!vapply(ind[covariates], is.numeric, logical(1))]",
@@ -516,7 +517,12 @@ script_header <- function(entries, packages = "ggplot2") {
 # what was actually done; results saved under different data or settings are flagged as conflicts.
 # ---------------------------------------------------------------------------
 METHODS_REFS <- c(
-  sanghvi = "Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I. and van de Pol, M. 2026. A comparison of methods to assess selective disappearance and quantify ageing. EcoEvoRxiv.",
+  wood2017 = "Wood, S. N. 2017. Generalized additive models: an introduction with R, 2nd edn. Chapman and Hall/CRC.",
+  harrison2014 = "Harrison, X. A. 2014. Using observation-level random effects to model overdispersion in count data in ecology and evolution. PeerJ 2: e616.",
+  woodscheipl2020 = "Wood, S. and Scheipl, F. 2020. gamm4: generalized additive mixed models using mgcv and lme4. R package.",
+  simpson2018 = "Simpson, G. L. 2018. Modelling palaeoecological time series using generalised additive models. Frontiers in Ecology and Evolution 6: 149.",
+  pedersen2019 = "Pedersen, E. J., Miller, D. L., Simpson, G. L. and Ross, N. 2019. Hierarchical generalized additive models in ecology: an introduction with mgcv. PeerJ 7: e6876.",
+  sanghvi = "Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I. and van de Pol, M. 2026. Biases in common methods used to quantify ageing and selective disappearance: a guide. Methods in Ecology and Evolution.",
   disappr = "Sanghvi, K. and Ivimey-Cook, E. R. 2026. disappR: a shiny app to model ageing and selective [dis]appearance. R package.",
   vdpv = "van de Pol, M. and Verhulst, S. 2006. Age-dependent traits: a new statistical model to separate within- and between-individual effects. American Naturalist 167: 766-773.",
   vdpw = "van de Pol, M. and Wright, J. 2009. A simple method for distinguishing within- versus between-subject effects using mixed models. Animal Behaviour 77: 753-758.",
@@ -652,6 +658,42 @@ methods_text <- function(entries) {
     paras <- c(paras, paste0("We correlated each individual's predicted random effects from ", e$methods$blup_model %||% "Model 1",
                              " with its ALR, AFR and known lifespan; as predicted random effects are shrunk and their uncertainty ignored, these correlations are descriptive (Hadfield et al. 2010)."))
     refs <- c(refs, "hadfield")
+  }
+  # Step 7 (GAMMs): one paragraph describing the settings in force when the GAMM result was saved
+  if (has("GAMM")) {
+    e <- pick("GAMM")[[1]]
+    g <- e$methods$gamm
+    if (is.list(g)) {
+      ind <- switch(g$individual %||% "ri", rs = "individual random intercepts and uncorrelated random slopes of (centred) age",
+                    fs = "a penalised random smooth of age for each individual (factor-smooth interaction)",
+                    none = "no individual random effect", "individual random intercepts")
+      prox <- function(p, form) switch(form %||% "none", linear = paste(p, "as a linear term"), smooth = paste(p, "as a smooth term"),
+                                       vc = paste0(p, " as an age-varying coefficient, s(age, by = ", p, "), so that the age trajectory changes linearly with ", p),
+                                       ti = paste0(p, " as a smooth term plus a tensor-product interaction with age, ti(age, ", p, ")"), NULL)
+      px <- c(if (!identical(g$proxy %||% "none", "none")) prox(g$proxy, g$proxy_form), prox("AFR", g$afr_form))
+      grp <- if (nzchar(g$group %||% "")) paste0(" Group-specific trajectories (", sub("^cv_", "", g$group), ") were modelled as structure ", g$structure_used,
+                                                   if (has("GAMM group comparison")) ", after structures G, GS, GI, S and I (each with a group main effect) were compared by AIC under maximum likelihood on the same records (Pedersen et al. 2019)" else "", ".") else ""
+      eng <- switch(g$engine_used %||% "gam", bam = "mgcv::bam with discretised covariates (Wood et al. 2017)",
+                    gamm4 = "gamm4 (Wood and Scheipl 2020), which fits the smooths as lme4 random effects", "mgcv::gam")
+      paras <- c(paras, paste0(
+        "As a complementary, non-parametric analysis we fitted generalized additive mixed models (GAMMs) with ", eng, " (Wood 2017): a penalised ",
+        g$bs, " regression spline of age (basis dimension ", g$k, ") with ", ind, if (isTRUE(g$random)) " and the mapped random intercepts" else "",
+        ", a ", gamm_family_label(g$family), " error distribution and smoothing parameters estimated by ", g$method_used, ".",
+        if (length(px)) paste0(" Selective disappearance and appearance were modelled through ", and_list(px), ".") else "",
+        if (isTRUE(g$terminal)) " A terminal-record effect (the last record before death) was included." else "",
+        if (isTRUE(g$olre) && (g$family %||% "") %in% c("poisson", "binomial")) " An observation-level random effect accounted for overdispersion (Harrison 2014)." else "",
+        if (isTRUE(g$ar1) && isTRUE(g$rho > 0)) sprintf(" Residuals followed a first-order autoregressive process within individuals (rho = %s).", format_num(g$rho, 2)) else "",
+        grp,
+        if (has("GAMM selective disappearance")) " Forms of each proxy (none, linear, smooth and age-dependent) were fitted by maximum likelihood on the same records and compared by the AIC of the marginal likelihood (random effects and smoothing penalties integrated out)." else "",
+        if (has("GAMM derivatives")) " Ageing was located from the first derivative of the population curve (random effects set to zero), with simultaneous 95% intervals from 2,000 draws of the coefficients (Simpson 2018); ages where the interval excluded zero were treated as periods of significant change, and the peak and onset of the final decline were given 95% limits from 1,000 draws." else "",
+        if (has("GAMM checks")) " Basis dimensions were checked with k-index tests, concurvity between fixed terms was inspected, and residuals were checked against fitted values, age and simulated (randomised quantile) residuals." else "",
+        if (has("GAMM against polynomials")) " The smooth was compared with linear, quadratic and cubic functions of age by AIC." else "",
+        if (any(grepl("gamm4", unlist(lapply(pick("GAMM"), function(x) x$text)), fixed = TRUE)))
+          " Because the data had more than 300 random-effect levels, model comparisons were fitted with gamm4 (Wood and Scheipl 2020), which compares models by the marginal likelihood of the lme4 representation; the age-dependent proxy form was then a varying-coefficient smooth, s(age, by = proxy), and group structures GS and S were not fitted." else ""))
+      refs <- c(refs, "wood2017", if (nzchar(g$group %||% "")) "pedersen2019", if (has("GAMM derivatives")) "simpson2018",
+                if (isTRUE(g$olre) && (g$family %||% "") %in% c("poisson", "binomial")) "harrison2014",
+                if (identical(g$engine_used, "gamm4") || any(grepl("gamm4", unlist(lapply(pick("GAMM"), function(x) x$text)), fixed = TRUE))) "woodscheipl2020")
+    }
   }
   checks <- c(if (has("Residual checks for")) "simulation-based residual checks (DHARMa; Hartig 2022)",
               if (has("performance checks for")) "checks of model assumptions (performance; Luedecke et al. 2021)",

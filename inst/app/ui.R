@@ -17,7 +17,8 @@ ui <- dashboardPage(
       menuItem("3 \u00b7 Missingness and proxies", tabName = "sampling", icon = icon("table-cells")),
       menuItem("4 \u00b7 Trajectories", tabName = "individual", icon = icon("chart-line")),
       menuItem("5 \u00b7 Modelling", tabName = "models", icon = icon("layer-group")),
-      menuItem("6 \u00b7 Summary and report", tabName = "summary", icon = icon("square-check"))
+      menuItem("6 \u00b7 Summary and report", tabName = "summary", icon = icon("square-check")),
+      menuItem("7 \u00b7 GAMMs (beta version)", tabName = "gamm", icon = icon("wave-square"))
     ),
     tags$hr(),
     uiOutput("current_data_box"),
@@ -25,8 +26,8 @@ ui <- dashboardPage(
     div(class = "sidebar-cite", strong("Cite as"),
         tags$ol(
           tags$li("Sanghvi, K., Ivimey-Cook, E. R. 2026. disappR: a shiny app to model ageing and selective [dis]appearance."),
-          tags$li("Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I. and van de Pol, M., 2026. A comparison of methods to assess selective disappearance and quantify ageing. ",
-                  tags$em("EcoEvoRxiv"))),
+          tags$li("Sanghvi, K., Ivimey-Cook, E. R., Bouwhuis, S., Sepil, I. and van de Pol, M., 2026. Biases in common methods used to quantify ageing and selective disappearance: a guide. ",
+                  tags$em("Methods in Ecology and Evolution"))),
         tags$details(class = "cite-more",
           tags$summary("Empirical datasets used"),
           tags$ol(class = "cite-list",
@@ -34,12 +35,17 @@ ui <- dashboardPage(
             tags$li("Bichet C et al. (2022) Immunosenescence in the wild? A longitudinal study in a long-lived seabird. ", tags$em("Journal of Animal Ecology"), ". doi:10.1111/1365-2656.13642"),
             tags$li("Bichet C, R\u00e9gis C, Gilot-Fromont E, Cohas A (2022) Variations in immune parameters with age in a wild rodent population and links with survival. ", tags$em("Ecology and Evolution"), " 12: e9094. doi:10.1002/ece3.9094"),
             tags$li("Bouwhuis S, Sheldon BC, Verhulst S, Charmantier A (2009) Great tits growing old: selective disappearance and the partitioning of senescence to stages within the breeding cycle. ", tags$em("Proceedings of the Royal Society B"), " 276: 2769\u20132777. doi:10.1098/rspb.2009.0457"),
+            tags$li("Brown TJ, Hammers M, Taylor M, Dugdale HL, Komdeur J, Richardson DS (2021) Hematocrit, age, and survival in a wild vertebrate population. ", tags$em("Ecology and Evolution"), " 11: 214\u2013226. doi:10.1002/ece3.7015"),
+            tags$li("Cooper EB, Bonnet T, Osmond HL, Cockburn A, Kruuk LEB (2021) Aging and senescence across reproductive traits and survival in superb fairy-wrens (Malurus cyaneus). ", tags$em("The American Naturalist"), " 197: 111\u2013127. doi:10.1086/711755"),
+            tags$li("Lalande LD, Lummaa V, Aung HH, Htut W, Nyein UK, Berger V, Briga M (2022) Sex-specific body mass ageing trajectories in adult Asian elephants. ", tags$em("Journal of Evolutionary Biology"), " 35: 752\u2013762. doi:10.1111/jeb.14008"),
             tags$li("McKenna-Ell C, Ravindran S, Pilkington JG, Pemberton JM, Nussey DH, Froy H (2023) Trait-dependent associations between early- and late-life reproduction in a wild mammal. ", tags$em("Biology Letters"), " 19: 20230050. doi:10.1098/rsbl.2023.0050"),
             tags$li("Moullec H, Reichert S, Bize P (2023) Aging trajectories are trait- and sex-specific in the long-lived Alpine swift. ", tags$em("Frontiers in Ecology and Evolution"), " 11: 983266. doi:10.3389/fevo.2023.983266"),
             tags$li("P\u00e1sztor K et al. (2022) Phenotypic senescence in a natural insect population. ", tags$em("Ecology and Evolution"), " 12: e9668. doi:10.1002/ece3.9668"),
             tags$li("Sanghvi K, Iglesias-Carrasco M, Zajitschek F, Kruuk LEB, Head ML (2022) Effects of developmental and adult environments on ageing. ", tags$em("Evolution"), ". doi:10.1111/evo.14567"),
+            tags$li("Sanghvi K, Zajitschek F, Iglesias-Carrasco M, Head ML (2021) Sex- and trait-specific silver-spoon effects of developmental environments, on ageing. ", tags$em("Evolutionary Ecology"), " 35: 367\u2013385. doi:10.1007/s10682-021-10115-y"),
             tags$li("Sanghvi K, Gascoigne SJL, Todorova B, Vega-Trejo R, Pizzari T, Sepil I (2025) No evidence for paternal age effects on sons or daughters when accounting for paternal sperm storage. ", tags$em("The American Naturalist"), " 206: E29\u2013E46. doi:10.1086/736479"),
             tags$li("Szejner-Sigal A, Rinehart JP, Bowsher JH, Greenlee KJ (2025) Senescence and early-life performance as predictors of lifespan in a solitary bee. ", tags$em("Proceedings of the Royal Society B"), " 292: 20242637. doi:10.1098/rspb.2024.2637"),
+            tags$li("Tsui CLS, Briga M, Komdeur J, Burke T, Richardson DS, Dugdale HL (2026) Asynchrony of ageing among traits in a wild bird population. ", tags$em("Evolution Letters"), " 10: 506\u2013520. doi:10.1093/evlett/qrag029"),
             tags$li("Warner DA, Miller DAW, Bronikowski AM, Janzen FJ (2016) Decades of field data reveal that turtles senesce in the wild. ", tags$em("PNAS"), " 113: 6502\u20136507. doi:10.1073/pnas.1600035113"),
             tags$li("Wynn J, K\u00fcrten N, Moiron M, Bouwhuis S (2025) Selective disappearance based on navigational efficiency in a long-lived seabird. ", tags$em("Journal of Animal Ecology"), " 94: 535\u2013544. doi:10.1111/1365-2656.14231"))))
   ),
@@ -275,7 +281,7 @@ ui <- dashboardPage(
                 actionButton("journey_learn", "Start with simulated data", class = "btn-primary btn-block-space"))),
               column(4, div(class = "journey",
                 div(class = "journey-title", "Explore"),
-                div(class = "journey-sub", "Open one of 13 empirical datasets from 12 published studies and set the default options that most closely reproduce the analysis reported in its paper. Fit alternative models to these data to understand how the interpreted biological pattern would change. Useful for seeing how the workflow applies to real longitudinal data."),
+                div(class = "journey-sub", "Open one of 27 empirical datasets from 17 published studies and set the default options that most closely reproduce the analysis reported in its paper. Fit alternative models to these data to understand how the interpreted biological pattern would change. Useful for seeing how the workflow applies to real longitudinal data."),
                 actionButton("journey_explore", "Open an empirical example", class = "btn-default btn-block-space"))),
               column(4, div(class = "journey",
                 div(class = "journey-title", "Analyse"),
@@ -283,7 +289,7 @@ ui <- dashboardPage(
                 actionButton("journey_analyse", "Upload my data", class = "btn-default btn-block-space")))
             ),
             tags$hr(),
-            h4(strong("The six steps")),
+            h4(strong("The steps")),
             fluidRow(
               column(6,
                 div(class = "step-card", div(class = "step-kicker", "1 \u00b7 Data"),
@@ -305,7 +311,10 @@ ui <- dashboardPage(
                     div(class = "step-text", "Fit ten models that account for different types of selective process; choose error families, random terms and covariates; compare model AICs and age predictions, with diagnostics of model fit.")),
                 div(class = "step-card", div(class = "step-kicker", "6 \u00b7 Summary and report"),
                     div(class = "step-title", "Collect and export results"),
-                    div(class = "step-text", "Every 'Save to summary' result is gathered here with an automatic, cautious overview, and exported as an HTML or text report."))
+                    div(class = "step-text", "Every 'Save to summary' result is gathered here with an automatic, cautious overview, and exported as an HTML or text report.")),
+                div(class = "step-card", div(class = "step-kicker", "7 \u00b7 GAMMs (beta version, optional)"),
+                    div(class = "step-title", "Let the data choose the shape of ageing"),
+                    div(class = "step-text", "Generalized additive mixed models: a smooth curve of age with individual random effects and ALR, lifespan or AFR terms; where the trait rises and falls, whether groups age differently, and whether the smooth agrees with the parametric models. Needs the mgcv package."))
               )
             )
           )
@@ -334,12 +343,21 @@ ui <- dashboardPage(
                 radioButtons("toy_rate_var", "Individual differences in ageing rates", inline = TRUE,
                              choices = c("Small" = "low", "Large" = "high"), selected = "low")
               ),
-              radioButtons("toy_sd_type", "Selective disappearance", choices = SELECTION_TYPES, selected = "both"),
-              conditionalPanel("input.toy_sd_type != 'none'",
-                radioButtons("toy_sd_dir", "Direction", inline = TRUE,
-                             choices = c("Positive: longer-lived individuals have higher values" = "1",
-                                         "Negative: lower values" = "-1"), selected = "1")),
-              box_note("Age-independent: lifespan is linked to the level of the trajectory. Age-dependent: lifespan is linked to the rate of ageing."),
+              conditionalPanel("input.toy_trait == 'paper'",
+                checkboxInput("toy_paper_grid", "Set the lifespan correlations of the intercept, slope and shape (the Methods' 27 scenarios)", FALSE),
+                conditionalPanel("input.toy_paper_grid",
+                  fluidRow(
+                    column(4, selectInput("toy_rho_int", "Lifespan\u2013intercept", c("-0.5", "0", "0.5"), "0.5")),
+                    column(4, selectInput("toy_rho_slope", "Lifespan\u2013slope", c("-0.5", "0", "0.5"), "0.5")),
+                    column(4, selectInput("toy_rho_shape", "Lifespan\u2013shape", c("-0.5", "0", "0.5"), "0"))),
+                  box_note("Each coefficient of the individual quadratic (intercept, slope, shape) is correlated with lifespan by the chosen value and uncorrelated with the other two, as in the paper's simulations (Methods, Eq. 2). These replace the selective-disappearance choice below. The paper used 250 individuals per replicate (set below)."))),
+              conditionalPanel("!(input.toy_trait == 'paper' && input.toy_paper_grid)",
+                radioButtons("toy_sd_type", "Selective disappearance", choices = SELECTION_TYPES, selected = "both"),
+                conditionalPanel("input.toy_sd_type != 'none'",
+                  radioButtons("toy_sd_dir", "Direction", inline = TRUE,
+                               choices = c("Positive: longer-lived individuals have higher values" = "1",
+                                           "Negative: lower values" = "-1"), selected = "1")),
+                box_note("Age-independent: lifespan is linked to the level of the trajectory. Age-dependent: lifespan is linked to the rate of ageing.")),
               selectInput("toy_missingness", "Sampling design", choices = c(
                 "Complete sampling" = "complete", "Missing completely at random (MCAR, ~25% missing)" = "mcar",
                 "Missing when old (MWO)" = "mwo", "Missing when young (MWY)" = "mwy",
@@ -887,7 +905,9 @@ ui <- dashboardPage(
           box(width = 12, title = "Saved results (these are exported)", status = "info", solidHeader = TRUE,
               uiOutput("saved_ui"))
         )
-      )
+      ),
+      # ---------------------------------------------------------------- step 7: GAMMs (inst/app/gamm_ui.R)
+      gamm_tab_ui()
     )
   )
 )

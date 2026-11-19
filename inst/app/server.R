@@ -38,6 +38,11 @@ server <- function(input, output, session) {
   read_toy_inputs <- function() {
     individual <- identical(input$toy_afr_mode, "individual")
     sd_type <- input$toy_sd_type %||% "both"
+    # paper simulation with the Methods' correlation grid: the three lifespan correlations, and the kind of selective
+    # disappearance they imply (for the expectations shown with the simulated data)
+    grid <- identical(input$toy_trait, "paper") && isTRUE(input$toy_paper_grid)
+    rho <- if (grid) suppressWarnings(as.numeric(c(input$toy_rho_int %||% "0.5", input$toy_rho_slope %||% "0.5", input$toy_rho_shape %||% "0"))) else rep(NA_real_, 3)
+    if (grid) sd_type <- if (any(rho[2:3] != 0)) (if (rho[1] != 0) "both" else "dependent") else if (rho[1] != 0) "independent" else "none"
     sa_type <- if (individual) (input$toy_sa_type %||% "none") else "none"
     list(
       trait = input$toy_trait %||% "mass",
@@ -45,7 +50,7 @@ server <- function(input, output, session) {
       shape = input$toy_shape %||% "default",
       strength = input$toy_strength %||% "dramatic",
       sd_type = sd_type,
-      sd_dir = if (identical(sd_type, "none")) 1 else num_input(input$toy_sd_dir, 1),
+      sd_dir = if (identical(sd_type, "none")) 1 else if (grid) (if (any(rho < 0) && !any(rho > 0)) -1 else 1) else num_input(input$toy_sd_dir, 1),
       rate_var = input$toy_rate_var %||% "low",
       mean_ls = min(30, max(3, round(num_input(input$toy_mean_ls, 20)))),
       missingness = input$toy_missingness %||% "complete",
@@ -53,7 +58,8 @@ server <- function(input, output, session) {
       sa_type = sa_type,
       sa_dir = if (identical(sa_type, "none")) 1 else num_input(input$toy_sa_dir, 1),
       diet = isTRUE(input$toy_diet), groups = isTRUE(input$toy_groups),
-      n_id = min(2000, max(30, round(num_input(input$toy_n, 300)))), seed = round(num_input(input$toy_seed, 42))
+      n_id = min(2000, max(30, round(num_input(input$toy_n, 300)))), seed = round(num_input(input$toy_seed, 42)),
+      rho_int = rho[1], rho_slope = rho[2], rho_shape = rho[3]
     )
   }
   toy_cfg <- reactiveVal(TOY_DEFAULTS)
@@ -508,6 +514,26 @@ server <- function(input, output, session) {
           paste(input$subset_levels %||% character(0), collapse = ","), sep = "|")
   })
 
+  # Bundled files with several traits (Tsui et al. 2026, Sanghvi et al. 2021): choosing a trait applies the paper's model
+  # for it, its covariates here and its family and GAMM settings (steps 5 and 7, through the observers that read
+  # example_trait_preset). Only for traits the paper analysed; other columns leave the settings as they are.
+  observeEvent(input$col_trait, disappr_guard("trait preset", {
+    if (!identical(input$data_source %||% "toy", "example")) return(invisible(NULL))
+    ex <- current_example()
+    if (!length(ex$traits)) return(invisible(NULL))
+    tp <- example_trait_preset(ex, input$col_trait)
+    if (is.null(tp)) return(invisible(NULL))
+    cols <- names(safe_get(raw_data()) %||% data.frame())
+    cv <- intersect(tp$covars, cols); fac <- intersect(tp$cov_factor, cv)
+    if (!setequal(cv, unique(c(input$col_cov_num, input$col_cov_fac))) || !setequal(fac, input$col_cov_fac %||% character(0))) {
+      updateSelectizeInput(session, "col_cov_num", selected = setdiff(cv, fac))
+      updateSelectizeInput(session, "col_cov_fac", selected = fac)
+    }
+    if (isTRUE(tp$listed) && !identical(input$col_trait, ex$mapping$trait))
+      notify(sprintf("The published settings for %s were applied (%s): covariates here, the family in step 5 and the GAMM settings in step 7.",
+                     input$col_trait, tp$model), type = "message", duration = 8)
+  }), ignoreInit = TRUE)
+
   # Sensible defaults whenever the data change: family and model selection. The data signature is compared with the
   # previous one, so settings that leave the analysed data unchanged (e.g. the binomial weights column chosen on the
   # Modelling tab) keep the user's family and model choices.
@@ -520,7 +546,8 @@ server <- function(input, output, session) {
     fam <- if (is_toy()) {
       toy_family(toy_cfg()$trait)
     } else if (!is.null(ex$family)) {
-      ex$family
+      # a file with several traits: the family the paper used for the chosen trait
+      (example_trait_preset(ex, input$col_trait %||% "") %||% ex)$family
     } else {
       integrity()$family$family
     }
@@ -557,7 +584,9 @@ server <- function(input, output, session) {
                          if (!is.null(age_step_manual())) " (set)" else "")),
       metric_card("Records per individual", format_num(stats::median(im$n_trait)), "median"),
       metric_card("Trait type", fam$kind %||% (if (identical(fam$family, "gaussian")) "Continuous" else "Count"),
-                  paste("Suggested:", family_label(fam$family)))
+                  paste("Suggested:", family_label(fam$family))),
+      # step 7 needs much more memory than steps 1-6 for large data: say so where the data are described
+      if (exists("gamm_memory_box", inherits = TRUE)) column(12, gamm_memory_box()) else NULL
     )
   })
 
@@ -1912,7 +1941,7 @@ server <- function(input, output, session) {
         p(strong("Before fitting. "),
           sprintf("The selected models share %d of %d records with a trait value, from %d of %d individuals.",
                   pv$n_rows_used, pv$n_rows, pv$n_ids_used, pv$n_ids)),
-        if (length(pv$drop_by)) p(strong("Records not shared by every model: "), paste(pv$drop_by, collapse = "; "), ".") else NULL,
+        if (length(pv$drop_by)) p(strong("Records not shared by every model: "), paste0(paste(sub("\\.$", "", pv$drop_by), collapse = "; "), ".")) else NULL,
         p(strong("Settings. "),
           sprintf("%s with a %s link, %s ageing function, %s, random effects %s%s.", family_label(pv$family), link, pv$age_function,
                   if (isTRUE(pv$standardise)) "age and proxies standardised" else "raw scales", display_term(pv$random),
@@ -3307,7 +3336,7 @@ server <- function(input, output, session) {
       content = function(file) {
         con <- file(file, open = "w", encoding = "UTF-8")
         on.exit(close(con), add = TRUE)
-        writeLines(code_text(), con)
+        writeLines(safe_get(code_text()) %||% "# Fit the models first (step 5): this file then holds their R code.", con)
       }
     )
   }
@@ -3398,6 +3427,13 @@ server <- function(input, output, session) {
     "Coefficients of",
     "Peak age and onset",
     "Among-individual covariance",
+    "GAMM trajectory",
+    "GAMM model output",
+    "GAMM derivatives",
+    "GAMM checks",
+    "GAMM group comparison",
+    "GAMM selective disappearance",
+    "GAMM against polynomials",
     "Residual checks for",
     "performance checks for",
     "Error-family check with",
@@ -3459,13 +3495,15 @@ server <- function(input, output, session) {
 
   # Every analysis setting in force when a result is saved, with button click counts and navigation left out.
   # Two saves with identical settings and identical content are the same result.
-  settings_snapshot <- function() {
+  # Step 7 (GAMM) inputs count only for GAMM results, so changing a GAMM setting never makes a step 1-6 result look new.
+  settings_snapshot <- function(section = "") {
     v <- tryCatch(shiny::reactiveValuesToList(input), error = function(e) NULL)
     if (is.null(v) || !length(v)) return(NULL)
     drop <- vapply(v, function(x) inherits(x, "shinyActionButtonValue"), logical(1)) |
             grepl("^(save_|info_|go_prev_|go_next_|saved_)", names(v)) |
             grepl("_(hover|click|dblclick|brush|rows_selected|rows_current|rows_all|state|search|cell_clicked)$", names(v)) |
-            names(v) %in% c("tabs", "model_tabs", "sidebarCollapsed", "sidebarItemExpanded")
+            names(v) %in% c("tabs", "model_tabs", "gamm_tabs", "sidebarCollapsed", "sidebarItemExpanded") |
+            (!startsWith(section, "7") & startsWith(names(v), "gamm_"))
     v <- v[!drop]
     v[order(names(v))]
   }
@@ -3477,7 +3515,7 @@ server <- function(input, output, session) {
     # still makes a new result.
     fp <- list(section = section, title = title, text = as.character(text),
                tables = Filter(function(t) is.data.frame(t) && nrow(t) > 0, tables),
-               code = code, data = data_description(), settings = settings_snapshot())
+               code = code, data = data_description(), settings = settings_snapshot(section))
     if (!is.null(fp$settings) &&
         any(vapply(saved_results(), function(e) identical(e$fingerprint, fp), logical(1)))) {
       showNotification("This result is already saved with exactly the same settings, so it was not added again.",
@@ -3788,7 +3826,20 @@ server <- function(input, output, session) {
       saved_results(lst)
     }
   }))
-  observeEvent(input$saved_clear, disappr_guard("input$saved_clear", saved_results(list())))
+  # clearing cannot be undone, so it asks first and names how many results go
+  observeEvent(input$saved_clear, disappr_guard("input$saved_clear", {
+    n <- length(saved_results())
+    if (!n) return(invisible(NULL))
+    showModal(modalDialog(title = sprintf("Delete all %d saved result%s?", n, if (n == 1) "" else "s"),
+      p("They will be removed from the summary, the reports and the methods draft. This cannot be undone."),
+      footer = tagList(modalButton("Cancel"),
+                       actionButton("saved_clear_confirm", sprintf("Delete all %d", n), class = "btn-danger")),
+      easyClose = TRUE))
+  }))
+  observeEvent(input$saved_clear_confirm, disappr_guard("input$saved_clear_confirm", {
+    saved_results(list())
+    removeModal()
+  }))
 
   output$saved_ui <- renderUI({
     lst <- saved_results()
@@ -4163,6 +4214,10 @@ server <- function(input, output, session) {
                        disp = z$null_model$disp %||% "constant")
     }
     if (length(input$blup_model)) ctx$blup_model <- model_label(input$blup_model)
+    g <- gamm_store()
+    if (is.list(g) && isTRUE(g$ok)) ctx$gamm <- utils::modifyList(g$settings, list(method_used = g$method, structure_used = g$structure,
+                                                                              proxy_form = g$proxy_form, afr_form = g$afr_form,
+                                                                              engine_used = g$engine, rho = g$rho, n = g$n, n_ind = g$n_ind))
     ctx
   }
   methods_seen <- new.env()
@@ -4212,4 +4267,10 @@ server <- function(input, output, session) {
                    "REFERENCES", z$references), con)
     }
   )
+  # ======================================================================
+  # Step 7: GAMMs. The code is in gamm_server.R (parsed in global.R) and is evaluated here, in the server's
+  # environment, so it can read dat(), meta() and data_sig() and use the server's helpers. It reads nothing else from
+  # steps 1-6 and writes only its own outputs (gamm_*) and saved results.
+  # ======================================================================
+  for (.gamm_expr in GAMM_SERVER_CODE) eval(.gamm_expr)
 }

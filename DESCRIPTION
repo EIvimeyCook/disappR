@@ -1,6 +1,6 @@
 Package: disappR
 Title: Diagnose and Model Selective Disappearance and Appearance in Longitudinal Ageing Data
-Version: 0.24.9
+Version: 0.25.2
 Authors@R: c(
     person("Krish", "Sanghvi", role = "aut",
            comment = c(ORCID = "0000-0002-5125-2983")),
@@ -13,8 +13,9 @@ Description: A Shiny workflow for longitudinal ageing data that follows a
     missingness diagnostics, ageing-function comparison and comparative mixed
     models (Models 1-10) with Gaussian, Poisson, negative binomial,
     zero-inflated (Poisson, nbinom1 and nbinom2), binomial, beta-binomial, Gamma, lognormal and beta families, fixed covariates
-    and nested (up to three levels) or crossed random effects. Includes teaching simulations with known answers, 13 empirical
-    examples from 12 published studies, residual checks and exportable R code.
+    and nested (up to three levels) or crossed random effects, and an optional step of generalized additive mixed models
+    (GAMMs) of ageing. Includes teaching simulations with known answers, 18 empirical examples from 16 published studies,
+    residual checks and exportable R code.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -35,10 +36,13 @@ Imports:
     utils
 Suggests:
     callr,
+    MASS,
     DHARMa,
     glmmTMB,
     lmerTest,
     nlme,
+    mgcv,
+    gamm4,
     performance,
     see,
     codetools,
@@ -64,6 +68,7 @@ Collate:
     'evidence.R'
     'ui-helpers.R'
     'export.R'
+    'gamm.R'
     'api.R'
     'run_app.R'
 Config/testthat/edition: 3

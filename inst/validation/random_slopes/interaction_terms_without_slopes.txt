@@ -1,0 +1,7 @@
+No selective disappearance (all lifespan correlations 0); individuals differ in intercept, slope and shape (CV 0.2).
+
+           Random effects  n M4 >2 AIC better (%) joint Wald p<0.05 (%) LRT p<0.05 (%) either term p<0.05 (%) age x ALR z>0 (%) age2 x ALR z>0 (%) median |z| (age, age2 x ALR) mean |D|% M2 mean |D|% M4
+         random intercept 25                   88                    88             88                     92                52                 32                       3, 3.9         1.05         1.03
+ + random slope and shape 25                    4                     4              4                      8                56                 56                     0.6, 0.5         1.01         1.01
+
+|D|%: mean absolute deviation of the model's predicted population trajectory from the true one, ages 1-30.

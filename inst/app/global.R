@@ -18,7 +18,7 @@ suppressPackageStartupMessages({
 options(stringsAsFactors = FALSE)
 options(shiny.maxRequestSize = 50 * 1024^2)   # uploads up to 50 MB: the one place this limit is set
 
-DISAPPR_ENGINE_FILES <- c("utils.R", "provenance.R", "simulation.R", "import.R", "validation.R", "data-preparation.R", "formulas.R", "model-fit.R", "model-comparison.R", "diagnostics.R", "trajectories.R", "disappearance.R", "missingness.R", "interpretation.R", "effects.R", "evidence.R", "ui-helpers.R", "export.R")
+DISAPPR_ENGINE_FILES <- c("utils.R", "provenance.R", "simulation.R", "import.R", "validation.R", "data-preparation.R", "formulas.R", "model-fit.R", "model-comparison.R", "diagnostics.R", "trajectories.R", "disappearance.R", "missingness.R", "interpretation.R", "effects.R", "evidence.R", "ui-helpers.R", "export.R", "gamm.R", "api.R")
 .disappr_app_env <- environment()
 .disappr_engine_dir <- if (all(file.exists(file.path("..", "..", "R", DISAPPR_ENGINE_FILES)))) {
   file.path("..", "..", "R")
@@ -47,6 +47,26 @@ if (nzchar(.disappr_engine_dir)) {
   .disappr_ns <- asNamespace("disappR")
   for (.disappr_name in ls(.disappr_ns)) assign(.disappr_name, get(.disappr_name, envir = .disappr_ns), envir = .disappr_app_env)
 }
+
+# The engine must be the one this app was written for: an older disappR installed or loaded in this R session (even
+# with the same version number) would give errors such as "unused argument" deep inside the app.
+DISAPPR_APP_BUILD <- "0.25.2-2026-11-18"
+.disappr_engine_build <- get0("DISAPPR_BUILD", envir = .disappr_app_env, inherits = FALSE) %||% "(none: an older version)"
+if (!identical(.disappr_engine_build, DISAPPR_APP_BUILD)) {
+  stop(sprintf(paste0("This app (build %s) found a disappR engine of build %s, ",
+                      if (nzchar(.disappr_engine_dir)) "in %s. " else "from an installed disappR package%s. ",
+                      "They do not match, so the app would fail. Restart R (RStudio: Session > Restart R) and run the app from ",
+                      "the folder you unzipped with shiny::runApp(\"inst/app\") or source(\"launch_app.R\"); or re-install that folder ",
+                      "with install.packages(\"path/to/folder\", repos = NULL, type = \"source\") and restart R before disappR::run_app()."),
+               DISAPPR_APP_BUILD, .disappr_engine_build, if (nzchar(.disappr_engine_dir)) normalizePath(.disappr_engine_dir, mustWork = FALSE) else ""),
+       call. = FALSE)
+}
+
+# Step 7 (GAMMs) lives in its own files: the tab's interface, and the server code that server() evaluates in its own
+# environment (parsed here once, so it does not depend on the working directory when the server starts).
+.disappr_app_dir <- if (file.exists("gamm_ui.R")) "." else system.file("app", package = "disappR")
+source(file.path(.disappr_app_dir, "gamm_ui.R"), local = .disappr_app_env, encoding = "UTF-8")
+GAMM_SERVER_CODE <- parse(file.path(.disappr_app_dir, "gamm_server.R"), keep.source = FALSE, encoding = "UTF-8")
 
 if (any(!OPTIONAL_STATUS$Installed)) {
   message("disappR ", DISAPPR_VERSION, ": optional packages not installed: ",

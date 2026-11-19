@@ -1,0 +1,51 @@
+==== 1. Tsui et al. 2026, Evolution Letters: Seychelles warbler body mass (z-scored) ====
+Published (paper, Results and Table 2): body mass declines with age; onset of decline 4.7 years (limits 1-8.5) from the
+derivative of the age smooth; lifespan fitted as a linear term; age x lifespan interaction significant for body mass;
+model choice among G, GS and S by AIC (delta < 4). Authors' code: model1.R (Zenodo 10.5281/zenodo.21101620).
+(a) Authors' specification, mgcv::gam REML: 2560 records, 1172 birds (165 s)
+  s(age_year)                                    edf   3.05   stat    4.46   p 0.002
+  lifespan (per year): 0.0252 (SE 0.0055), p <0.001
+(b) disappR engine (proxy = known lifespan, linear; same covariates and random terms): 2559 records, 1172 birds (6 s)
+  formula: trait ~ s(age, bs = "tp", k = 15) + LS + cv_RightTarsus_z + cv_newstat + cv_SexEstimate + cv_CatchTime_mins + cv_avg_invert + s(id, bs = "re") + s(re_birthyear, bs = "re") + s(re_Observer, bs = "re")
+  s(age)                                         edf   3.03   stat    4.50   p 0.002
+  lifespan (per year): 0.0244 (SE 0.0055), p <0.001
+  periods of significant change (95% intervals) simultaneous: none | pointwise: decline 8.62-12.2
+  peak 4.87 [3.01–7.48]; onset of final decline 4.87 [3.47–14.8]
+  difference in s(age) edf between (a) and (b): -0.016
+  (one record differs: its Observer is blank, which disappR treats as missing and the authors' factor() kept as a level;
+   the engine chose mgcv::bam because there are more than 400 birds)
+  cautions: 
+(a) Authors' G / GS / S formulas (bam fREML) by AIC: G 4.3, GS 4.5, S 0.0
+(b) disappR group structures by ML AIC (dAIC): G 0.0, GI 4.0, I 4.9, GS NA, S NA
+  One curve (G) is best supported: no clear evidence that the groups age differently. (Fitted with gamm4 because of the many random-effect levels; structures GS and S need mgcv and were not fitted.)
+  (a) authors' style (bam): ti(age_year, newlifespan) edf   2.26   stat    2.30   p 0.056
+                             Model      AIC      dAIC       Weight Records
+                        No LS term 5617.183 20.613652 2.548388e-05    2559
+                         Linear LS 5599.533  2.963943 1.733210e-01    2559
+                         Smooth LS 5601.533  4.963943 6.376124e-02    2559
+ Age-dependent LS: s(age, by = LS) 5596.569  0.000000 7.628922e-01    2559
+  Age-dependent LS term best supported (other forms at least 2 AIC worse): the association between LS and the trait changes with age. (Fitted with gamm4 because of the many random-effect levels; the age-dependent form is s(age, by = LS), linear in LS.)
+Warning message:
+In gam.side(sm, X, tol = .Machine$double.eps^0.5) :
+  model has repeated 1-d smooths of same variable.
+
+==== 2. Brown et al. 2021, Ecology and Evolution: Seychelles warbler haematocrit ====
+Published (Table 1, gamm4): age smooth edf = 7.805, F = 16.73, p < .001; N = 1379 records, 730 birds, 747 breed groups,
+14 catch years; fixed effects sex, status, catch time and sex x status; peak at about 1.5 years (Section 3.1).
+  bundled data: 1379 records, 730 birds, 747 breed groups, 14 catch years
+  (a) authors' specification with gamm4: s(AgeYears) edf   7.81   stat   17.48   p <0.001
+  (a') same model in mgcv::gam REML: s(AgeYears) edf   7.81   stat   15.52   p <0.001
+(b) disappR engine, as published (no lifespan term): 1379 records, 730 birds
+  formula: trait ~ s(age, bs = "tp", k = 10) + cv_Sex + cv_Status + cv_DecimalCatchTime + cv_Sex:cv_Status + s(id, bs = "re") + s(re_BreedGroupID, bs = "re") + s(re_CatchYear, bs = "re")
+  s(age)                                         edf   7.81   stat   15.52   p <0.001
+  periods of significant change (95% intervals) simultaneous: increase 0.0411-1.36; decline 2.1400-2.32 | pointwise: increase 0.0411-1.36; decline 1.9700-2.58; decline 6.8800-7.58
+  peak 1.62 [1.44–1.88]
+(b') adding ALR (age last seen) as a linear term: ALR -0.0003 (SE 0.0003), p 0.449; s(age) edf 7.80
+                               Model       AIC     dAIC     Weight Records
+                         No ALR term -5449.395 0.000000 0.56310601    1379
+                          Linear ALR -5447.972 1.423303 0.27639100    1379
+                          Smooth ALR -5446.251 3.143412 0.11695183    1379
+ Age-dependent ALR: s(age, by = ALR) -5444.276 5.119063 0.04355116    1379
+  The model without ALR is within 2 AIC of the best: no clear evidence of selective disappearance through ALR. (Fitted with gamm4 because of the many random-effect levels; the age-dependent form is s(age, by = ALR), linear in ALR.)
+
+Replication script finished without errors.

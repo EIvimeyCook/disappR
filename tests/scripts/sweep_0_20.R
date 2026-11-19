@@ -109,7 +109,7 @@ if (!is.null(mg)) {
 # ---- 3. Models: row sets, availability, evidence and LRT pairs ---------------
 cat("\n3. Models: shared rows, Models 1-10, evidence and the LRT pairs\n")
 d3 <- check("simulate a dataset with a missing covariate",
-            sim(trait = "mass", n_id = 160, mean_ls = 7, form = "Quadratic", strength = "clear", seed = 11, groups = TRUE))
+            sim(trait = "mass", n_id = 160, mean_ls = 7, form = "Quadratic", strength = "clear", seed = 11, groups = TRUE, diet = TRUE))
 if (!is.null(d3)) {
   d3$diet_measured <- d3$diet
   gap <- sample(seq_len(nrow(d3)), max(5L, floor(0.05 * nrow(d3))))
@@ -122,7 +122,8 @@ if (!is.null(d3)) {
     if (!is.null(r) && isTRUE(r$ok)) {
       check("row sets are recorded for every fitted model", is.data.frame(r$row_sets) && nrow(r$row_sets) == length(r$formulas))
       check("no model is recorded as using more rows than it can", all(r$row_sets$Rows_usable >= r$row_sets$Rows_used))
-      check("the shared set is smaller when a covariate is missing", any(r$row_sets$Rows_usable > r$row_sets$Rows_used))
+      # the covariate enters every model, so every model loses the same rows: the shared set leaves them all out
+      check("rows with the covariate missing are left out of every model", all(r$row_sets$Rows_used < nrow(p3$data)) && all(r$row_sets$Rows_used == r$row_sets$Rows_usable))
       check("Model 6 is unavailable without a mapped lifespan", !("M6" %in% names(r$formulas)))
       ev <- check("models evidence", models_evidence(r, NA_character_))
       if (!is.null(ev)) {

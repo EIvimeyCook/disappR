@@ -1,0 +1,33 @@
+# A tibble: 27 × 4
+   scenario random_structure       Model 4 better than …¹ Model 5 better than …²
+   <fct>    <fct>                                   <dbl>                  <dbl>
+ 1 0 0 0    Random intercept                           76                     76
+ 2 0 0 0    + random slope                             68                     64
+ 3 0 0 0    + random slope and sh…                      0                      0
+ 4 + 0 0    Random intercept                           92                     92
+ 5 + 0 0    + random slope                             56                     56
+ 6 + 0 0    + random slope and sh…                      0                      0
+ 7 - 0 0    Random intercept                           88                     88
+ 8 - 0 0    + random slope                             48                     44
+ 9 - 0 0    + random slope and sh…                      4                      4
+10 0 + 0    Random intercept                          100                    100
+11 0 + 0    + random slope                            100                    100
+12 0 + 0    + random slope and sh…                    100                    100
+13 0 - 0    Random intercept                          100                    100
+14 0 - 0    + random slope                             96                     96
+15 0 - 0    + random slope and sh…                     92                     96
+16 0 0 +    Random intercept                          100                    100
+17 0 0 +    + random slope                             96                     96
+18 0 0 +    + random slope and sh…                     96                     96
+19 0 0 -    Random intercept                          100                    100
+20 0 0 -    + random slope                            100                    100
+21 0 0 -    + random slope and sh…                    100                    100
+22 + + +    Random intercept                          100                    100
+23 + + +    + random slope                            100                    100
+24 + + +    + random slope and sh…                    100                    100
+25 - - -    Random intercept                          100                    100
+26 - - -    + random slope                            100                    100
+27 - - -    + random slope and sh…                    100                    100
+# ℹ abbreviated names: ¹​`Model 4 better than Model 2 by >2 AIC (%)`,
+#   ²​`Model 5 better than Model 3 by >2 AIC (%)`
+Model fits that failed: 0 of 4050 

@@ -57,7 +57,8 @@ model suite (\code{random_slope}, \code{standardise}, \code{zi_str}, \code{among
 
 \item{mapping}{A column mapping from \code{disappr_mapping()}.}
 
-\item{dup_action}{What to do with repeated individual-by-age records: \code{"keep"} or \code{"mean"}.}
+\item{dup_action}{What to do with repeated individual-by-age records: \code{"keep"} (default) keeps every row; \code{"mean"} collapses
+rows identical in every mapped column into one (nothing is averaged; the name is kept for compatibility).}
 
 \item{x}{Prepared data from \code{disappr_prepare()}.}
 

@@ -480,7 +480,11 @@ fit_nonlinear_suite <- function(dat, meta, models = MODEL_IDS, random_slope = FA
 # Returned as a pair so that a failure in one model never stops the comparison table being built.
 r2_pair <- function(fit) {
   out <- c(marginal = NA_real_, conditional = NA_real_)
-  v <- tryCatch(suppressWarnings(performance::r2(fit)), error = function(e) NULL)
+  # performance cannot compute R2 for nlme's non-linear models (the exponential function): skip them rather than print
+  # its messages ('get_variance() does not support...', 'subscript out of bounds') once per model
+  if (inherits(fit, "nlme")) return(out)
+  v <- NULL
+  utils::capture.output(v <- tryCatch(suppressMessages(suppressWarnings(performance::r2(fit))), error = function(e) NULL))
   if (is.null(v)) return(out)
   u <- suppressWarnings(as.numeric(unlist(v)))
   nm <- names(unlist(v))

@@ -731,11 +731,21 @@ server <- function(input, output, session) {
     } else {
       "Choose the raw scale: a log scale distorts the differences between groups of a continuous trait."
     }
-    div(style = paste0("margin: 4px 0 10px; padding: 8px 12px; border-radius: 4px; border-left: 6px solid ",
-                       if (ok) "#2f6b34" else "#A50026", "; background: ", if (ok) "#eef5ee" else "#fbeaea", ";"),
-        sprintf("Trait looks like %s data. Suggested visualisation is on the %s scale, which can be changed in the 'Trait scale' option.",
-                if (count) "count" else if (fam %in% BINOMIAL_FAMILIES) "proportion or 0/1" else "continuous",
-                if (count) "log(trait + 1)" else "raw"))
+    # AFR groups pick up selective disappearance when AFR and ALR are correlated (an independent review, 0.25.2)
+    afr_note <- if (identical(safe_get(vis_px()), "AFR")) {
+      im <- safe_get(imet())
+      r_aa <- if (is.null(im)) NA_real_ else suppressWarnings(stats::cor(im$entry, im$alr, use = "complete.obs"))
+      if (is.finite(r_aa) && abs(r_aa) >= 0.3)
+        div(class = "caution-box", style = "margin: 0 0 10px;",
+            sprintf("AFR and ALR are correlated here (r = %.2f): individuals that are first recorded later also tend to be last recorded later, so differences between AFR groups can reflect selective disappearance through ALR rather than selective appearance. Models 7-10 (step 5) and the GAMM proxy comparison (step 7) estimate the two together.", r_aa))
+    }
+    tagList(
+      div(style = paste0("margin: 4px 0 10px; padding: 8px 12px; border-radius: 4px; border-left: 6px solid ",
+                         if (ok) "#2f6b34" else "#A50026", "; background: ", if (ok) "#eef5ee" else "#fbeaea", ";"),
+          sprintf("Trait looks like %s data. Suggested visualisation is on the %s scale, which can be changed in the 'Trait scale' option.",
+                  if (count) "count" else if (fam %in% BINOMIAL_FAMILIES) "proportion or 0/1" else "continuous",
+                  if (count) "log(trait + 1)" else "raw")),
+      afr_note)
   })
 
   visual_dat <- reactive({
@@ -2015,7 +2025,7 @@ server <- function(input, output, session) {
                  if (length(supported) > 1) paste0("Most parsimonious of these: ", paste(simplest, collapse = " or "), ".") else "")
         }),
         div(class = "diagnosis-detail", paste0(family_label(r$family), "; ", r$age_function, " ageing; random effects ",
-                                               if (isTRUE(r$nonlinear)) r$random else random_display(meta(), r$random_slope),
+                                               if (isTRUE(r$nonlinear)) r$random else random_display(meta(), r$random_slope, basis_label(r$age_function %||% "Quadratic")),
                                                "; N = ", aic$N[[1]], " observations from ", length(unique(r$data$id)), " individuals.")),
         {
           # the fitted formula of every model in the supported set (0.24.7)
@@ -2701,26 +2711,34 @@ server <- function(input, output, session) {
         "pvals <- proxy_values(im, proxy)",
         "",
         "# ---- Trait trajectory within bins (at least 3 individuals per point) ----",
-        "traj <- binned_trajectory(vis, pvals, n_bins, bin_method, 3, facet = facet_traj)",
-        "print(ggplot(traj, aes(age, mean, colour = bin, group = bin)) + geom_line(linewidth = 1) + geom_point(aes(size = n)) + panels_traj +",
+        "# (skipped with a message when the proxy takes one value, e.g. a fixed-length study where every individual has the same ALR)",
+        "one_value <- length(unique(stats::na.omit(pvals))) < 2",
+        "if (one_value) cat(\"Every individual has the same\", proxy, \"value, so individuals cannot be grouped by it: the binned trajectory,\",",
+        "                   \"bin-difference and age-bin plots are skipped.\\n\")",
+        "traj <- if (one_value) data.frame() else binned_trajectory(vis, pvals, n_bins, bin_method, 3, facet = facet_traj)",
+        "if (nrow(traj)) print(ggplot(traj, aes(age, mean, colour = bin, group = bin)) + geom_line(linewidth = 1) + geom_point(aes(size = n)) + panels_traj +",
         "        labs(x = \"Age\", y = \"Mean trait\", colour = paste(proxy, \"bin\"), size = \"Individuals\") + theme_minimal())",
         "",
         "# ---- Difference between consecutive bins at each age (least-squares lines with 95% confidence bands) ----",
-        "diffs <- bin_differences(traj, \"successive\")",
-        "print(bin_difference_trends(diffs))",
-        "print(ggplot(diffs, aes(age, difference, colour = pair)) + geom_hline(yintercept = 0, linetype = 2) + geom_point() +",
-        "        geom_smooth(aes(fill = pair), method = \"lm\", formula = y ~ x, se = TRUE, alpha = 0.15) + panels_traj +",
-        "        labs(x = \"Age\", y = \"Difference in mean trait\", colour = NULL, fill = NULL) + theme_minimal())",
+        "diffs <- if (nrow(traj)) bin_differences(traj, \"successive\") else data.frame()",
+        "if (nrow(diffs)) {",
+        "  print(bin_difference_trends(diffs))",
+        "  print(ggplot(diffs, aes(age, difference, colour = pair)) + geom_hline(yintercept = 0, linetype = 2) + geom_point() +",
+        "          geom_smooth(aes(fill = pair), method = \"lm\", formula = y ~ x, se = TRUE, alpha = 0.15) + panels_traj +",
+        "          labs(x = \"Age\", y = \"Difference in mean trait\", colour = NULL, fill = NULL) + theme_minimal())",
+        "}",
         "",
         "# ---- Trait against the grouping variable within age bins (at least 3 individuals per bin) ----",
-        "a2 <- trait_by_age_bins(vis, pvals, n_bins, facet = facet)",
-        "a2 <- a2[stats::ave(rep(1, nrow(a2)), a2$facet, a2$age_bin, FUN = length) >= 3, , drop = FALSE]",
-        "slopes <- a2_bin_slopes(a2)",
-        "print(slopes)",
-        "print(a2_slope_trend(slopes))",
-        "print(ggplot(a2, aes(proxy, trait, colour = age_bin)) + geom_point(alpha = 0.35) +",
-        "        geom_smooth(aes(group = age_bin, fill = age_bin), method = \"lm\", formula = y ~ x, se = TRUE, alpha = 0.15) + panels +",
-        "        labs(x = proxy, y = \"Mean trait within the age bin\", colour = \"Age bin\", fill = \"Age bin\") + theme_minimal())",
+        "a2 <- if (one_value) data.frame() else trait_by_age_bins(vis, pvals, n_bins, facet = facet)",
+        "if (nrow(a2)) a2 <- a2[stats::ave(rep(1, nrow(a2)), a2$facet, a2$age_bin, FUN = length) >= 3, , drop = FALSE]",
+        "if (nrow(a2)) {",
+        "  slopes <- a2_bin_slopes(a2)",
+        "  print(slopes)",
+        "  print(a2_slope_trend(slopes))",
+        "  print(ggplot(a2, aes(proxy, trait, colour = age_bin)) + geom_point(alpha = 0.35) +",
+        "          geom_smooth(aes(group = age_bin, fill = age_bin), method = \"lm\", formula = y ~ x, se = TRUE, alpha = 0.15) + panels +",
+        "          labs(x = proxy, y = \"Mean trait within the age bin\", colour = \"Age bin\", fill = \"Age bin\") + theme_minimal())",
+        "}",
         "",
         "# ---- Disappearance diagnostics ----",
         "terminal <- terminal_data(dat, meta, 3)",
@@ -3714,7 +3732,7 @@ server <- function(input, output, session) {
     best_id <- sub("^Model ", "M", aic$Model[[1]])
     elig <- aic[aic$Eligible, , drop = FALSE]
     txt <- c(sprintf("%s; %s ageing function; random effects %s", family_label(r$family), r$age_function,
-                     if (isTRUE(r$nonlinear)) r$random else random_display(meta(), r$random_slope)),
+                     if (isTRUE(r$nonlinear)) r$random else random_display(meta(), r$random_slope, basis_label(r$age_function %||% "Quadratic"))),
              if (nzchar(r$random_note %||% "")) r$random_note,
              if (isTRUE(r$n_excluded > 0)) sprintf("%d fit(s) with an invalid Hessian excluded from the ranking", r$n_excluded),
              if (r$n_dropped > 0) sprintf("%d rows dropped from all models (%s)", r$n_dropped, paste(r$drop_by, collapse = "; ")))
@@ -4200,7 +4218,7 @@ server <- function(input, output, session) {
     r <- safe_get(fitted_models())
     if (!is.null(r) && isTRUE(r$ok)) {
       ctx$models <- list(family = r$family, age_function = r$age_function,
-                         random = tryCatch(if (isTRUE(r$nonlinear)) r$random else random_display(m, r$random_slope), error = function(e) r$random),
+                         random = tryCatch(if (isTRUE(r$nonlinear)) r$random else random_display(m, r$random_slope, basis_label(r$age_function %||% "Quadratic")), error = function(e) r$random),
                          among = r$among %||% "linear", standardise = isTRUE(r$standardise), disp = r$disp %||% "constant",
                          zi = if (isTRUE(r$family %in% ZI_FAMILIES)) (r$zi %||% "") else "",
                          models = names(r$fits), n_rows = nrow(r$data), n_ind = length(unique(r$data$id)),

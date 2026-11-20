@@ -1,10 +1,8 @@
 <p align="center">
-  <img src="inst/app/www/disappR_logo.png" width = "200"/>
+  <a href="https://eivimeycook.github.io/disappR/"><img src="man/figures/logo.png" width="200" alt="disappR logo"/></a>
 </p>
 
-<div align="center">
- <h1>disappR</h1>
-</div>
+<h1 align="center">disappR</h1>
 
 <!-- badges: start -->
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)

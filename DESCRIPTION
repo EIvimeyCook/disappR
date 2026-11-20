@@ -73,3 +73,6 @@ Collate:
     'run_app.R'
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+URL: https://github.com/EIvimeyCook/disappR,
+    https://eivimeycook.github.io/disappR/
+BugReports: https://github.com/EIvimeyCook/disappR/issues

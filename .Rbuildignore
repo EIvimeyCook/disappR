@@ -9,3 +9,7 @@
 ^CITATION$
 ^inst/validation/gamm/screenshots$
 ^inst/validation/gamm/figure_comparison$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$

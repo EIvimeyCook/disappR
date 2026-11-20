@@ -19,7 +19,6 @@ Description: A Shiny workflow for longitudinal ageing data that follows a
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Depends:
     R (>= 4.1.0)
 Imports:
@@ -76,3 +75,4 @@ VignetteBuilder: knitr
 URL: https://github.com/EIvimeyCook/disappR,
     https://eivimeycook.github.io/disappR/
 BugReports: https://github.com/EIvimeyCook/disappR/issues
+Config/roxygen2/version: 8.1.1

@@ -43,3 +43,4 @@ the AIC advantage. Shuffling lifespan between individuals, as a permutation test
 after an individual's last record or death, so anything tied to the observation window would beat every
 shuffle; simulating the trait keeps the real observation windows, at the same cost.
 }
+\keyword{internal}

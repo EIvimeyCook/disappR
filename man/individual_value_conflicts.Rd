@@ -21,3 +21,4 @@ correct value (their mean can even fall before the individual's own last record)
 a data-integrity error naming them, or excludes them when the mapping asks it to (inconsistent = "exclude").
 Columns the app computes itself are constant by construction.
 }
+\keyword{internal}

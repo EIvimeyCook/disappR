@@ -56,6 +56,7 @@ summarise_coefficients <- function(co) {
 #' @param proxy The column the figure groups by: "alr", "life" (known lifespan) or "entry" (AFR, for selective appearance).
 #' @param process Which process this classifies ("disappearance" or "appearance"), carried through to the result.
 #' @return A visual evidence record; kind "unavailable" when too few individuals share ages.
+#' @keywords internal
 classify_visual_coef <- function(dat, B = 200L, alpha = EVIDENCE_ALPHA, min_ind = 8L, seed = 11L, proxy = "alr",
                                  process = "disappearance") {
   if (is.null(dat) || !nrow(dat) || !all(c("id", "age", "trait", proxy) %in% names(dat))) return(NULL)
@@ -110,6 +111,7 @@ model_process_kind <- function(label, field = "dis") {
 #' @param shape_ok Whether the ageing function in use is within 2 AIC of the best at the model level.
 #' @param shape_supported Ageing functions within 2 AIC of the best at the model level.
 #' @return A list summarising the evidence for selective disappearance and appearance.
+#' @keywords internal
 models_evidence <- function(r, verdict, shape_ok = NA, shape_supported = character(0)) {
   if (is.null(r) || !isTRUE(r$ok) || is.null(r$aic) || !nrow(r$aic)) return(NULL)
   a <- r$aic[is.finite(r$aic$Delta_AIC), , drop = FALSE]
@@ -322,6 +324,7 @@ finding_sentence <- function(kind, mv, vis, trait) {
 #' @param entries Saved results, in any order; each may carry an `evidence` record.
 #' @param trait A label for the trait, used in the finding.
 #' @return A list: level, headline, finding, lines (data frame), explanation, pending, cautions.
+#' @keywords internal
 grade_evidence <- function(entries, trait = "the trait") {
   # figures saved with a lifespan proxy; figures grouped by AFR are evidence for selective appearance instead
   vis_d <- Filter(function(x) !identical(x$process %||% "disappearance", "appearance"), all_evidence(entries, "visual"))
@@ -578,6 +581,7 @@ KIND_TEXT_APP <- c(age_dependent = "age-dependent selective appearance",
 #' @param entries Saved evidence entries (as recorded by the app's "Save to summary" buttons).
 #' @param trait Name of the trait, used in the returned notes.
 #' @return A grading table (Evidence, Status, Note, Footnote), or NULL when nothing was saved.
+#' @keywords internal
 grade_appearance <- function(entries, trait = "the trait") {
   vis_all <- Filter(function(x) identical(x$process %||% "", "appearance"), all_evidence(entries, "visual"))
   vis <- if (length(vis_all)) vis_all[[length(vis_all)]] else NULL

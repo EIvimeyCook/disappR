@@ -42,3 +42,4 @@ structure, the missingness, the number of records per individual - is left exact
 null there is no selective disappearance, so the distribution of the AIC advantage across permutations
 is what the chosen model can win by through chance and model flexibility alone.
 }
+\keyword{internal}

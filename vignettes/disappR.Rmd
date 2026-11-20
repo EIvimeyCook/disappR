@@ -7,39 +7,122 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-A Shiny workflow for diagnosing and modelling **selective disappearance** and **selective appearance** in longitudinal ageing data. It follows the manuscript's Figure 8: look for the signatures in the data (A1–A3), then choose the error family, random effects and ageing function, and compare Models 1–8 (B1–B5).
-
-## Install and run
-
-```r
-# from the package root (the folder containing DESCRIPTION)
-install.packages(c("shiny", "shinydashboard", "ggplot2", "lme4"))   # required
-install.packages(c("glmmTMB", "lmerTest", "DHARMa"))               # count families, p-values, residual checks
-source("launch_app.R")                                              # run without installing
-
-# or install the package (DESCRIPTION uses an anonymous placeholder maintainer, which R requires;
-# replace it with real details before public release)
-install.packages(".", repos = NULL, type = "source")   # or devtools::install()
-disappR::run_app()
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 ```
 
-## Scripted analyses
+disappR is a Shiny workflow for diagnosing and modelling **selective
+disappearance** and **selective appearance** in longitudinal ageing data. If the
+individuals that leave a study early, or join it late, differ in the trait being
+measured, the population-level pattern stops reflecting how individuals age.
+disappR helps you check whether that is happening in your data and model it if
+it is.
 
-The same engine is available from R scripts:
+The workflow follows the guide by Sanghvi, Ivimey-Cook, Bouwhuis, Sepil and van
+de Pol (2026, *Methods in Ecology and Evolution*): look for the signatures of
+selective disappearance and appearance in the data first, then choose the error
+family, random effects and ageing function, and only then compare the ten
+mixed models (Models 1–10) built to separate them.
 
-```r
-x   <- disappr_prepare(my_data, disappr_mapping(id = "ID", age = "age", trait = "mass", life = "lifespan"))
-fit <- disappr_fit(x, models = c("M1", "M2", "M4"), age_function = "Quadratic", family = "gaussian")
-disappr_compare(fit); disappr_diagnose(fit); disappr_interpret(fit)
-disappr_predict(fit, "M4")
-disappr_provenance(fit)
-ex <- disappr_example("bouwhuis")            # bundled data, mapping and settings
-cat(disappr_code(fit, x, "my_data.csv"))
+## Install
+
+disappR is not on CRAN. Install it from GitHub:
+
+```{r, eval = FALSE}
+install.packages("pak")
+pak::pak("EIvimeyCook/disappR")
 ```
+
+The packages below are optional. Without them the app still runs, with fewer
+analyses; the app's *Start here* page lists any that are missing.
+
+```{r, eval = FALSE}
+install.packages(c("glmmTMB", "lmerTest", "nlme", "DHARMa", "performance",
+                   "see", "codetools", "callr", "mgcv", "gamm4"))
+```
+
+## Run the app
+
+```{r, eval = FALSE}
+library(disappR)
+run_app()
+```
+
+The app has seven steps, each explained on screen:
+
+1. **Data**: simulated, bundled or your own data, and the column mapping.
+2. **Visual diagnosis**: does the trait differ between individuals that die or
+   enter the study at different ages?
+3. **Missingness and proxies**: how complete the sampling is, and which
+   lifespan proxy to use.
+4. **Trajectories**: the ageing function within individuals and in the
+   population.
+5. **Modelling**: Models 1–10, with diagnostics and R code for each.
+6. **Summary and report**: everything saved along the way, as an HTML or text
+   report.
+7. **GAMMs** (beta, optional): smooth ageing curves fitted with `mgcv`.
+
+`vignette("workflow", package = "disappR")` describes each step and the data
+format in detail. There is also a [video
+walkthrough](https://osf.io/kevnm/files/m6utp).
+
+## A worked example in R
+
+The models behind the app can also be run from a script. Here a population of
+150 individuals is simulated with both age-independent and age-dependent
+selective disappearance:
+
+```{r}
+library(disappR)
+
+sim <- disappr_simulate(n_id = 150, seed = 1, sd_type = "both")
+head(sim)
+```
+
+Tell disappR which column plays which role, then check and prepare the data:
+
+```{r}
+map <- disappr_mapping(id = "ID", age = "age", trait = "body_mass",
+                       life = "lifespan")
+x <- disappr_prepare(sim, map)
+```
+
+Fit three of the models and compare them. Model 1 has no term for selective
+disappearance (the negative control). Model 2 adds each individual's age at
+last record (ALR), a proxy for lifespan, which captures age-independent
+selective disappearance. Model 4 also lets the ALR effect change with age
+(age-dependent selective disappearance):
+
+```{r}
+fit <- disappr_fit(x, models = c("M1", "M2", "M4"))
+disappr_compare(fit)
+```
+
+`disappr_interpret()` gives the same plain-language reading as the app,
+including what the result does and does not show:
+
+```{r}
+disappr_interpret(fit)
+```
+
+and `disappr_predict()` gives the fitted trajectory from a chosen model:
+
+```{r}
+head(disappr_predict(fit, "M4"))
+```
+
+`disappr_code(fit, x)` writes standalone R code that reproduces the fits
+without disappR. `disappr_example()` loads any of the bundled published
+datasets with the mapping and settings that match its paper, for example
+`disappr_example("bouwhuis")` for the great tit data.
 
 ## Further documentation
 
-* `vignette("workflow", package = "disappR")`: the diagnosis-first workflow and the data format.
-* `vignette("models-and-methods", package = "disappR")`: Models 1-10, teaching simulations and interpretation caveats.
-* `vignette("validation-and-replication", package = "disappR")`: simulation validation and the published examples.
-* `vignette("development-and-testing", package = "disappR")`: architecture, tests and releases.
+* `vignette("workflow", package = "disappR")`: the seven steps, how to read the
+  figures, the data checks and the data format.
+* `vignette("models-and-methods", package = "disappR")`: Models 1–10, the
+  teaching simulations and interpretation caveats.
+* `vignette("validation-and-replication", package = "disappR")`: simulation
+  validation and how the app's results compare with the published examples.
+* `vignette("development-and-testing", package = "disappR")`: for developers,
+  the code structure, tests and releases.

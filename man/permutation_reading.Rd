@@ -17,3 +17,4 @@ Compares the model's advantage over Model 1 in the real data with its advantage 
 between individuals, and says what that pattern means, whether to trust the model, and what else could
 explain it.
 }
+\keyword{internal}

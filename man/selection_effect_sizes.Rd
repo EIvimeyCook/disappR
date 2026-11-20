@@ -19,3 +19,4 @@ Three quantities on the trait's own scale: how far the estimated ageing slope mo
 added, how much of the trait an extra unit of lifespan buys, and how different the ageing rates of
 short- and long-lived individuals are.
 }
+\keyword{internal}

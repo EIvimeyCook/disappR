@@ -209,6 +209,7 @@ fit_individual_function <- function(dat, fun, min_resid_df = 1, draw_ids = chara
 #' @param dat The data the fits came from.
 #' @param ids The individuals to draw.
 #' @return A data frame with id, age and fitted.
+#' @keywords internal
 individual_curves <- function(z, dat, ids) {
   if (!length(ids) || !is.data.frame(z$coefs) || !nrow(z$coefs)) return(data.frame())
   d <- dat[is.finite(dat$trait) & is.finite(dat$age), , drop = FALSE]

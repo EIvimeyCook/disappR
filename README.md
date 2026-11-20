@@ -284,7 +284,7 @@ choosing another trait on the Data tab applies the paper's model for that trait:
 its covariates, the family in step 5 and the GAMM settings in step 7.
 
 Sources and licence details for each dataset are listed in
-[`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md).
+[`inst/app/data/PROVENANCE.md`](https://github.com/EIvimeyCook/disappR/blob/HEAD/inst/app/data/PROVENANCE.md).
 
 ## Scripted use
 
@@ -341,7 +341,9 @@ file or pass a name as the third argument.
   ```
 
   This needs pandoc, which comes with RStudio. The sources can also be read in
-  the [`vignettes/`](vignettes) folder on GitHub.
+  the [`vignettes/`](https://github.com/EIvimeyCook/disappR/tree/HEAD/vignettes)
+  folder on GitHub, or read rendered on the
+  [website](https://eivimeycook.github.io/disappR/articles/).
 
 ## Tips and limitations
 
@@ -383,7 +385,7 @@ and the paper describing the methods:
 
 Data, code and supplementary material for the paper are on
 [OSF](https://osf.io/kevnm/). `citation("disappR")` gives both references, and a
-machine-readable [`CITATION.cff`](CITATION.cff) is included, so GitHub's "Cite
+machine-readable [`CITATION.cff`](https://github.com/EIvimeyCook/disappR/blob/HEAD/CITATION.cff) is included, so GitHub's "Cite
 this repository" button gives formatted APA and BibTeX.
 
 ## Contact
@@ -396,5 +398,5 @@ Edward R. Ivimey-Cook — <e.ivimeycook@gmail.com> —
 The disappR code is released under the [MIT License](LICENSE.md). The bundled
 datasets are not covered by this licence: they are redistributed under the terms
 of their sources, listed in
-[`inst/app/data/PROVENANCE.md`](inst/app/data/PROVENANCE.md). Cite the original
+[`inst/app/data/PROVENANCE.md`](https://github.com/EIvimeyCook/disappR/blob/HEAD/inst/app/data/PROVENANCE.md). Cite the original
 paper and dataset when you use one.

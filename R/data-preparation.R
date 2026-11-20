@@ -49,6 +49,7 @@ individual_ids <- function(df, map) {
 #' @param dat Standardised data with alr, life and entry columns.
 #' @param tol Relative tolerance for treating two values as equal.
 #' @return A named list of IDs by column (alr, life, entry); empty when there are no conflicts.
+#' @keywords internal
 individual_value_conflicts <- function(dat, tol = 1e-8) {
   out <- list()
   for (v in intersect(c("alr", "life", "entry"), names(dat))) {

@@ -21,3 +21,4 @@ A list summarising the evidence for selective disappearance and appearance.
 \description{
 Evidence from a fitted model comparison
 }
+\keyword{internal}

@@ -35,3 +35,4 @@ A visual evidence record; kind "unavailable" when too few individuals share ages
 \description{
 Classify the visual pattern from the trait-lifespan coefficient across age
 }
+\keyword{internal}

@@ -17,3 +17,4 @@ A list: level, headline, finding, lines (data frame), explanation, pending, caut
 \description{
 Grade the saved evidence for selective disappearance
 }
+\keyword{internal}

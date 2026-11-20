@@ -40,6 +40,7 @@ age_slope <- function(res, model) {
 #' @param res A fitted model suite from \code{fit_model_suite()}.
 #' @param dat The standardised data, used for the lifespan spread the age-dependent effect is expressed over.
 #' @return A data frame of effect sizes with 95% intervals, or an empty data frame.
+#' @keywords internal
 selection_effect_sizes <- function(res, dat = NULL) {
   empty <- data.frame()
   if (is.null(res) || !isTRUE(res$ok) || is.null(res$coefficients) || !nrow(res$coefficients)) return(empty)
@@ -136,6 +137,7 @@ BOOTSTRAP_MIN_OK <- 19L
 #' @param progress Optional function(fraction, message) for a progress bar.
 #' @param seed Seed for the simulations; the session's random-number stream is restored afterwards.
 #' @return A list with the observed statistics, the null draws, one-sided p-values and the null model used.
+#' @keywords internal
 bootstrap_test <- function(dat, meta, model = "M4", against = "M1", n_boot = 39,
                            settings = list(), progress = NULL, seed = 1L) {
   had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
@@ -235,6 +237,7 @@ bootstrap_test <- function(dat, meta, model = "M4", against = "M1", n_boot = 39,
 #'
 #' @param z The result of bootstrap_test().
 #' @return A list with pattern, headline, meaning, trust and alternatives, or NULL.
+#' @keywords internal
 bootstrap_reading <- function(z) {
   if (is.null(z) || !is.null(z$error) || !length(z$null_gain) || !is.finite(z$observed_gain)) return(NULL)
   obs <- z$observed_gain
@@ -294,6 +297,7 @@ bootstrap_reading <- function(z) {
 #'
 #' @param z The result of permutation_test().
 #' @return A list with pattern, headline, meaning, trust and alternatives, or NULL.
+#' @keywords internal
 permutation_reading <- function(z) {
   if (is.null(z) || !is.null(z$error) || !length(z$null_gain) || !is.finite(z$observed_gain)) return(NULL)
   obs <- z$observed_gain
@@ -351,6 +355,7 @@ permutation_reading <- function(z) {
 #' @param progress Optional function(fraction, message) for a progress bar.
 #' @param seed Seed for the permutations; the session's random-number stream is restored afterwards.
 #' @return A list with the observed statistics, the null draws and one-sided p-values.
+#' @keywords internal
 permutation_test <- function(dat, meta, model = "M4", against = "M1", n_perm = 100,
                              settings = list(), progress = NULL, seed = 1L) {
   # The permutations draw their own random numbers from a fixed seed, so a rerun gives the same p-value, and the

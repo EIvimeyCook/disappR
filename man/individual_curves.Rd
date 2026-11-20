@@ -20,3 +20,4 @@ A data frame with id, age and fitted.
 Redrawing a different set of individuals needs no refitting: each curve is rebuilt from the coefficients that
 fit_individual_function() stored, over that individual's own age range.
 }
+\keyword{internal}

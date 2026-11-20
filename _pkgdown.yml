@@ -1,3 +1,30 @@
 url: https://eivimeycook.github.io/disappR/
 template:
   bootstrap: 5
+
+reference:
+  - title: Run the app
+    desc: Open the disappR workflow in your browser.
+    contents:
+      - run_app
+  - title: Scripted analyses
+    desc: >
+      The same engine as the app, for use in R scripts: map and prepare the
+      data, fit and compare Models 1-10, read the diagnostics and
+      interpretation, predict trajectories, export standalone R code, and
+      load simulated or bundled published data.
+    contents:
+      - disappr_api
+
+articles:
+  - title: Using disappR
+    navbar: ~
+    contents:
+      - disappR
+      - workflow
+      - models-and-methods
+      - validation-and-replication
+  - title: For developers
+    navbar: For developers
+    contents:
+      - development-and-testing

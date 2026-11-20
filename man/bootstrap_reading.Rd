@@ -16,3 +16,4 @@ A list with pattern, headline, meaning, trust and alternatives, or NULL.
 Uses the same pattern keys as the permutation reading ("drops" meaning the advantage exceeds the null), which
 the evidence grader reads.
 }
+\keyword{internal}

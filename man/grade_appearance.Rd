@@ -19,3 +19,4 @@ Reads the figures saved with AFR as the grouping variable and the Models 7-10 pa
 NULL when nothing about selective appearance was saved. The random-slope and null-model checks are run for
 selective disappearance only, so this summary is at most 'moderate'.
 }
+\keyword{internal}

@@ -50,7 +50,7 @@ if (nzchar(.disappr_engine_dir)) {
 
 # The engine must be the one this app was written for: an older disappR installed or loaded in this R session (even
 # with the same version number) would give errors such as "unused argument" deep inside the app.
-DISAPPR_APP_BUILD <- "0.25.2-2026-11-19"
+DISAPPR_APP_BUILD <- "0.25.2-2026-11-25"
 .disappr_engine_build <- get0("DISAPPR_BUILD", envir = .disappr_app_env, inherits = FALSE) %||% "(none: an older version)"
 if (!identical(.disappr_engine_build, DISAPPR_APP_BUILD)) {
   stop(sprintf(paste0("This app (build %s) found a disappR engine of build %s, ",

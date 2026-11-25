@@ -1,5 +1,13 @@
 # disappR 0.25.2
 
+* **New example: social ageing in dolphins** (build stamp 0.25.2-2026-11-25). Meehan et al. 2026, *PLOS Biology*
+  (10.1371/journal.pbio.3004022): 64,914 sightings of 457 Indo-Pacific bottlenose dolphins of known age in Shark Bay,
+  1988-2025, with group size (number of associates) as the trait. It opens with a negative binomial Model 4 (age × age
+  at last sighting) with sex × age, reproductive status, random age slopes for dolphin and a random intercept for year,
+  and a GAMM preset with an age-dependent ALR term. As in the paper, group size rises and then falls (more steeply in
+  males), males are in larger groups, and longer-lived dolphins increase their group size more with age. Data: Zenodo
+  10.5281/zenodo.22675472 (CC-BY 4.0); `dev/prepare_meehan_dolphins.R` rebuilds the file.
+* The GAMM memory estimate gains a per-record term: the dolphin data's step 7 comparisons peak near 11 GB.
 * **Fixes from an independent review** (build stamp 0.25.2-2026-11-19):
   - The random-effects description dropped age² (and age³) for the "every age term" structures in the step 5 results
     header, the saved model comparison and the auto-written methods: it now names every term of the ageing function, as

@@ -47,7 +47,7 @@ exported as R code.
 - **Teaching simulations.** Generate data with a known true trajectory, choosing
   the ageing shape, the sampling design and the type and strength of selection,
   and see how close each model gets to the truth.
-- **27 published datasets** from 17 studies of laboratory and wild populations,
+- **28 published datasets** from 18 studies of laboratory and wild populations,
   each set up to follow its paper (the great tit data open on laying date).
 - **Reproducible output.** Downloadable R code for every section, HTML and text
   reports, the analysis data, and a reproducibility bundle of every setting used.
@@ -250,7 +250,7 @@ as a CSV.
 
 ## Example data
 
-Twenty-seven published datasets from 17 studies are bundled. Each opens with
+Twenty-eight published datasets from 18 studies are bundled. Each opens with
 settings that follow its paper as closely as the app allows, except the great tit
 data, which open on laying date (the trait analysed in Sanghvi et al. 2026) rather
 than the traits in Bouwhuis et al. 2009.
@@ -270,6 +270,7 @@ For steps 1-6 (mixed models):
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep breeding probability and offspring survival
 - McKenna-Ell et al. 2023, *Biology Letters* — Soay sheep offspring birth weight
 - Szejner-Sigal et al. 2025, *Proc. R. Soc. B* — alfalfa leafcutting bee locomotor activity
+- Meehan et al. 2026, *PLOS Biology* — Indo-Pacific bottlenose dolphin group size (social ageing; also sets a GAMM in step 7)
 
 Published GAMM analyses (these also open step 7 with the paper's GAMM settings):
 

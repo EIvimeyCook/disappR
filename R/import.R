@@ -603,7 +603,33 @@ EXAMPLES <- list(
                  "intercepts for elephant and township. Here the smooth is of age with age at last measurement (ALR) as the",
                  "proxy, which separates within- from between-individual change in the same way. Open step 7 and choose sex",
                  "under 'Separate curves for a group'. Lifespan is the age at death for elephants that died (others alive or",
-                 "unknown). Data: Dryad 10.5061/dryad.5dv41ns59 (CC0); code Zenodo 10.5281/zenodo.6460236. "))
+                 "unknown). Data: Dryad 10.5061/dryad.5dv41ns59 (CC0); code Zenodo 10.5281/zenodo.6460236. ")),
+  meehan_dolphins = list(
+    label = "Meehan et al. 2026, PLOS Biology \u2014 Indo-Pacific bottlenose dolphin (group size; social ageing)",
+    about = list(species = "Indo-Pacific bottlenose dolphin (Tursiops aduncus), wild population of Shark Bay, Western Australia",
+                 trait = "Associates: the number of other dolphins in the focal dolphin's group at a sighting (10 m chain rule)",
+                 model = paste("Negative binomial; quadratic age with sex \u00d7 age, age at the last sighting (ALR) and age \u00d7 ALR;",
+                               "reproductive status; random intercept and age slopes for dolphin, random intercept for year"),
+                 covariates = "sex; repro_status: calf, newborn or independent",
+                 finding = paste("Group size rises and then falls in later life, more steeply in males; males are in larger groups;",
+                                 "longer-lived dolphins increase their group size more with age (age-dependent selective disappearance)."),
+                 other = "year (random intercept)"),
+    file = "meehan_2026_dolphin_group_size.csv",
+    mapping = example_map(id = "dolphin", age = "age_years", trait = "associates", alr = "age_last_seen",
+                          covars = c("sex", "repro_status"), cov_factor = c("sex", "repro_status"), cov_age = "sex",
+                          random = "year", age_round = 1),
+    family = "nbinom2", age_function = "Quadratic", random_structure = "correlated_all", models = c("M1", "M2", "M4"),
+    gamm = list(family = "nb", k = 10, proxy = "ALR", proxy_form = "vc", individual = "rs", afr_form = "none"),
+    note = paste("Social ageing: 64,914 sightings (one per dolphin per day) of 457 dolphins of known age (229 females, 228",
+                 "males), 1988-2025, from the Shark Bay Dolphin Research Project. The trait is group size, the number of",
+                 "associates at a sighting. The paper fitted a Bayesian double-hierarchical negative binomial model (brms) with",
+                 "sex \u00d7 quadratic age \u00d7 age at last sighting (ALS) and reproductive status in both the mean and the dispersion,",
+                 "and random effects for dolphin (with age slopes), year and observation date. Here the mean model is Model 4 with",
+                 "sex \u00d7 age, reproductive status, random age slopes for dolphin and a random intercept for year; the dispersion",
+                 "model and the date effect (3,512 levels) are left out. Ages are rounded to whole years, so the sampling steps ask",
+                 "whether a dolphin was seen in each year of life. ALS is the age at the last sighting; dolphins still alive in",
+                 "2025 are right-censored, so it is a minimum lifespan. Fitting takes a few minutes. Data and code: GitHub",
+                 "k-meeha/socialagingindolphins, Zenodo 10.5281/zenodo.22675472 (CC-BY 4.0). "))
 )
 
 # The published settings for one trait of a bundled example: the example's own settings, overridden by the entry for

@@ -14,7 +14,7 @@ Description: A Shiny workflow for longitudinal ageing data that follows a
     models (Models 1-10) with Gaussian, Poisson, negative binomial,
     zero-inflated (Poisson, nbinom1 and nbinom2), binomial, beta-binomial, Gamma, lognormal and beta families, fixed covariates
     and nested (up to three levels) or crossed random effects, and an optional step of generalized additive mixed models
-    (GAMMs) of ageing. Includes teaching simulations with known answers, 27 empirical examples from 17 published studies,
+    (GAMMs) of ageing. Includes teaching simulations with known answers, 28 empirical examples from 18 published studies,
     residual checks and exportable R code.
 License: MIT + file LICENSE
 Encoding: UTF-8

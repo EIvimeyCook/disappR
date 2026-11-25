@@ -40,3 +40,15 @@ test_that("non-linear (nlme) fits skip R2 quietly", {
   out <- utils::capture.output(v <- r2_pair(f), type = "message")
   expect_true(all(is.na(v))); expect_length(out, 0)
 })
+
+test_that("the dolphin social-ageing example (Meehan et al. 2026) loads with the paper's variables", {
+  x <- disappr_example("meehan_dolphins")
+  expect_identical(nrow(x$data), 64914L)
+  expect_identical(length(unique(x$data$dolphin)), 457L)
+  ex <- EXAMPLES$meehan_dolphins
+  expect_true(all(c(ex$mapping$id, ex$mapping$age, ex$mapping$trait, ex$mapping$alr, ex$mapping$covars, ex$mapping$random) %in% names(x$data)))
+  expect_identical(ex$family, "nbinom2"); expect_identical(ex$gamm$family, "nb")
+  b <- standardise_data(x$data, x$mapping)
+  expect_true(all(b$data$age == round(b$data$age)))                              # ages in whole years
+  expect_true(all(abs(tapply(b$data$age, b$data$id, max) - tapply(b$data$alr, b$data$id, max)) <= 1))   # ALR = last sighting
+})

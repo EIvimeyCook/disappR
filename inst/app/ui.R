@@ -281,7 +281,7 @@ ui <- dashboardPage(
                 actionButton("journey_learn", "Start with simulated data", class = "btn-primary btn-block-space"))),
               column(4, div(class = "journey",
                 div(class = "journey-title", "Explore"),
-                div(class = "journey-sub", "Open one of 27 empirical datasets from 17 published studies and set the default options that most closely reproduce the analysis reported in its paper. Fit alternative models to these data to understand how the interpreted biological pattern would change. Useful for seeing how the workflow applies to real longitudinal data."),
+                div(class = "journey-sub", "Open one of 28 empirical datasets from 18 published studies and set the default options that most closely reproduce the analysis reported in its paper. Fit alternative models to these data to understand how the interpreted biological pattern would change. Useful for seeing how the workflow applies to real longitudinal data."),
                 actionButton("journey_explore", "Open an empirical example", class = "btn-default btn-block-space"))),
               column(4, div(class = "journey",
                 div(class = "journey-title", "Analyse"),

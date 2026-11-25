@@ -1434,8 +1434,10 @@ server <- function(input, output, session) {
   })
   a3_all_colour_choices <- reactive({
     m <- safe_get(meta()); if (is.null(m)) return(character(0))
-    cv <- names(m$cov_types)[m$cov_types == "categorical"]
-    c("(none)" = "", stats::setNames(cv, unname(m$cov_labels[cv])), "Lifespan proxy (ALR)" = "__alr__")
+    ct <- m$cov_types %||% character(0)
+    cv <- names(ct)[ct == "categorical"]
+    cats <- if (length(cv)) stats::setNames(cv, unname(m$cov_labels[cv] %||% cv)) else character(0)
+    c("(none)" = "", cats, "Lifespan proxy (ALR)" = "__alr__")
   })
   output$a3_all_colour_ui <- renderUI({
     ch <- a3_all_colour_choices()

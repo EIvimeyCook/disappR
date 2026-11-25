@@ -337,9 +337,10 @@ system_memory_read <- function() {
 }
 
 # Rough peak memory (GB) of step 7's comparisons, which hold a few models of n_rows records with n_levels random-effect
-# levels at once. Calibrated on the great tit example (7,126 records, 4,904 levels: 5.7 GB peak), with a 0.6 GB base
-# for R and its packages; it is a guide, not a guarantee.
-gamm_memory_need_gb <- function(n_rows, n_levels) 0.6 + 1.5e-7 * n_rows * n_levels
+# levels at once: a 0.6 GB base for R and its packages, a term in records x levels and a term in records. Calibrated on
+# the great tit example (7,126 records, 4,904 levels: 5.7 GB peak) and the dolphin example (64,914 records, 493 levels:
+# about 11 GB); it is a guide, not a guarantee.
+gamm_memory_need_gb <- function(n_rows, n_levels) 0.6 + 1.5e-7 * n_rows * n_levels + 8.6e-5 * n_rows
 
 # Advice on memory for the GAMM step: list(need, avail, level = "none" | "caveat" | "warning", text).
 gamm_memory_advice <- function(n_rows, n_levels, avail = system_memory_gb()) {

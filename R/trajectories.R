@@ -717,11 +717,24 @@ all_individual_trajectories <- function(dat, fun, link = "identity", n_grid = 30
         used[j] <- f
         break
       }
+      # on the log scale every fit can fail (all-zero counts, perfect separation in 0/1 data): a straight line on the
+      # raw scale still shows the individual's change, rather than reducing it to crosses
+      if (identical(used[j], "points") && log_scale) {
+        one <- tryCatch(individual_fit_one(a, y, pars[["Linear"]], 0, "identity"), error = function(e) NULL)
+        if (!is.null(one)) {
+          ag <- seq(min(a), max(a), length.out = n_grid)
+          fv <- as.numeric(cbind(`(Intercept)` = 1, as.matrix(age_basis(ag, pars[["Linear"]])))[, names(one$coefficients), drop = FALSE] %*% one$coefficients)
+          if (all(is.finite(fv))) {
+            lines[[j]] <- data.frame(id = z, age = ag, fitted = fv, fun_used = "Linear (raw scale)", stringsAsFactors = FALSE)
+            used[j] <- "Linear (raw scale)"
+          }
+        }
+      }
     }
     if (identical(used[j], "points")) pts[[j]] <- data.frame(id = z, age = a, trait = y, stringsAsFactors = FALSE)
   }
   lines <- Filter(Negate(is.null), lines); pts <- Filter(Negate(is.null), pts)
   list(lines = if (length(lines)) do.call(rbind, lines) else empty$lines,
        points = if (length(pts)) do.call(rbind, pts) else empty$points,
-       counts = table(factor(used, levels = c(chain, "points"))), fun = fun)
+       counts = table(factor(used, levels = c(chain, if (log_scale) "Linear (raw scale)", "points"))), fun = fun)
 }

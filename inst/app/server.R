@@ -1473,7 +1473,7 @@ server <- function(input, output, session) {
   output$a3_all_note <- renderUI({
     z <- safe_get(a3_all_res()); if (is.null(z) || !is.null(z$error)) return(NULL)
     n <- z$counts; n <- n[n > 0]
-    parts <- vapply(names(n), function(f) sprintf("%s %s", format(n[[f]], big.mark = ","), if (identical(f, "points")) "recorded at a single age (crosses)" else if (identical(f, z$fun)) paste0("with the ", tolower(f), " function") else paste0("with a simpler ", tolower(f), " function (too few records)")), character(1))
+    parts <- vapply(names(n), function(f) sprintf("%s %s", format(n[[f]], big.mark = ","), if (identical(f, "points")) "recorded at a single age (crosses)" else if (identical(f, z$fun)) paste0("with the ", tolower(f), " function") else if (identical(f, "Linear (raw scale)")) "with a straight line on the raw scale (no fit on the log scale, e.g. all-zero counts)" else paste0("with a simpler ", tolower(f), " function (too few records)")), character(1))
     cap <- attr(a3_data(), "capped")
     p(class = "small-note", paste0("Individuals drawn: ", paste(parts, collapse = "; "), ".",
       if (!is.null(cap)) sprintf(" As elsewhere in step 4, an evenly spaced %s of %s individuals are used.", format(cap[["used"]], big.mark = ","), format(cap[["total"]], big.mark = ",")) else ""))

@@ -33,7 +33,7 @@ all_outputs <- c(gamm_outputs, "store_plot_pick_ui", "store_pred_plot", "trait_a
                  "visual_proxy_ui", "a1_plot", "bin_diff_plot", "a2_plot", "toy_card_visual",
                  "sampling_metrics", "heatmap", "missing_by_age", "missing_vs_var",
                  "drivers_table", "proxy_plots_ui", "proxy_alr_mean", "proxy_alr_ls", "proxy_mean_ls",
-                 "a3_metrics", "a3_plot", "a3_mean_plot", "a3_compare_table", "a3_coef_table",
+                 "a3_metrics", "a3_plot", "a3_all_plot", "a3_all_note", "a3_all_colour_ui", "a3_mean_plot", "a3_compare_table", "a3_coef_table",
                  "family_hint", "structure_note", "b2_table", "b2_plot",
                  "model_fit_note", "aic_plot", "aic_table", "lrt_table", "status_table", "drop_note", "pred_plot",
                  "deviation_note", "deviation_table", "coef_model_ui", "coef_table", "family_table", "dharma_model_ui", "dharma_table", "code_ui",
@@ -270,7 +270,7 @@ shiny::testServer(app, {
 
   # --- controls added in 0.20.9-0.20.19 ---
   session$setInputs(diff_points = FALSE, a3_show_fun = FALSE, trait_scale = "log1p", a3_scale = "log")
-  touch(output, c("bin_diff_plot", "a3_plot", "a3_mean_plot", "visual_scale_advice"))
+  touch(output, c("bin_diff_plot", "a3_plot", "a3_all_plot", "a3_mean_plot", "visual_scale_advice"))
   session$setInputs(diff_points = TRUE, a3_show_fun = TRUE, trait_scale = "raw", a3_scale = "auto")
   session$setInputs(run_a3_compare = 1)
   touch(output, c("a3_compare_table", "a3_metrics", "a3_coef_table"))

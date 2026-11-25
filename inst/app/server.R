@@ -1416,6 +1416,66 @@ server <- function(input, output, session) {
     )
   })
 
+  # ---- every individual's trajectory, with simpler functions for individuals with few records (this figure only) ----
+  a3_all_res <- reactive({
+    d <- a3_data(); fn <- input$a3_function %||% "Quadratic"; lk <- a3_link()
+    key <- paste("all", safe_get(data_sig()) %||% "", fn, lk, sep = "|")
+    hit <- get0(key, envir = a3_cache, inherits = FALSE)
+    if (!is.null(hit)) return(hit)
+    t0 <- Sys.time()
+    z <- shiny::withProgress(message = paste("Drawing", fn, "for every individual"), value = 0,
+      tryCatch(step4_run("all_individual_trajectories", list(dat = d, fun = fn, link = lk),
+                         function(f, detail) shiny::setProgress(value = f, detail = detail)),
+               error = function(e) list(error = conditionMessage(e))))
+    step4_log("all-individual trajectories (%s) for %d individuals in %.2f s", fn, length(unique(d$id)),
+              as.numeric(difftime(Sys.time(), t0, units = "secs")))
+    if (is.null(z$error)) assign(key, z, envir = a3_cache)
+    z
+  })
+  a3_all_colour_choices <- reactive({
+    m <- safe_get(meta()); if (is.null(m)) return(character(0))
+    cv <- names(m$cov_types)[m$cov_types == "categorical"]
+    c("(none)" = "", stats::setNames(cv, unname(m$cov_labels[cv])), "Lifespan proxy (ALR)" = "__alr__")
+  })
+  output$a3_all_colour_ui <- renderUI({
+    ch <- a3_all_colour_choices()
+    cur <- isolate(input$a3_all_colour) %||% ""
+    selectInput("a3_all_colour", "Colour lines by", choices = ch, selected = if (cur %in% ch) cur else "")
+  })
+  a3_all_obj <- reactive({
+    z <- a3_all_res()
+    shiny::validate(shiny::need(is.null(z$error), paste("The trajectories could not be drawn:", z$error %||% "")))
+    shiny::validate(shiny::need(nrow(z$lines) > 0 || nrow(z$points) > 0, "No individual has trait records to draw."))
+    d <- a3_data(); col <- input$a3_all_colour %||% ""
+    per_id <- function(v) tapply(as.character(v), as.character(d$id), function(x) { x <- x[!is.na(x) & nzchar(x)]; if (length(x)) names(sort(table(x), decreasing = TRUE))[1] else NA_character_ })
+    colour_of <- if (identical(col, "__alr__")) {
+      a <- tapply(d$alr, as.character(d$id), function(x) suppressWarnings(max(x, na.rm = TRUE))); a[!is.finite(a)] <- NA; a
+    } else if (nzchar(col) && col %in% names(d)) per_id(d[[col]]) else NULL
+    lines <- z$lines; pts <- if (isTRUE(input$a3_all_points)) z$points else z$points[0, , drop = FALSE]
+    lab <- if (identical(col, "__alr__")) "ALR" else if (nzchar(col)) (safe_get(meta()$cov_labels[[col]]) %||% col) else NULL
+    if (!is.null(colour_of)) { lines$colour <- unname(colour_of[lines$id]); pts$colour <- unname(colour_of[pts$id]) }
+    al <- input$a3_all_alpha %||% 0.35
+    p <- ggplot() + labs(x = "Age", y = if (identical(a3_link(), "log")) "Trait (fits on the log scale, shown as counts)" else "Trait", colour = lab)
+    if (is.null(colour_of)) {
+      p <- p + geom_line(data = lines, aes(age, fitted, group = id), colour = "#35637A", alpha = al, linewidth = 0.5)
+      if (nrow(pts)) p <- p + geom_point(data = pts, aes(age, trait), shape = 4, colour = "#35637A", alpha = min(1, al + 0.3), size = 1.6)
+    } else {
+      p <- p + geom_line(data = lines, aes(age, fitted, group = id, colour = colour), alpha = al, linewidth = 0.5)
+      if (nrow(pts)) p <- p + geom_point(data = pts, aes(age, trait, colour = colour), shape = 4, alpha = min(1, al + 0.3), size = 1.6)
+      p <- p + if (identical(col, "__alr__")) scale_colour_viridis_c(option = "D", end = 0.9) else scale_colour_manual(values = distinct_colours(length(unique(stats::na.omit(lines$colour)))), na.value = "grey60")
+      p <- p + guides(colour = if (identical(col, "__alr__")) "colourbar" else guide_legend(override.aes = list(alpha = 1, linewidth = 1)))
+    }
+    p + theme_disappR(13) + theme(legend.position = "bottom")
+  })
+  output$a3_all_plot <- renderPlot(a3_all_obj())
+  output$a3_all_note <- renderUI({
+    z <- safe_get(a3_all_res()); if (is.null(z) || !is.null(z$error)) return(NULL)
+    n <- z$counts; n <- n[n > 0]
+    parts <- vapply(names(n), function(f) sprintf("%s %s", format(n[[f]], big.mark = ","), if (identical(f, "points")) "recorded at a single age (crosses)" else if (identical(f, z$fun)) paste0("with the ", tolower(f), " function") else paste0("with a simpler ", tolower(f), " function (too few records)")), character(1))
+    cap <- attr(a3_data(), "capped")
+    p(class = "small-note", paste0("Individuals drawn: ", paste(parts, collapse = "; "), ".",
+      if (!is.null(cap)) sprintf(" As elsewhere in step 4, an evenly spaced %s of %s individuals are used.", format(cap[["used"]], big.mark = ","), format(cap[["total"]], big.mark = ",")) else ""))
+  })
   output$a3_plot <- renderPlot({
     d <- dat()
     ids <- a3_ids()
@@ -3437,6 +3497,7 @@ server <- function(input, output, session) {
     "Missingness against",
     "Agreement between ALR, mean age and lifespan",
     "Mean-coefficient trajectory",
+    "All individuals' trajectories",
     "Individual-level function comparison",
     "Population-level ageing functions",
     "Model comparison",
@@ -3710,6 +3771,14 @@ server <- function(input, output, session) {
                       Mean = signif(vapply(cf[nms], function(v) mean(v, na.rm = TRUE), numeric(1)), 5),
                       SD = signif(vapply(cf[nms], function(v) stats::sd(v, na.rm = TRUE), numeric(1)), 4))
     add_saved("4 Individual and population trajectories", "Mean-coefficient trajectory", text = txt, tables = list(`Individual coefficients` = tab), plots = list(pl))
+  }))
+  observeEvent(input$save_a3_all, disappr_guard("input$save_a3_all", {
+    pl <- safe_get(a3_all_obj()); z <- safe_get(a3_all_res())
+    if (is.null(pl) || is.null(z) || !is.null(z$error)) return(nothing_to_save())
+    n <- z$counts[z$counts > 0]
+    txt <- c(sprintf("%s function drawn for every individual; simpler functions where an individual has too few records (descriptive only)", z$fun),
+             paste0("Individuals: ", paste(sprintf("%s %s", n, ifelse(names(n) == "points", "at a single age", names(n))), collapse = "; ")))
+    add_saved("4 Individual and population trajectories", "All individuals' trajectories", text = txt, plots = list(pl))
   }))
   observeEvent(input$save_a3_compare, disappr_guard("input$save_a3_compare", {
     tab <- a3_compare_current()

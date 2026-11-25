@@ -1,5 +1,11 @@
 # disappR 0.25.2
 
+* **Step 4: "All individuals' trajectories"** (build stamp 0.25.2-2026-11-26). A new figure draws the chosen ageing
+  function for every individual as one light line, as in Meehan et al. 2026 (Fig. 2A), coloured by a categorical
+  covariate or by ALR. An individual with too few records for the chosen function is drawn with the next simpler one
+  (Cubic, then Quadratic, then Linear; Logarithmic and the exponential functions fall back to Linear) and one recorded
+  at a single age as a cross; a note counts the individuals drawn each way. The figure is descriptive only
+  (`all_individual_trajectories()`): the individual fits, the function comparison and the models are unchanged.
 * **New example: social ageing in dolphins** (build stamp 0.25.2-2026-11-25). Meehan et al. 2026, *PLOS Biology*
   (10.1371/journal.pbio.3004022): 64,914 sightings of 457 Indo-Pacific bottlenose dolphins of known age in Shark Bay,
   1988-2025, with group size (number of associates) as the trait. It opens with a negative binomial Model 4 (age × age

@@ -672,3 +672,56 @@ peak_onset_sentence <- function(z) {
   trough <- if (isTRUE(tp$trough_interior)) paste0(" Lowest at age ", format_num(tp$trough), ".") else ""
   paste0(model_label(z$model), ": ", peak, onset, ".", trough, if (isTRUE(z$draws)) "" else " No CI for this model type.")
 }
+
+# ---------------------------------------------------------------------------
+# A3: every individual's trajectory, for the "all individuals" figure only
+# ---------------------------------------------------------------------------
+# Fits the chosen function to each individual and, where an individual has too few records for it, the next simpler
+# function (Cubic -> Quadratic -> Linear; Logarithmic, Asymptotic exponential and the non-linear exponential ->
+# Linear); an individual recorded at a single age is returned as points. Used only to draw the figure: the individual
+# fits, function comparisons and models of step 4 and later do not use it.
+a3_fallback_chain <- function(fun) {
+  unique(switch(fun, Cubic = c("Cubic", "Quadratic", "Linear"), Quadratic = c("Quadratic", "Linear"), Linear = "Linear", c(fun, "Linear")))
+}
+all_individual_trajectories <- function(dat, fun, link = "identity", n_grid = 30L, progress = NULL) {
+  d <- dat[is.finite(dat$trait) & is.finite(dat$age), , drop = FALSE]
+  empty <- list(lines = data.frame(id = character(0), age = numeric(0), fitted = numeric(0), fun_used = character(0)),
+                points = data.frame(id = character(0), age = numeric(0), trait = numeric(0)), counts = integer(0), fun = fun)
+  if (!nrow(d)) return(empty)
+  if (identical(link, "log") && any(d$trait < 0)) link <- "identity"
+  log_scale <- identical(link, "log")
+  chain <- a3_fallback_chain(fun)
+  pars <- lapply(stats::setNames(chain, chain), function(f) if (identical(f, A3_NONLINEAR)) NULL else make_age_params(d$age, f, standardise = FALSE))
+  curve_of <- function(f, cf, ages) {
+    if (identical(f, A3_NONLINEAR)) return(cf[["a"]] * exp_capped(cf[["b"]] * ages))
+    X <- cbind(`(Intercept)` = 1, as.matrix(age_basis(ages, pars[[f]])))
+    eta <- as.numeric(X[, names(cf), drop = FALSE] %*% cf)
+    if (log_scale) exp_capped(eta) else eta
+  }
+  sp <- split(seq_len(nrow(d)), as.character(d$id))
+  lines <- vector("list", length(sp)); pts <- vector("list", length(sp)); used <- character(length(sp))
+  every <- max(1L, length(sp) %/% 50L)
+  for (j in seq_along(sp)) {
+    if (is.function(progress) && (j %% every == 0L || j == length(sp))) progress(j / length(sp), sprintf("individual %d of %d", j, length(sp)))
+    ii <- sp[[j]]; a <- d$age[ii]; y <- d$trait[ii]; z <- names(sp)[j]
+    used[j] <- "points"
+    if (length(unique(a)) >= 2) {
+      for (f in chain) {
+        one <- tryCatch(if (identical(f, A3_NONLINEAR)) individual_fit_nonlinear(a, y, 0, link) else individual_fit_one(a, y, pars[[f]], 0, link),
+                        error = function(e) NULL)
+        if (is.null(one)) next
+        ag <- seq(min(a), max(a), length.out = n_grid)
+        fv <- tryCatch(curve_of(f, one$coefficients, ag), error = function(e) rep(NA_real_, length(ag)))
+        if (!all(is.finite(fv))) next
+        lines[[j]] <- data.frame(id = z, age = ag, fitted = fv, fun_used = f, stringsAsFactors = FALSE)
+        used[j] <- f
+        break
+      }
+    }
+    if (identical(used[j], "points")) pts[[j]] <- data.frame(id = z, age = a, trait = y, stringsAsFactors = FALSE)
+  }
+  lines <- Filter(Negate(is.null), lines); pts <- Filter(Negate(is.null), pts)
+  list(lines = if (length(lines)) do.call(rbind, lines) else empty$lines,
+       points = if (length(pts)) do.call(rbind, pts) else empty$points,
+       counts = table(factor(used, levels = c(chain, "points"))), fun = fun)
+}

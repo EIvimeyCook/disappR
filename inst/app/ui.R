@@ -591,6 +591,15 @@ ui <- dashboardPage(
               uiOutput("a3_cap_warning"), plotOutput("a3_plot", height = "auto"))
         ),
         fluidRow(
+          box(width = 12, title = info_title("All individuals' trajectories", "a3_all"), status = "info", solidHeader = TRUE,
+              fluidRow(column(4, uiOutput("a3_all_colour_ui")),
+                       column(4, checkboxInput("a3_all_points", "Show individuals recorded at a single age (crosses)", TRUE)),
+                       column(4, sliderInput("a3_all_alpha", "Line transparency", min = 0.05, max = 1, value = 0.35, step = 0.05))),
+              plotOutput("a3_all_plot", height = 560),
+              uiOutput("a3_all_note"),
+              save_button("save_a3_all"))
+        ),
+        fluidRow(
           box(width = 7, title = info_title("What is the average within-individual trajectory?", "a3_mean"), status = "info", solidHeader = TRUE,
               uiOutput("truth_pending_a3"),
               checkboxInput("a3_show_fun", "Show the mean of individual curves (population average)", FALSE),

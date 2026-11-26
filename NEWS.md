@@ -8,7 +8,8 @@
   counts cannot be fitted there (for example all zeros) is drawn with a straight line on the raw scale rather than as
   crosses. Colouring by a covariate that some individuals lack, or whose levels appear only among the crosses,
   no longer stops the figure. Audited on every example, trait and 12 simulations under each function and scale
-  (`tests/scripts/all_trajectories_audit.R`, `tests/scripts/all_trajectories_app_audit.R`). The figure is descriptive only
+  (`tests/scripts/all_trajectories_audit.R`, `tests/scripts/all_trajectories_app_audit.R`).
+* The sidebar's list of empirical datasets now includes Meehan et al. 2026 (the dolphin example added in 0.25.2). The figure is descriptive only
   (`all_individual_trajectories()`): the individual fits, the function comparison and the models are unchanged.
 
 # disappR 0.25.2

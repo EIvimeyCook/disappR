@@ -1455,7 +1455,7 @@ server <- function(input, output, session) {
     } else if (nzchar(col) && col %in% names(d)) per_id(d[[col]]) else NULL
     lines <- z$lines; pts <- if (isTRUE(input$a3_all_points)) z$points else z$points[0, , drop = FALSE]
     lab <- if (identical(col, "__alr__")) "ALR" else if (nzchar(col)) (safe_get(meta()$cov_labels[[col]]) %||% col) else NULL
-    if (!is.null(colour_of)) { lines$colour <- unname(colour_of[lines$id]); pts$colour <- unname(colour_of[pts$id]) }
+    if (!is.null(colour_of)) { colour_of <- stats::setNames(as.vector(colour_of), names(colour_of)); lines$colour <- unname(colour_of[as.character(lines$id)]); pts$colour <- unname(colour_of[as.character(pts$id)]) }
     al <- input$a3_all_alpha %||% 0.35
     p <- ggplot() + labs(x = "Age", y = if (identical(a3_link(), "log")) "Trait (fits on the log scale, shown as counts)" else "Trait", colour = lab)
     if (is.null(colour_of)) {
@@ -1464,7 +1464,7 @@ server <- function(input, output, session) {
     } else {
       p <- p + geom_line(data = lines, aes(age, fitted, group = id, colour = colour), alpha = al, linewidth = 0.5)
       if (nrow(pts)) p <- p + geom_point(data = pts, aes(age, trait, colour = colour), shape = 4, alpha = min(1, al + 0.3), size = 1.6)
-      p <- p + if (identical(col, "__alr__")) scale_colour_viridis_c(option = "D", end = 0.9) else scale_colour_manual(values = distinct_colours(length(unique(stats::na.omit(lines$colour)))), na.value = "grey60")
+      p <- p + if (identical(col, "__alr__")) scale_colour_viridis_c(option = "D", end = 0.9) else { lv <- sort(unique(c(lines$colour, pts$colour)[!is.na(c(lines$colour, pts$colour))])); scale_colour_manual(values = stats::setNames(distinct_colours(max(1L, length(lv))), if (length(lv)) lv else "none"), na.value = "grey60") }
       p <- p + guides(colour = if (identical(col, "__alr__")) "colourbar" else guide_legend(override.aes = list(alpha = 1, linewidth = 1)))
     }
     p + theme_disappR(13) + theme(legend.position = "bottom")

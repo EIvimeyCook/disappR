@@ -1,12 +1,13 @@
 # disappR 0.25.3
 
-* **Step 4: "All individuals' trajectories"** (build stamp 0.25.3-2026-11-26). A new figure draws the chosen ageing
+* **Step 4: "All individuals' trajectories"** (build stamp 0.25.3-2026-11-27). A new figure draws the chosen ageing
   function for every individual as one light line, as in Meehan et al. 2026 (Fig. 2A), coloured by a categorical
   covariate or by ALR. An individual with too few records for the chosen function is drawn with the next simpler one
   (Cubic, then Quadratic, then Linear; Logarithmic and the exponential functions fall back to Linear) and one recorded
   at a single age as a cross; a note counts the individuals drawn each way. On the log scale, an individual whose
   counts cannot be fitted there (for example all zeros) is drawn with a straight line on the raw scale rather than as
-  crosses. Audited on every example, trait and 12 simulations under each function and scale
+  crosses. Colouring by a covariate that some individuals lack, or whose levels appear only among the crosses,
+  no longer stops the figure. Audited on every example, trait and 12 simulations under each function and scale
   (`tests/scripts/all_trajectories_audit.R`, `tests/scripts/all_trajectories_app_audit.R`). The figure is descriptive only
   (`all_individual_trajectories()`): the individual fits, the function comparison and the models are unchanged.
 

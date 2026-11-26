@@ -36,7 +36,7 @@ testServer(app, {
       render(output$a3_all_colour_ui, paste(lab, "colour menu"))
       for (col in ch) {
         session$setInputs(a3_all_colour = col)
-        render(output$a3_all_plot, paste(lab, "figure, colour", if (nzchar(col)) col else "none"))
+        render({ output$a3_all_plot; print(a3_all_obj()) }, paste(lab, "figure, colour", if (nzchar(col)) col else "none"))
       }
       ok_note <- render(output$a3_all_note, paste(lab, "note"))
       note <- tryCatch(paste(unlist(output$a3_all_note), collapse = " "), error = function(e) "")
